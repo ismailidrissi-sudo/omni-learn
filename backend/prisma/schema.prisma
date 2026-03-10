@@ -1,0 +1,777 @@
+// omnilearn.space — Core Database Schema
+// PostgreSQL 16 + pgvector | Afflatus Consulting Group
+// Every Skill. One Space.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector(map: "vector")]
+}
+
+// ── ENUMS ──
+
+// Subscription tiers: 0=Explorer (Free), 1=Specialist, 2=Visionary, 3=Nexus (Enterprise)
+enum SubscriptionPlan {
+  EXPLORER
+  SPECIALIST
+  VISIONARY
+  NEXUS
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum ContentType {
+  COURSE
+  MICRO_LEARNING
+  PODCAST
+  DOCUMENT
+  IMPLEMENTATION_GUIDE
+  QUIZ_ASSESSMENT
+  GAME
+  VIDEO
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  EXPIRED
+}
+
+enum StepProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CertificateGrade {
+  PASS
+  MERIT
+  DISTINCTION
+}
+
+// ── B2B ENUMS ──
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum SsoProviderType {
+  SAML_2_0
+  OIDC
+}
+
+enum UserGroupType {
+  COHORT
+  DEPARTMENT
+  ROLE
+  CUSTOM
+}
+
+// ── INDUSTRIES (seed reference) ──
+
+model Industry {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  sector    String?
+  createdAt DateTime @default(now())
+
+  tenants Tenant[]
+}
+
+// ── DEPARTMENTS (seed reference) ──
+
+model Department {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+// ── POSITIONS (seed reference) ──
+
+model Position {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+// ── USERS (company users with department/position) ──
+
+model User {
+  id            String           @id @default(uuid())
+  email         String           @unique
+  name          String
+  passwordHash  String?          // For email/password signup (bcrypt)
+  emailVerified Boolean         @default(false)
+  emailVerifyToken String?      // Token for email confirmation
+  emailVerifyExpiresAt DateTime? // Token expiry
+  departmentId  String?
+  positionId    String?
+  tenantId      String?
+  externalId    String?
+  linkedinProfileUrl String?    // For recommendation optimization
+  profileComplete Boolean       @default(false)  // Onboarding completed
+  planId        SubscriptionPlan @default(EXPLORER)
+  billingCycle  BillingCycle?    // null for free/enterprise
+  sectorFocus   String?          // For Specialist: Biotech, Food Safety, AI, etc.
+  stripeCustomerId String?       // Stripe customer ID for billing
+  stripeSubscriptionId String?  // Active subscription ID
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  position   Position?  @relation(fields: [positionId], references: [id])
+  tenant     Tenant?    @relation(fields: [tenantId], references: [id])
+
+  groupMemberships         UserGroupMembership[]
+  userTags                 UserTag[]
+  seatAssignments          SeatAssignment[]
+  contentUserAssignments   ContentUserAssignment[]
+}
+
+// ── TENANTS (rich company profile) ──
+
+model Tenant {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  industryId       String?
+  logoUrl          String?
+  linkedinProfileUrl String?    // Company LinkedIn page
+  companyProfileComplete Boolean @default(false)  // Profile data for recommendations
+  language         String?  @default("en")
+  status           String?  @default("ACTIVE")
+  targetMarkets    Json?    @default("[]")
+  productsServices Json?    @default("[]")
+  certifications   Json?    @default("[]")
+  staffingLevel    String?
+  internalErp      String?
+  settings         Json?    @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  industry            Industry?             @relation(fields: [industryId], references: [id])
+  domains             Domain[]
+  learningPaths       LearningPath[]
+  certificateTemplates CertificateTemplate[]
+  branding            TenantBranding?
+  users               User[]
+  privateContent      ContentItem[]         // Nexus: tenant-specific content
+
+  contracts                 B2BContract[]
+  userGroups                UserGroup[]
+  tags                      Tag[]
+  ssoConfigs                TenantSsoConfig[]
+  contentTenantAssignments   ContentTenantAssignment[]
+
+  @@index([industryId])
+}
+
+// ── DYNAMIC DOMAINS (admin-created, NOT enums) ──
+
+model Domain {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String   @db.VarChar(100)
+  slug        String   @db.VarChar(100)
+  description String?  @db.Text
+  icon        String?  @db.VarChar(10)
+  color       String   @db.VarChar(7)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  certificateTemplate  CertificateTemplate?
+  learningPaths        LearningPath[]
+  contentItems         ContentItem[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("domains")
+}
+
+// ── LEARNING PATHS ──
+
+model LearningPath {
+  id          String   @id @default(uuid())
+  tenantId    String
+  domainId    String
+  name        String
+  slug        String
+  difficulty  String?
+  description String?
+  isPublished Boolean  @default(false)
+  settings    Json?    @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  domain     Domain               @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  steps      LearningPathStep[]
+  enrollments PathEnrollment[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([domainId])
+}
+
+model LearningPathStep {
+  id            String   @id @default(uuid())
+  pathId        String
+  contentItemId String
+  stepOrder     Int
+  isRequired    Boolean  @default(true)
+  unlockAfterId String?  // Self-reference for prerequisite
+  timeGateHours Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  path         LearningPath       @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  contentItem  ContentItem        @relation(fields: [contentItemId], references: [id], onDelete: Restrict)
+  unlockAfter  LearningPathStep?  @relation("StepPrerequisite", fields: [unlockAfterId], references: [id])
+  unlockedBy   LearningPathStep[] @relation("StepPrerequisite")
+  progress     PathStepProgress[]
+
+  @@unique([pathId, stepOrder])
+  @@index([pathId])
+  @@index([contentItemId])
+}
+
+// ── CONTENT ITEMS (with pgvector embeddings) ──
+
+model ContentItem {
+  id             String      @id @default(uuid())
+  type           ContentType
+  title          String
+  description    String?     @db.Text  // Rich description of the content
+  domainId       String?     // Optional FK to domain
+  mediaId        String?
+  durationMinutes Int?
+  metadata       Json?       @default("{}")  // Type-specific metadata (transcript, SCORM, etc.)
+  embedding      Unsupported("vector(1536)")?  // pgvector for AI recommendations
+  accessLevel    Int         @default(0)  // 0=Foundational (Free), 1=Sector-specific, 2=All-access
+  sectorTag      String?     // Biotech, Food Safety, AI, etc. — for Specialist tier filtering
+  tenantId       String?     // For Nexus: private enterprise content
+  isFoundational Boolean    @default(false)  // Tagged for Explorer (Free) tier
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  domain                 Domain?                  @relation(fields: [domainId], references: [id])
+  tenant                 Tenant?                  @relation(fields: [tenantId], references: [id])
+  pathSteps              LearningPathStep[]
+  courseSections         CourseSection[]  // For type=COURSE: Udemy-style curriculum
+  tenantAssignments      ContentTenantAssignment[] // When empty = all companies
+  userAssignments        ContentUserAssignment[]   // When empty = all users
+
+  @@index([tenantId])
+  @@index([sectorTag])
+  @@index([isFoundational])
+}
+
+model ContentTenantAssignment {
+  id        String   @id @default(uuid())
+  contentId String
+  tenantId  String
+  createdAt DateTime @default(now())
+
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, tenantId])
+  @@index([contentId])
+  @@index([tenantId])
+}
+
+model ContentUserAssignment {
+  id        String   @id @default(uuid())
+  contentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, userId])
+  @@index([contentId])
+  @@index([userId])
+}
+
+// ── COURSE CURRICULUM (Udemy-style: sections → lectures, videos, docs, quizzes) ──
+
+enum CourseItemType {
+  VIDEO
+  AUDIO
+  DOCUMENT
+  QUIZ
+  ARTICLE
+  CODING_EXERCISE  // Udemy-style: practical coding exercises
+}
+
+model CourseSection {
+  id          String   @id @default(uuid())
+  courseId    String   // ContentItem.id where type=COURSE
+  title       String
+  learningGoal String? @db.Text  // "What will students achieve at the end of this section?"
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  ContentItem        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items   CourseSectionItem[]
+
+  @@index([courseId])
+}
+
+model CourseSectionItem {
+  id            String        @id @default(uuid())
+  sectionId     String
+  itemType      CourseItemType
+  title         String
+  sortOrder     Int           @default(0)
+  durationMinutes Int?         // For VIDEO
+  contentUrl    String?       // Video URL, document URL, etc.
+  metadata      Json?         @default("{}")  // Quiz questions, article content, etc.
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  section CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+}
+
+// ── ENROLLMENTS & PROGRESS ──
+
+model PathEnrollment {
+  id         String           @id @default(uuid())
+  userId     String           // Keycloak sub or internal user ID
+  pathId     String
+  status     EnrollmentStatus @default(ACTIVE)
+  progressPct Int             @default(0)
+  deadline   DateTime?
+  completedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  path       LearningPath      @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  stepProgress PathStepProgress[]
+  certificates IssuedCertificate[]
+
+  @@unique([userId, pathId])
+  @@index([userId])
+  @@index([pathId])
+}
+
+model PathStepProgress {
+  id           String             @id @default(uuid())
+  enrollmentId String
+  stepId       String
+  status       StepProgressStatus @default(NOT_STARTED)
+  timeSpent    Int?               // seconds
+  score        Int?
+  completedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  enrollment PathEnrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step       LearningPathStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, stepId])
+  @@index([enrollmentId])
+  @@index([stepId])
+}
+
+// ── CERTIFICATES ──
+
+model CertificateTemplate {
+  id             String   @id @default(uuid())
+  tenantId       String
+  domainId       String   @unique  // 1:1 with Domain
+  templateName   String
+  themeConfig    Json?    @default("{}")
+  elementsConfig Json?    @default("{}")
+  signatories    Json?    @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  domain             Domain              @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  issuedCertificates IssuedCertificate[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@unique([tenantId, domainId])
+  @@index([tenantId])
+  @@map("certificate_templates")
+}
+
+model IssuedCertificate {
+  id           String          @id @default(uuid())
+  templateId   String
+  enrollmentId String
+  verifyCode   String          @unique
+  pdfUrl       String?
+  grade        CertificateGrade?
+  issuedAt     DateTime        @default(now())
+
+  template   CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  enrollment PathEnrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+  @@index([verifyCode])
+}
+
+// ── GAMIFICATION ──
+
+model UserPoints {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  points      Int      @default(0)
+  lastUpdated DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  icon        String
+  description String?
+  criteria    Json?    @default("{}")
+  createdAt   DateTime @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+model UserStreak {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  currentStreak  Int       @default(0)
+  longestStreak Int       @default(0)
+  lastActivityAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ── xAPI (Learning Record Store) ──
+
+model XapiStatement {
+  id        String   @id @default(uuid())
+  statement Json     // xAPI statement: actor, verb, object, result, context
+  storedAt  DateTime @default(now())
+
+  @@index([storedAt])
+}
+
+// ── PHASE 4: DISCUSSION FORUMS ──
+
+model ForumChannel {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String
+  contentId   String?
+  pathId      String?
+  tenantId    String?
+  description String?
+  isLocked    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  topics ForumTopic[]
+}
+
+model ForumTopic {
+  id        String   @id @default(uuid())
+  channelId String
+  authorId  String
+  title     String
+  body      String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  channel ForumChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  posts   ForumPost[]
+}
+
+model ForumPost {
+  id        String   @id @default(uuid())
+  topicId   String
+  authorId  String
+  body      String
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topic ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model ForumModeration {
+  id          String   @id @default(uuid())
+  targetType  String
+  targetId    String
+  action      String
+  moderatorId String
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([targetType, targetId])
+}
+
+// ── PHASE 4: COURSE REVIEWS & RATINGS ──
+
+model CourseReview {
+  id           String   @id @default(uuid())
+  contentId    String
+  userId       String
+  rating       Int
+  review       String?
+  helpfulCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([contentId, userId])
+  @@index([contentId])
+  @@index([userId])
+}
+
+// ── PHASE 4: COMPANY / TENANT BRANDING ──
+
+model TenantBranding {
+  id             String   @id @default(uuid())
+  tenantId       String   @unique
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String?  @default("#6B4E9A")
+  secondaryColor String?  @default("#8D8D8D")
+  customCss      String?
+  settings       Json?    @default("{}")
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ── PHASE 1 B2B: SEAT MANAGEMENT & CONTRACTS ──
+
+model B2BContract {
+  id            String         @id @default(uuid())
+  tenantId      String
+  name          String
+  seatsTotal    Int            // Total seats purchased in this contract block
+  seatsUsed     Int            @default(0) // Consumed seats (denormalized for fast checks)
+  startDate     DateTime
+  endDate       DateTime
+  status        ContractStatus @default(DRAFT)
+  planType      String?        // e.g., "ENTERPRISE", "PROFESSIONAL", "STARTER"
+  billingCycle  String?        // MONTHLY, QUARTERLY, ANNUAL
+  externalRef   String?        // External CRM/ERP reference
+  metadata      Json?         @default("{}")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seatAssignments SeatAssignment[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model SeatAssignment {
+  id         String    @id @default(uuid())
+  contractId String
+  userId     String
+  assignedAt DateTime  @default(now())
+  revokedAt  DateTime?
+  assignedBy String?   // Admin who assigned the seat
+  metadata   Json?     @default("{}")
+
+  contract B2BContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, userId])
+  @@index([contractId])
+  @@index([userId])
+}
+
+// ── PHASE 1 B2B: USER GROUPS & TAGS ──
+
+model UserGroup {
+  id          String       @id @default(uuid())
+  tenantId    String
+  name        String
+  slug        String
+  type        UserGroupType @default(CUSTOM)
+  description String?
+  settings    Json?         @default("{}") // Custom roles, permissions overrides
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members  UserGroupMembership[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([type])
+}
+
+model UserGroupMembership {
+  id        String   @id @default(uuid())
+  groupId   String
+  userId    String
+  role      String?  // Optional custom role within group (e.g., "LEAD", "MEMBER")
+  joinedAt  DateTime @default(now())
+  expiresAt DateTime?
+  metadata  Json?    @default("{}")
+
+  group UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  slug      String
+  color     String?  @default("#6B4E9A")
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userTags UserTag[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model UserTag {
+  id         String   @id @default(uuid())
+  userId     String
+  tagId      String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+  metadata   Json?    @default("{}")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tagId])
+  @@index([userId])
+  @@index([tagId])
+}
+
+// ── PHASE 1 B2B: MULTI-SSO & IDENTITY ──
+
+model TenantSsoConfig {
+  id           String         @id @default(uuid())
+  tenantId     String
+  provider     SsoProviderType
+  isEnabled    Boolean        @default(false)
+  entityId     String?        // SAML: Entity ID; OIDC: Issuer
+  metadataUrl  String?        // SAML: IdP metadata URL
+  clientId     String?        // OIDC: Client ID
+  clientSecret String?        // OIDC: Client secret (encrypted at rest)
+  config       Json?          @default("{}") // Provider-specific config (SAML attrs, OIDC scopes, etc.)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
+// ── PHASE 4: ANALYTICS EVENTS ──
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  eventType String
+  userId    String?
+  tenantId  String?
+  pathId    String?
+  contentId String?
+  payload   Json?    @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ── MICROLEARNING SOCIAL (LinkedIn-style short videos) ──
+
+model MicroLearningLike {
+  id        String   @id @default(uuid())
+  contentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([contentId, userId])
+  @@index([contentId])
+  @@index([userId])
+}
+
+model MicroLearningComment {
+  id        String   @id @default(uuid())
+  contentId String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contentId])
+  @@index([userId])
+}
+
+// ── PHASE 4: SCIM PROVISIONING ──
+
+model ScimProvisioningLog {
+  id           String   @id @default(uuid())
+  operation    String
+  resourceType String
+  externalId   String?
+  payload      Json?
+  status       String   @default("PENDING")
+  errorMsg     String?
+  createdAt    DateTime @default(now())
+
+  @@index([operation])
+  @@index([resourceType])
+}

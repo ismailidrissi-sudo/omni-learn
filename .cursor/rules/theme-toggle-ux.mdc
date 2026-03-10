@@ -1,0 +1,46 @@
+---
+description: Day/night (light/dark) theme toggle UX/UI rules
+globs: frontend/**/*.{tsx,ts,css}
+alwaysApply: false
+---
+
+# Day/Night Toggle UX/UI Rules
+
+## Icon Semantics
+- **Show destination, not current state**: The icon displays what the user will switch TO (sun = switch to light, moon = switch to dark), not the current theme.
+- **Consistent mapping**: Sun icon = light mode; Moon icon = dark mode. Never invert or confuse these.
+
+## Accessibility
+- Always provide `aria-label` describing the action: "Switch to light mode" or "Switch to dark mode".
+- Include `title` for hover tooltip with the same text.
+- Ensure minimum 44×44px touch target for the toggle button.
+- Use `role="toolbar"` on the parent when grouped with other controls (e.g. language toggle).
+
+## Visual Feedback
+- Toggle must have visible hover and focus states (`hover:bg-*`, `focus:ring-2`, etc.).
+- Use smooth `transition-colors` when changing theme; avoid jarring flashes.
+- Toggle container must work in both themes: use `dark:` variants for borders, backgrounds, and dividers.
+
+## Theme Propagation
+- When `.dark` is on `<html>`, all surfaces must update: page background, form panels, cards, inputs, text.
+- Use semantic CSS variables (`--color-bg-primary`, `--color-text-primary`) in `.dark` so components inherit correctly.
+- Never hardcode light-only values in base styles; always provide `.dark` overrides for `html` and `body`.
+
+## Form & Panel Styling
+- Form panels (e.g. Add Content) must have dark variants: `dark:bg-*`, `dark:border-*`, `dark:text-*`.
+- Input fields, labels, placeholders, and borders need explicit dark mode classes.
+- Light green/beige panels in light mode → use darker greens/grays in dark mode (e.g. `dark:bg-gray-900/50`).
+
+## Hydration
+- Delay rendering theme-dependent UI until mounted (`useEffect` + `mounted` state) to avoid hydration mismatch with `next-themes`.
+- Show a neutral placeholder (e.g. `animate-pulse`) before mount.
+
+## Implementation Checklist
+- [ ] Icon shows destination (sun → light, moon → dark)
+- [ ] aria-label and title present
+- [ ] 44×44px minimum touch target
+- [ ] Hover/focus states visible
+- [ ] Base styles (html, body) have `.dark` overrides
+- [ ] Utility classes (card-brand, etc.) have dark variants
+- [ ] Form panels and inputs support dark mode
+- [ ] Mounted check before rendering theme-dependent UI

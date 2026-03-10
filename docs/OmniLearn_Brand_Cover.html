@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniLearn.Space — Brand Story</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #0A1628;
+      --orange: #E87A2E;
+      --orange-light: #F5A962;
+      --slate: #64748B;
+      --slate-light: #94A3B8;
+      --white: #FFFFFF;
+      --bg-subtle: #F8FAFC;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(165deg, #0A1628 0%, #0f2744 40%, #142d4a 100%);
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+      overflow-x: hidden;
+    }
+
+    /* Subtle geometric accent */
+    .bg-pattern {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232, 122, 46, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(232, 122, 46, 0.08) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      text-align: center;
+    }
+
+    .logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2.5rem, 8vw, 4.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo-omni {
+      color: var(--white);
+    }
+
+    .logo-space {
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    .tagline {
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      font-style: italic;
+      color: var(--slate-light);
+      font-weight: 400;
+      margin-bottom: 2rem;
+      letter-spacing: 0.01em;
+    }
+
+    .divider {
+      width: 120px;
+      height: 4px;
+      background: linear-gradient(90deg, var(--orange), var(--orange-light));
+      margin: 0 auto 2rem;
+      border-radius: 2px;
+    }
+
+    .subtitle {
+      font-size: 1.125rem;
+      color: var(--slate-light);
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+
+    .solution-by {
+      font-size: 1rem;
+      color: var(--slate);
+      margin-bottom: 2.5rem;
+    }
+
+    .solution-by strong {
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    .mission {
+      font-size: 1rem;
+      color: var(--slate-light);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    /* Print-friendly */
+    @media print {
+      body {
+        background: var(--navy);
+        padding: 2rem;
+      }
+      .bg-pattern {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-pattern" aria-hidden="true"></div>
+  <main class="container">
+    <h1 class="logo">
+      <span class="logo-omni">OMNILEARN</span><span class="logo-space">.SPACE</span>
+    </h1>
+    <p class="tagline">The Platform That Learns With You</p>
+    <div class="divider"></div>
+    <p class="subtitle">Brand Storytelling & Platform Narrative</p>
+    <p class="solution-by">A Solution by <strong>Afflatus Consulting Group</strong></p>
+    <p class="mission">Democratizing Learning & Skills for Everyone</p>
+  </main>
+</body>
+</html>

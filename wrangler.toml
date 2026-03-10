@@ -1,0 +1,17 @@
+# omnilearn.space — Cloudflare Workers/Pages Config
+# Phase 1 | Afflatus Consulting Group
+
+name = "omnilearn"
+compatibility_date = "2024-01-01"
+
+# For Cloudflare Pages, use the dashboard or:
+# pages_build_output_dir = "frontend/out"
+
+# For Workers (API):
+# [env.production]
+# routes = [{ pattern = "api.omnilearn.space/*" }]
+
+# KV namespace (optional - for sessions/cache):
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "<your-kv-namespace-id>"

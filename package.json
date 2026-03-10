@@ -1,0 +1,33 @@
+{
+  "name": "omnilearn",
+  "version": "2.0.0",
+  "private": true,
+  "description": "omnilearn.space — Every Skill. One Space. | A product by Afflatus Consulting Group",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "lint": "npm run lint -w frontend",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run start:dev -w backend",
+    "dev:mobile": "npm run start -w mobile",
+    "build": "npm run build -w frontend && npm run build -w backend",
+    "db:migrate": "npm run prisma:migrate -w backend",
+    "db:migrate:local": "npm run prisma:migrate:local -w backend",
+    "db:generate": "npm run prisma:generate -w backend",
+    "db:generate:local": "npm run prisma:generate:local -w backend",
+    "db:setup:local": "npm run db:setup:local -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "stripe": "^20.4.1"
+  }
+}

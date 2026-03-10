@@ -1,0 +1,104 @@
+{
+  "industries": [
+    { "code": "11", "name": "Agriculture, Forestry, Fishing and Hunting", "sector": "Primary" },
+    { "code": "21", "name": "Mining, Quarrying, and Oil and Gas Extraction", "sector": "Primary" },
+    { "code": "22", "name": "Utilities", "sector": "Primary" },
+    { "code": "23", "name": "Construction", "sector": "Secondary" },
+    { "code": "31-33", "name": "Manufacturing", "sector": "Secondary" },
+    { "code": "42", "name": "Wholesale Trade", "sector": "Tertiary" },
+    { "code": "44-45", "name": "Retail Trade", "sector": "Tertiary" },
+    { "code": "48-49", "name": "Transportation and Warehousing", "sector": "Tertiary" },
+    { "code": "51", "name": "Information", "sector": "Tertiary" },
+    { "code": "52", "name": "Finance and Insurance", "sector": "Tertiary" },
+    { "code": "53", "name": "Real Estate and Rental and Leasing", "sector": "Tertiary" },
+    { "code": "54", "name": "Professional, Scientific, and Technical Services", "sector": "Tertiary" },
+    { "code": "55", "name": "Management of Companies and Enterprises", "sector": "Tertiary" },
+    { "code": "56", "name": "Administrative and Support Services", "sector": "Tertiary" },
+    { "code": "61", "name": "Educational Services", "sector": "Tertiary" },
+    { "code": "62", "name": "Health Care and Social Assistance", "sector": "Tertiary" },
+    { "code": "71", "name": "Arts, Entertainment, and Recreation", "sector": "Tertiary" },
+    { "code": "72", "name": "Accommodation and Food Services", "sector": "Tertiary" },
+    { "code": "81", "name": "Other Services", "sector": "Tertiary" },
+    { "code": "92", "name": "Public Administration", "sector": "Quaternary" }
+  ],
+  "departments": [
+    { "code": "HR", "name": "Human Resources" },
+    { "code": "FIN", "name": "Finance" },
+    { "code": "IT", "name": "Information Technology" },
+    { "code": "OPS", "name": "Operations" },
+    { "code": "MKT", "name": "Marketing" },
+    { "code": "SALES", "name": "Sales" },
+    { "code": "R&D", "name": "Research & Development" },
+    { "code": "LEGAL", "name": "Legal" },
+    { "code": "L&D", "name": "Learning & Development" },
+    { "code": "QA", "name": "Quality Assurance" },
+    { "code": "SUPPLY", "name": "Supply Chain" },
+    { "code": "CUST", "name": "Customer Success" }
+  ],
+  "positions": [
+    { "code": "CEO", "name": "Chief Executive Officer" },
+    { "code": "CTO", "name": "Chief Technology Officer" },
+    { "code": "CFO", "name": "Chief Financial Officer" },
+    { "code": "COO", "name": "Chief Operating Officer" },
+    { "code": "HR_MGR", "name": "HR Manager" },
+    { "code": "DEV", "name": "Developer" },
+    { "code": "DESIGNER", "name": "Designer" },
+    { "code": "ANALYST", "name": "Business Analyst" },
+    { "code": "TRAINER", "name": "Trainer" },
+    { "code": "SPECIALIST", "name": "Specialist" },
+    { "code": "COORD", "name": "Coordinator" },
+    { "code": "INTERN", "name": "Intern" }
+  ],
+  "users": [
+    { "email": "admin@acme.com", "name": "Admin User", "department": "IT", "position": "CEO" },
+    { "email": "trainer@acme.com", "name": "Jane Trainer", "department": "L&D", "position": "Trainer" },
+    { "email": "learner@acme.com", "name": "John Learner", "department": "OPS", "position": "Specialist" }
+  ],
+  "tenants": [
+    { "name": "OmniLearn", "slug": "omnilearn", "industryCode": "61", "linkedinProfileUrl": "https://linkedin.com/company/omnilearn", "staffingLevel": "11-50", "targetMarkets": ["B2B", "Enterprise"], "productsServices": ["LMS", "Corporate Training"] }
+  ],
+  "domains": [
+    { "name": "Food Safety", "slug": "food-safety", "icon": "🔬", "color": "#0891b2", "sortOrder": 0 },
+    { "name": "Quality Management", "slug": "quality-management", "icon": "✓", "color": "#059669", "sortOrder": 1 },
+    { "name": "Leadership", "slug": "leadership", "icon": "🧠", "color": "#7c3aed", "sortOrder": 2 },
+    { "name": "Operational Excellence", "slug": "operational-excellence", "icon": "⚙️", "color": "#ea580c", "sortOrder": 3 },
+    { "name": "Digital Marketing", "slug": "digital-marketing", "icon": "📈", "color": "#e11d48", "sortOrder": 4 }
+  ],
+  "contentItems": [
+    { "type": "COURSE", "title": "ISO 22000 Implementation", "durationMinutes": 120, "domainSlug": "food-safety" },
+    { "type": "COURSE", "title": "Digital Marketing Foundations", "durationMinutes": 90, "domainSlug": "digital-marketing" },
+    { "type": "COURSE", "title": "Leadership Development", "durationMinutes": 180, "domainSlug": "leadership" },
+    { "type": "MICRO_LEARNING", "title": "HACCP Compliance in 5 Minutes", "durationMinutes": 5, "domainSlug": "food-safety", "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
+    { "type": "MICRO_LEARNING", "title": "Quality Audit Checklist", "durationMinutes": 8, "domainSlug": "quality-management", "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" },
+    { "type": "MICRO_LEARNING", "title": "Quick Safety Tips", "durationMinutes": 1, "domainSlug": "food-safety", "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" },
+    { "type": "MICRO_LEARNING", "title": "Escape Room Demo", "durationMinutes": 1, "domainSlug": "operational-excellence", "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4" },
+    { "type": "MICRO_LEARNING", "title": "Sintel Story", "durationMinutes": 15, "domainSlug": "leadership", "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4" },
+    { "type": "PODCAST", "title": "Industry Leaders on Operational Excellence", "durationMinutes": 25, "domainSlug": "operational-excellence" },
+    { "type": "DOCUMENT", "title": "SOP Template for Food Safety", "durationMinutes": 15, "domainSlug": "food-safety" },
+    { "type": "IMPLEMENTATION_GUIDE", "title": "Step-by-Step Quality Management Setup", "durationMinutes": 45, "domainSlug": "quality-management" }
+  ],
+  "learningPaths": [
+    { "name": "Food Safety Professional", "slug": "food-safety-pro", "domainSlug": "food-safety", "contentTitles": ["HACCP Compliance in 5 Minutes", "ISO 22000 Implementation", "SOP Template for Food Safety"] },
+    { "name": "Digital Marketing Essentials", "slug": "digital-marketing-essentials", "domainSlug": "digital-marketing", "contentTitles": ["Digital Marketing Foundations"] },
+    { "name": "Leadership & Operational Excellence", "slug": "leadership-ops", "domainSlug": "leadership", "contentTitles": ["Leadership Development", "Industry Leaders on Operational Excellence"] }
+  ],
+  "forumChannels": [
+    { "name": "General Discussion", "slug": "general", "description": "Connect with peers, share insights, and grow together." },
+    { "name": "Food Safety & Compliance", "slug": "food-safety", "description": "Discuss HACCP, ISO 22000, and compliance best practices." },
+    { "name": "Implementation Support", "slug": "implementation", "description": "Get help with guides, templates, and Monday morning execution." }
+  ],
+  "forumTopics": [
+    { "channelSlug": "general", "title": "Welcome to OmniLearn!", "body": "Welcome to the OmniLearn community. This is a space to connect with peers, share insights, and grow together. Introduce yourself and let us know what you're learning.", "authorEmail": "admin@acme.com" },
+    { "channelSlug": "general", "title": "Tips for staying motivated", "body": "What helps you stay on track with your learning goals? I find that setting small daily targets and celebrating small wins keeps me going.", "authorEmail": "learner@acme.com" },
+    { "channelSlug": "food-safety", "title": "ISO 22000 implementation checklist", "body": "Has anyone implemented ISO 22000 recently? I'm looking for a practical checklist to share with our team. What were your biggest challenges?", "authorEmail": "trainer@acme.com" },
+    { "channelSlug": "food-safety", "title": "HACCP vs ISO 22000", "body": "Can someone explain the key differences between HACCP and ISO 22000? I'm trying to decide which framework fits our operation best.", "authorEmail": "learner@acme.com" },
+    { "channelSlug": "implementation", "title": "SOP template feedback", "body": "I've been using the SOP template from the Food Safety course. It's been really helpful for our audit prep. Anyone else have experience with it?", "authorEmail": "trainer@acme.com" },
+    { "channelSlug": "implementation", "title": "Monday morning execution tips", "body": "The training was great, but what happens on Monday morning? Share your best tips for turning learning into action on the floor.", "authorEmail": "admin@acme.com" }
+  ],
+  "forumPosts": [
+    { "channelSlug": "general", "topicTitle": "Welcome to OmniLearn!", "body": "Great to be here! I'm starting the Food Safety Professional path. Looking forward to connecting with others on the same journey.", "authorEmail": "learner@acme.com" },
+    { "channelSlug": "general", "topicTitle": "Tips for staying motivated", "body": "I use the streak feature — seeing those days add up really motivates me to not break the chain!", "authorEmail": "admin@acme.com" },
+    { "channelSlug": "food-safety", "topicTitle": "ISO 22000 implementation checklist", "body": "We completed ours last quarter. The biggest challenge was getting buy-in from production. Start with one pilot area and show quick wins.", "authorEmail": "admin@acme.com" },
+    { "channelSlug": "implementation", "topicTitle": "Monday morning execution tips", "body": "We do a 15-minute standup every Monday where each person shares one thing they'll apply from last week's learning. It creates accountability.", "authorEmail": "trainer@acme.com" }
+  ]
+}

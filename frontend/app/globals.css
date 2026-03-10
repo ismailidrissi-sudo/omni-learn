@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Omni Learn — Brand CSS Variables
+ * Visual & Brand Identity | Afflatus Consulting Group
+ * Font: Avenir (Work Sans fallback) | Colors: Green and Beige only
+ */
+:root {
+  /* Primary brand colors — green and beige only */
+  --brand-green: #059669;
+  --brand-green-light: #10b981;
+  --brand-beige: #D4B896;
+  --brand-beige-light: #F5F5DC;
+  --brand-beige-dark: #C4A574;
+  --brand-white: #F5F5DC;
+  --brand-black: #1a1212;
+
+  /* Legacy aliases for compatibility */
+  --brand-purple: var(--brand-green);
+  --brand-purple-light: var(--brand-green-light);
+  --brand-grey: var(--brand-beige-dark);
+  --brand-grey-dark: var(--brand-beige-dark);
+  --brand-grey-light: var(--brand-beige);
+
+  /* Background — beige preferred */
+  --color-bg-primary: var(--brand-beige-light);
+  --color-bg-secondary: var(--brand-beige);
+  --color-accent: var(--brand-green);
+  --color-text-primary: var(--brand-black);
+  --color-text-secondary: var(--brand-beige-dark);
+  --color-text-muted: var(--brand-beige-dark);
+}
+
+.dark {
+  --color-bg-primary: #0f1510;
+  --color-bg-secondary: #1a1e18;
+  --color-text-primary: #F5F5DC;
+  --color-text-secondary: #D4B896;
+  --color-text-muted: #C4A574;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-avenir), "Avenir", "Avenir Next", "Work Sans", "Segoe UI", sans-serif;
+    background-color: var(--color-bg-primary);
+  }
+  body {
+    font-family: inherit;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+  }
+}
+
+/* Card effect — green accent border */
+@layer utilities {
+  .card-brand {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-bg-secondary);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  .dark .card-brand {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .card-brand-accent {
+    background: var(--color-bg-primary);
+    border: 2px solid var(--color-accent);
+    border-radius: 12px;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
