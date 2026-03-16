@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n/context";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { UrlPreview } from "@/components/admin/url-preview";
+import { detectProvider, isExternalProvider, getProviderLabel } from "@/lib/video-provider";
+import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 
 const ITEM_TYPES = [
   { type: "VIDEO", icon: "🎬", label: "Video" },
@@ -74,7 +76,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
   const [newItemContent, setNewItemContent] = useState("");
 
   const loadCurriculum = () => {
-    fetch(`${API}/curriculum/courses/${courseId}`)
+    apiFetch(`/curriculum/courses/${courseId}`)
       .then((r) => r.json())
       .then((data) => setSections(Array.isArray(data) ? data : []))
       .catch(() => setSections([]));
@@ -87,9 +89,8 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
   const addSection = async () => {
     if (!newSectionTitle.trim()) return;
     try {
-      const res = await fetch(`${API}/curriculum/courses/${courseId}/sections`, {
+      const res = await apiFetch(`/curriculum/courses/${courseId}/sections`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: newSectionTitle.trim(),
           learningGoal: newSectionGoal.trim() || undefined,
@@ -104,14 +105,13 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
       loadCurriculum();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "Failed to add section");
+      toast(e instanceof Error ? e.message : "Failed to add section", "error");
     }
   };
 
   const updateSection = (sectionId: string, updates: { title?: string; learningGoal?: string }) => {
-    fetch(`${API}/curriculum/sections/${sectionId}`, {
+    apiFetch(`/curriculum/sections/${sectionId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     })
       .then(loadCurriculum)
@@ -120,7 +120,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
 
   const deleteSection = (sectionId: string) => {
     if (!confirm(t("admin.courseDeleteSectionConfirm"))) return;
-    fetch(`${API}/curriculum/sections/${sectionId}`, { method: "DELETE" })
+    apiFetch(`/curriculum/sections/${sectionId}`, { method: "DELETE" })
       .then(loadCurriculum)
       .catch(console.error);
   };
@@ -152,9 +152,8 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
       metadata.content = newItemContent;
     }
 
-    fetch(`${API}/curriculum/sections/${newItemSectionId}/items`, {
+    apiFetch(`/curriculum/sections/${newItemSectionId}/items`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         itemType: newItemType,
         title: newItemTitle.trim(),
@@ -176,9 +175,8 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
   };
 
   const updateItem = (itemId: string, updates: Record<string, unknown>) => {
-    fetch(`${API}/curriculum/sections/items/${itemId}`, {
+    apiFetch(`/curriculum/sections/items/${itemId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     })
       .then(() => {
@@ -198,7 +196,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
 
   const deleteItem = (itemId: string) => {
     if (!confirm(t("admin.courseDeleteItemConfirm"))) return;
-    fetch(`${API}/curriculum/sections/items/${itemId}`, { method: "DELETE" })
+    apiFetch(`/curriculum/sections/items/${itemId}`, { method: "DELETE" })
       .then(() => {
         setItemDropdownOpen(null);
         loadCurriculum();
@@ -310,7 +308,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
                 variant="outline"
                 size="sm"
                 className="text-brand-grey"
-                onClick={() => alert("Bulk upload coming soon")}
+                onClick={() => toast("Bulk upload coming soon", "info")}
               >
                 {t("admin.curriculumBulkUpload")}
               </Button>
@@ -446,6 +444,14 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
                                       {item.itemType.replace("_", " ")}
                                       {item.durationMinutes && ` · ${item.durationMinutes} min`}
                                     </span>
+                                    {item.contentUrl && item.itemType === "VIDEO" && (() => {
+                                      const d = detectProvider(item.contentUrl!);
+                                      return isExternalProvider(d.provider) ? (
+                                        <span className="text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
+                                          {getProviderLabel(d.provider)}
+                                        </span>
+                                      ) : null;
+                                    })()}
                                   </div>
                                 </>
                               )}
@@ -566,8 +572,9 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
                       label={newItemType === "VIDEO" ? t("admin.courseVideoUrl") : "Audio URL"}
                       value={newItemUrl}
                       onChange={(e) => setNewItemUrl(e.target.value)}
-                      placeholder={newItemType === "VIDEO" ? "https://...m3u8 or video URL" : "https://...mp3"}
+                      placeholder={newItemType === "VIDEO" ? "https://youtube.com/watch?v=... or https://vimeo.com/... or direct URL" : "https://...mp3 or audio URL"}
                     />
+                    {newItemType === "VIDEO" && <UrlPreview url={newItemUrl} type="video" />}
                     <Input
                       label={t("admin.durationMinutes")}
                       value={newItemDuration}
@@ -582,7 +589,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
                     label={t("admin.courseDocumentUrl")}
                     value={newItemUrl}
                     onChange={(e) => setNewItemUrl(e.target.value)}
-                    placeholder="https://...pdf"
+                    placeholder="https://...pdf or https://docs.google.com/... or document URL"
                   />
                 )}
 
@@ -730,8 +737,9 @@ function ItemEditor({
           <Input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="URL"
+            placeholder={item.itemType === "VIDEO" ? "https://youtube.com/watch?v=... or direct URL" : "URL"}
           />
+          {item.itemType === "VIDEO" && <UrlPreview url={url} type="video" />}
           {(item.itemType === "VIDEO" || item.itemType === "AUDIO") && (
             <Input
               value={duration}

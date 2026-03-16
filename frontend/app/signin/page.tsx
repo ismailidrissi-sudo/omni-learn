@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignIn";
+import { LinkedInSignInButton } from "@/components/auth/LinkedInSignIn";
 import { useI18n } from "@/lib/i18n/context";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch, setToken } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-export default function SignInPage() {
+function SignInPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams.get("verified") === "1";
@@ -31,17 +32,13 @@ export default function SignInPage() {
     }
     setLoading(true);
     try {
-      // Try regular login first
-      let res = await fetch(`${API_URL}/auth/login`, {
+      let res = await apiFetch("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      // Fallback to dev-login for admin (or when /auth/login not available yet)
       if (res.status === 401 || res.status === 404) {
-        res = await fetch(`${API_URL}/auth/dev-login`, {
+        res = await apiFetch("/auth/dev-login", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
         });
       }
@@ -49,13 +46,11 @@ export default function SignInPage() {
       const errMsg = data.message ?? "Login failed";
       if (!res.ok) throw new Error(errMsg);
       if (typeof window !== "undefined") {
-        localStorage.setItem("omnilearn_token", data.accessToken);
+        setToken(data.accessToken);
         localStorage.setItem("omnilearn_user", JSON.stringify(data.user));
       }
       // Check if profile complete (regular users)
-      const meRes = await fetch(`${API_URL}/profile/me`, {
-        headers: { Authorization: `Bearer ${data.accessToken}` },
-      });
+      const meRes = await apiFetch("/profile/me");
       const me = meRes.ok ? await meRes.json() : null;
       if (me?.needsProfileCompletion && redirect === "/learn") {
         router.push("/complete-profile");
@@ -97,8 +92,9 @@ export default function SignInPage() {
             {verified ? "Email verified! Sign in to complete your profile." : t("auth.signInSubtitle")}
           </p>
 
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3">
             <GoogleSignInButton useOneTap={false} />
+            <LinkedInSignInButton />
           </div>
 
           <div className="my-6 flex items-center gap-4">
@@ -108,11 +104,7 @@ export default function SignInPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <p className="rounded-lg bg-[#C4A574]/20 px-4 py-2 text-sm text-[#1a1212] dark:text-[#1a1212]">
-                {error}
-              </p>
-            )}
+            {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-brand-stardustLight">
                 {t("auth.email")}
@@ -155,5 +147,13 @@ export default function SignInPage() {
         </motion.div>
       </main>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F5F5DC] dark:bg-[#0f1510]" />}>
+      <SignInPageContent />
+    </Suspense>
   );
 }

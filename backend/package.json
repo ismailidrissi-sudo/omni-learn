@@ -19,12 +19,12 @@
     "prisma:studio": "prisma studio",
     "db:setup:local": "prisma generate --schema=prisma/schema.local.prisma && prisma db push --schema=prisma/schema.local.prisma",
     "db:seed": "npx ts-node prisma/seed.ts",
-    "db:seed:local": "prisma generate --schema=prisma/schema.local.prisma && npx ts-node prisma/seed.ts"
+    "db:seed:local": "prisma generate --schema=prisma/schema.local.prisma && npx ts-node prisma/seed.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "dotenv": "^16.3.1",
-    "nodemailer": "^6.9.8",
     "@nestjs/common": "^10.3.0",
     "@nestjs/core": "^10.3.0",
     "@nestjs/graphql": "^12.2.0",
@@ -33,21 +33,32 @@
     "@nestjs/platform-express": "^10.3.0",
     "@prisma/client": "^5.8.0",
     "apollo-server-express": "^3.13.0",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "dotenv": "^16.3.1",
     "google-auth-library": "^10.6.1",
     "graphql": "^16.8.1",
+    "nodemailer": "^6.9.8",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "passport-linkedin-oauth2": "^2.0.0",
     "reflect-metadata": "^0.2.1",
     "rxjs": "^7.8.1",
     "stripe": "^14.0.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
-    "@types/nodemailer": "^6.4.14",
     "@nestjs/cli": "^10.3.0",
+    "@nestjs/testing": "^10.4.22",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.10.0",
+    "@types/nodemailer": "^6.4.14",
     "@types/passport-jwt": "^4.0.0",
+    "@types/passport-linkedin-oauth2": "^1.5.6",
+    "jest": "^30.3.0",
     "prisma": "^5.8.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.3.0"
   }
 }

@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ReviewService } from './review.service';
+import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 
 @Controller('reviews')
 export class ReviewController {
   constructor(private readonly review: ReviewService) {}
 
   @Get('content/:contentId')
+  @UseGuards(OptionalJwtGuard)
   getReviews(
     @Param('contentId') contentId: string,
     @Query('limit') limit?: string,
@@ -15,11 +18,13 @@ export class ReviewController {
   }
 
   @Get('content/:contentId/stats')
+  @UseGuards(OptionalJwtGuard)
   getStats(@Param('contentId') contentId: string) {
     return this.review.getStats(contentId);
   }
 
   @Post('content/:contentId')
+  @UseGuards(AuthGuard('jwt'))
   createOrUpdate(
     @Param('contentId') contentId: string,
     @Body() body: { userId: string; rating: number; review?: string },
@@ -28,6 +33,7 @@ export class ReviewController {
   }
 
   @Post('content/:contentId/helpful/:userId')
+  @UseGuards(AuthGuard('jwt'))
   markHelpful(@Param('contentId') contentId: string, @Param('userId') userId: string) {
     return this.review.markHelpful(contentId, userId);
   }

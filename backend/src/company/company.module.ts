@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { CompanyController } from './company.controller';
+import { UserManagementController } from './user-management.controller';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  controllers: [CompanyController],
+  imports: [AuthModule],
+  controllers: [CompanyController, UserManagementController],
   providers: [CompanyService],
   exports: [CompanyService],
 })

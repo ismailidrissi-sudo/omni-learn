@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
 
 type Tenant = { id: string; name: string; slug: string; industryId?: string; linkedinProfileUrl?: string; companyProfileComplete?: boolean; branding?: { logoUrl?: string; primaryColor?: string } | null };
 type Branding = { logoUrl?: string; faviconUrl?: string; primaryColor?: string; secondaryColor?: string };
@@ -17,6 +18,7 @@ type Option = { id: string; name: string };
 
 export default function CompanyAdminPage() {
   const { t } = useI18n();
+  const { user, loading: userLoading } = useUser();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selected, setSelected] = useState<Tenant | null>(null);
   const [branding, setBranding] = useState<Branding>({});
@@ -24,25 +26,29 @@ export default function CompanyAdminPage() {
   const [companyProfile, setCompanyProfile] = useState({ industryId: "", linkedinProfileUrl: "", targetMarkets: "", productsServices: "", staffingLevel: "" });
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
+  const [error, setError] = useState("");
+
+  const isNexus = user?.planId === "NEXUS";
 
   useEffect(() => {
-    fetch(`${API}/profile/options`).then((r) => r.json()).then((o) => setIndustries(o?.industries ?? [])).catch(() => {});
+    apiFetch("/profile/options").then((r) => r.json()).then((o) => setIndustries(o?.industries ?? [])).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${API}/company/tenants`)
+    setError("");
+    apiFetch("/company/tenants")
       .then((r) => r.json())
       .then(setTenants)
-      .catch(() => setTenants([]));
+      .catch(() => setError("Failed to load company data. Please try again later."));
   }, []);
 
   useEffect(() => {
     if (!selected) return;
-    fetch(`${API}/company/tenants/${selected.id}/branding`)
+    apiFetch(`/company/tenants/${selected.id}/branding`)
       .then((r) => r.json())
       .then((b) => setBranding(b || {}))
       .catch(() => setBranding({}));
-    fetch(`${API}/company/tenants/${selected.id}`)
+    apiFetch(`/company/tenants/${selected.id}`)
       .then((r) => r.json())
       .then((t) => setCompanyProfile({
         industryId: t?.industryId ?? "",
@@ -56,10 +62,8 @@ export default function CompanyAdminPage() {
 
   const saveCompanyProfile = () => {
     if (!selected) return;
-    const token = typeof window !== "undefined" ? localStorage.getItem("omnilearn_token") : null;
-    fetch(`${API}/profile/tenant/${selected.id}`, {
+    apiFetch(`/profile/tenant/${selected.id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
       body: JSON.stringify({
         industryId: companyProfile.industryId || undefined,
         linkedinProfileUrl: companyProfile.linkedinProfileUrl || undefined,
@@ -67,32 +71,55 @@ export default function CompanyAdminPage() {
         productsServices: companyProfile.productsServices ? companyProfile.productsServices.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
         staffingLevel: companyProfile.staffingLevel || undefined,
       }),
-    }).then(() => fetch(`${API}/company/tenants`).then((r) => r.json()).then(setTenants));
+    }).then(() => apiFetch("/company/tenants").then((r) => r.json()).then(setTenants));
   };
 
   const saveBranding = () => {
     if (!selected) return;
-    fetch(`${API}/company/tenants/${selected.id}/branding`, {
+    apiFetch(`/company/tenants/${selected.id}/branding`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(branding),
-    }).then(() => fetch(`${API}/company/tenants`).then((r) => r.json()).then(setTenants));
+    }).then(() => apiFetch("/company/tenants").then((r) => r.json()).then(setTenants));
   };
 
   const createTenant = () => {
     if (!newName.trim() || !newSlug.trim()) return;
-    fetch(`${API}/company/tenants`, {
+    apiFetch("/company/tenants", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName, slug: newSlug }),
     })
       .then((r) => r.json())
       .then(() => {
         setNewName("");
         setNewSlug("");
-        fetch(`${API}/company/tenants`).then((r) => r.json()).then(setTenants);
+        apiFetch("/company/tenants").then((r) => r.json()).then(setTenants);
       });
   };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-brand-grey">{t("common.loading")}</p>
+      </div>
+    );
+  }
+
+  if (!isNexus) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
+        <h1 className="text-2xl font-bold text-brand-grey-dark mb-4">
+          Nexus Enterprise Access Required
+        </h1>
+        <p className="text-brand-grey mb-6 text-center max-w-md">
+          Company administration is available only for Nexus (Enterprise) plan subscribers.
+          Contact sales to upgrade your organization.
+        </p>
+        <Link href="/#pricing">
+          <Button variant="primary">View Plans</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -103,8 +130,11 @@ export default function CompanyAdminPage() {
         <nav className="flex items-center gap-4">
           <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
           <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
+          <Link href="/admin/domains"><Button variant="ghost" size="sm">Domains</Button></Link>
           <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
+          <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
           <Link href="/admin/company"><Button variant="primary" size="sm">{t("nav.company")}</Button></Link>
+          <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
           <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
           <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
@@ -115,6 +145,8 @@ export default function CompanyAdminPage() {
 
       <main className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-brand-grey-dark mb-6">{t("admin.companyAdmin")}</h1>
+
+        {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <Card className="min-w-0 overflow-hidden">

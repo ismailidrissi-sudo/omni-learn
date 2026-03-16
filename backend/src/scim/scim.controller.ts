@@ -1,13 +1,14 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Res, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { ScimService } from './scim.service';
+import { RbacGuard } from '../auth/guards/rbac.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RbacRole } from '../constants/rbac.constant';
 
-/**
- * SCIM 2.0 Controller — Bulk provisioning
- * Endpoints: /scim/v2/Users, /scim/v2/Groups
- * Auth: Bearer token from IdP (e.g. Azure AD, Okta)
- */
 @Controller('scim/v2')
+@UseGuards(AuthGuard('jwt'), RbacGuard)
+@Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
 export class ScimController {
   constructor(private readonly scim: ScimService) {}
 

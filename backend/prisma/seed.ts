@@ -58,7 +58,10 @@ async function main() {
   // Seed sample users (only if they don't exist)
   for (const u of data.users) {
     const dept = await prisma.department.findUnique({ where: { code: u.department } });
-    const pos = await prisma.position.findUnique({ where: { code: u.position } });
+    const pos = await prisma.position.findFirst({ where: { name: u.position } });
+    const tenantForUser = u.tenantSlug
+      ? await prisma.tenant.findUnique({ where: { slug: u.tenantSlug } })
+      : null;
     await prisma.user.upsert({
       where: { email: u.email },
       create: {
@@ -66,43 +69,108 @@ async function main() {
         name: u.name,
         departmentId: dept?.id,
         positionId: pos?.id,
+        tenantId: tenantForUser?.id,
+        emailVerified: true,
+        profileComplete: true,
       },
       update: {
         name: u.name,
         departmentId: dept?.id,
         positionId: pos?.id,
+        ...(tenantForUser && { tenantId: tenantForUser.id }),
       },
     });
   }
   console.log(`Seeded ${data.users.length} users`);
 
-  // Seed default tenant and domains (Dynamic Domain System per architecture)
+  // Seed all tenants, domains, branding, content, learning paths
   if (data.tenants?.length && data.domains?.length) {
-    const t0 = data.tenants[0] as { name: string; slug: string; industryCode?: string; linkedinProfileUrl?: string; staffingLevel?: string; targetMarkets?: string[]; productsServices?: string[] };
-    const industry = t0.industryCode ? await prisma.industry.findUnique({ where: { code: t0.industryCode } }) : null;
-    const tenant = await prisma.tenant.upsert({
-      where: { slug: t0.slug },
-      create: {
-        name: t0.name,
-        slug: t0.slug,
-        industryId: industry?.id,
-        linkedinProfileUrl: t0.linkedinProfileUrl,
-        companyProfileComplete: !!(t0.industryCode || t0.linkedinProfileUrl),
-        staffingLevel: t0.staffingLevel,
-        targetMarkets: t0.targetMarkets ? jsonVal(t0.targetMarkets) : undefined,
-        productsServices: t0.productsServices ? jsonVal(t0.productsServices) : undefined,
-      },
-      update: {
-        name: t0.name,
-        industryId: industry?.id,
-        linkedinProfileUrl: t0.linkedinProfileUrl,
-        companyProfileComplete: !!(t0.industryCode || t0.linkedinProfileUrl),
-        staffingLevel: t0.staffingLevel,
-        ...(t0.targetMarkets && { targetMarkets: jsonVal(t0.targetMarkets) }),
-        ...(t0.productsServices && { productsServices: jsonVal(t0.productsServices) }),
-      },
-    });
-    console.log(`Seeded tenant: ${tenant.slug}`);
+    type TenantSeed = { name: string; slug: string; industryCode?: string; linkedinProfileUrl?: string; staffingLevel?: string; targetMarkets?: string[]; productsServices?: string[]; branding?: { appName?: string; tagline?: string; logoUrl?: string; faviconUrl?: string; primaryColor?: string; secondaryColor?: string; accentColor?: string; fontFamily?: string; navStyle?: string; loginBgUrl?: string; emailLogoUrl?: string; customCss?: string } };
+
+    for (const t0 of data.tenants as TenantSeed[]) {
+      const industry = t0.industryCode ? await prisma.industry.findUnique({ where: { code: t0.industryCode } }) : null;
+      const tenant = await prisma.tenant.upsert({
+        where: { slug: t0.slug },
+        create: {
+          name: t0.name,
+          slug: t0.slug,
+          industryId: industry?.id,
+          linkedinProfileUrl: t0.linkedinProfileUrl,
+          companyProfileComplete: !!(t0.industryCode || t0.linkedinProfileUrl),
+          staffingLevel: t0.staffingLevel,
+          targetMarkets: t0.targetMarkets ? jsonVal(t0.targetMarkets) : undefined,
+          productsServices: t0.productsServices ? jsonVal(t0.productsServices) : undefined,
+        },
+        update: {
+          name: t0.name,
+          industryId: industry?.id,
+          linkedinProfileUrl: t0.linkedinProfileUrl,
+          companyProfileComplete: !!(t0.industryCode || t0.linkedinProfileUrl),
+          staffingLevel: t0.staffingLevel,
+          ...(t0.targetMarkets && { targetMarkets: jsonVal(t0.targetMarkets) }),
+          ...(t0.productsServices && { productsServices: jsonVal(t0.productsServices) }),
+        },
+      });
+      console.log(`Seeded tenant: ${tenant.slug}`);
+
+      if (t0.branding) {
+        await prisma.tenantBranding.upsert({
+          where: { tenantId: tenant.id },
+          create: {
+            tenantId: tenant.id,
+            appName: t0.branding.appName,
+            tagline: t0.branding.tagline,
+            logoUrl: t0.branding.logoUrl,
+            faviconUrl: t0.branding.faviconUrl,
+            primaryColor: t0.branding.primaryColor,
+            secondaryColor: t0.branding.secondaryColor,
+            accentColor: t0.branding.accentColor,
+            fontFamily: t0.branding.fontFamily,
+            navStyle: t0.branding.navStyle,
+            loginBgUrl: t0.branding.loginBgUrl,
+            emailLogoUrl: t0.branding.emailLogoUrl,
+            customCss: t0.branding.customCss,
+          },
+          update: {
+            appName: t0.branding.appName,
+            tagline: t0.branding.tagline,
+            logoUrl: t0.branding.logoUrl,
+            faviconUrl: t0.branding.faviconUrl,
+            primaryColor: t0.branding.primaryColor,
+            secondaryColor: t0.branding.secondaryColor,
+            accentColor: t0.branding.accentColor,
+            fontFamily: t0.branding.fontFamily,
+            navStyle: t0.branding.navStyle,
+          },
+        });
+        console.log(`  Seeded branding for ${tenant.slug}: ${t0.branding.appName}`);
+      }
+    }
+
+    // Also seed domains for the Afflatus tenant (second tenant)
+    for (const t of data.tenants as TenantSeed[]) {
+      if (t.slug === data.tenants[0].slug) continue;
+      const extraTenant = await prisma.tenant.findUnique({ where: { slug: t.slug } });
+      if (!extraTenant) continue;
+      for (const d of data.domains) {
+        await prisma.domain.upsert({
+          where: { tenantId_slug: { tenantId: extraTenant.id, slug: d.slug } },
+          create: {
+            tenantId: extraTenant.id,
+            name: d.name,
+            slug: d.slug,
+            icon: d.icon,
+            color: d.color,
+            sortOrder: d.sortOrder ?? 0,
+          },
+          update: { name: d.name, icon: d.icon, color: d.color },
+        });
+      }
+      console.log(`  Seeded domains for ${t.slug}`);
+    }
+
+    const tenant = await prisma.tenant.findUnique({ where: { slug: data.tenants[0].slug } });
+    if (!tenant) throw new Error('Primary tenant not found');
 
     for (const d of data.domains) {
       const domain = await prisma.domain.upsert({

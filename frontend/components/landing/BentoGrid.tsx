@@ -59,17 +59,13 @@ export function BentoGrid() {
               key={card.titleKey}
               variants={item}
               whileHover={{ y: -4 }}
-              className="rounded-xl border p-6 transition-shadow hover:shadow-lg"
-              style={{
-                background: "#1a1e18",
-                borderColor: "rgba(5, 150, 105, 0.2)",
-              }}
+              className="rounded-xl border border-[#059669]/20 p-6 transition-shadow hover:shadow-lg bg-white dark:bg-[#1a1e18]"
             >
               <span className="text-2xl text-[#059669]">{card.icon}</span>
-              <h3 className="mt-4 text-xl font-semibold text-brand-heading">
+              <h3 className="mt-4 text-xl font-semibold text-gray-900 dark:text-[#F5F5DC]">
                 {t(card.titleKey)}
               </h3>
-              <p className="mt-2 text-brand-stardustLight">{t(card.descKey)}</p>
+              <p className="mt-2 text-gray-600 dark:text-[#D4B896]">{t(card.descKey)}</p>
             </motion.div>
           ))}
         </motion.div>

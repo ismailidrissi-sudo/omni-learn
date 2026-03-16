@@ -1,11 +1,17 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { IntelligenceService } from './intelligence.service';
+import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
+import { RbacGuard } from '../auth/guards/rbac.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RbacRole } from '../constants/rbac.constant';
 
 @Controller('intelligence')
 export class IntelligenceController {
   constructor(private readonly intelligence: IntelligenceService) {}
 
   @Get('recommendations')
+  @UseGuards(OptionalJwtGuard)
   getRecommendations(
     @Query('userId') userId: string,
     @Query('query') query?: string,
@@ -19,6 +25,7 @@ export class IntelligenceController {
   }
 
   @Get('search')
+  @UseGuards(OptionalJwtGuard)
   semanticSearch(
     @Query('q') q: string,
     @Query('limit') limit?: string,
@@ -27,6 +34,7 @@ export class IntelligenceController {
   }
 
   @Get('path-suggestions')
+  @UseGuards(OptionalJwtGuard)
   getPathSuggestions(
     @Query('userId') userId: string,
     @Query('limit') limit?: string,
@@ -35,21 +43,29 @@ export class IntelligenceController {
   }
 
   @Get('predictive')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER)
   getPredictiveAnalytics(@Query('tenantId') tenantId?: string) {
     return this.intelligence.getPredictiveAnalytics(tenantId);
   }
 
   @Post('content/:contentId/embed')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.INSTRUCTOR)
   updateEmbedding(@Param('contentId') contentId: string) {
     return this.intelligence.updateContentEmbedding(contentId);
   }
 
   @Post('content/embed-all')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
   async embedAll() {
     return this.intelligence.embedAllContent();
   }
 
   @Get('lightfm/interactions')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
   getLightFmInteractions() {
     return this.intelligence.getLightFmInteractions();
   }

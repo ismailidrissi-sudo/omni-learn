@@ -1,11 +1,9 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { XapiService, XapiStatementDto } from './xapi.service';
 
-/**
- * xAPI LRS endpoint — POST /xapi/statements
- * Accepts single statement or array (batch)
- */
 @Controller('xapi')
+@UseGuards(AuthGuard('jwt'))
 export class XapiController {
   constructor(private readonly xapiService: XapiService) {}
 

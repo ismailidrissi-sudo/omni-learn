@@ -42,11 +42,8 @@ export function DomainExpertise() {
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
               whileHover={{ scale: 1.02 }}
-              className="flex min-w-[160px] flex-1 flex-col items-center rounded-xl border p-6 md:min-w-[180px] md:flex-none"
-              style={{
-                background: "#1a1e18",
-                borderColor: `${domain.color}33`,
-              }}
+              className="flex min-w-[160px] flex-1 flex-col items-center rounded-xl border p-6 md:min-w-[180px] md:flex-none bg-white dark:bg-[#1a1e18]"
+              style={{ borderColor: `${domain.color}33` }}
             >
               <span className="text-3xl">{domain.icon}</span>
               <span

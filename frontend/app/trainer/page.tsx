@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { CourseBuilder } from "@/components/admin/course-builder";
 import { ContentAddForm, type ContentType } from "@/components/admin/content-add-form";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
+import { useUser } from "@/lib/use-user";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚", label: "Course" },
@@ -40,6 +41,7 @@ type ContentItem = {
 
 export default function TrainerPage() {
   const { t } = useI18n();
+  const { user, loading: userLoading } = useUser();
   const [view, setView] = useState<"list" | "create" | "courseBuilder">("list");
   const [content, setContent] = useState<ContentItem[]>([]);
   const [filterType, setFilterType] = useState<string>("");
@@ -48,22 +50,35 @@ export default function TrainerPage() {
   const [formType, setFormType] = useState("COURSE");
   const [formDomainId, setFormDomainId] = useState("");
   const [domains, setDomains] = useState<{ id: string; name: string; slug: string; tenant?: { id: string; name: string } }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [requestingTrainer, setRequestingTrainer] = useState(false);
+
+  const isApprovedTrainer = !!user?.trainerApprovedAt;
+  const trainerPending = !!user?.trainerRequested && !user?.trainerApprovedAt;
 
   const loadContent = () => {
-    const q = filterType ? `?type=${filterType}` : "";
-    fetch(`${API}/content${q}`)
+    setLoading(true);
+    setError("");
+    const params = new URLSearchParams({ admin: "true" });
+    if (filterType) params.set("type", filterType);
+    apiFetch(`/content?${params}`)
       .then((r) => r.json())
       .then((data) => setContent(Array.isArray(data) ? data : []))
-      .catch(() => setContent([]));
+      .catch(() => setError("Failed to load content. Please try again later."))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadContent();
-  }, [filterType]);
+    if (isApprovedTrainer) loadContent();
+    else setLoading(false);
+  }, [filterType, isApprovedTrainer]);
 
   useEffect(() => {
-    fetch(`${API}/domains`).then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
-  }, []);
+    if (isApprovedTrainer) {
+      apiFetch("/domains").then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
+    }
+  }, [isApprovedTrainer]);
 
   // Public content = no tenant assignments (available to all)
   const publicContent = content.filter((c) => !c.tenantAssignments?.length);
@@ -92,7 +107,7 @@ export default function TrainerPage() {
 
   const deleteContent = (id: string) => {
     if (!confirm(t("admin.contentDeleteConfirm"))) return;
-    fetch(`${API}/content/${id}`, { method: "DELETE" })
+    apiFetch(`/content/${id}`, { method: "DELETE" })
       .then(loadContent)
       .catch(console.error);
   };
@@ -103,6 +118,7 @@ export default function TrainerPage() {
       <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
       <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
       <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
+      <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
       <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
       <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
       <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
@@ -110,6 +126,62 @@ export default function TrainerPage() {
       </div>
     </nav>
   );
+
+  const handleRequestTrainer = () => {
+    setRequestingTrainer(true);
+    apiFetch("/profile/request-trainer", { method: "POST" })
+      .then((r) => r.json())
+      .then(() => window.location.reload())
+      .catch(() => setError("Failed to submit request"))
+      .finally(() => setRequestingTrainer(false));
+  };
+
+  if (userLoading || !user) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-brand-grey">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isApprovedTrainer) {
+    return (
+      <div className="min-h-screen bg-white">
+        <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
+          <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
+            <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
+            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
+            <NavToggles />
+          </nav>
+        </header>
+        <main className="max-w-xl mx-auto p-8">
+          <Card className="p-8 text-center">
+            {trainerPending ? (
+              <>
+                <h1 className="text-xl font-semibold text-brand-grey-dark mb-2">Trainer request pending</h1>
+                <p className="text-brand-grey text-sm">
+                  You requested access to create content. An admin will review your request and you will get access once approved.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-semibold text-brand-grey-dark mb-2">Create content as a trainer</h1>
+                <p className="text-brand-grey text-sm mb-6">
+                  Request trainer access to create courses and other content. An admin will approve your request.
+                </p>
+                {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+                <Button onClick={handleRequestTrainer} disabled={requestingTrainer}>
+                  {requestingTrainer ? "Submitting..." : "Request trainer access"}
+                </Button>
+              </>
+            )}
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   if (view === "courseBuilder" && editing) {
     return (
@@ -208,6 +280,11 @@ export default function TrainerPage() {
           <p className="text-brand-grey text-xs mt-2">{t("trainer.academyHint")}</p>
         </div>
 
+        {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
+
+        {loading ? (
+          <div className="min-h-[200px] flex items-center justify-center"><p className="text-brand-grey">Loading...</p></div>
+        ) : (<>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold text-brand-grey-dark">
             {t("trainer.myContent")}
@@ -282,6 +359,7 @@ export default function TrainerPage() {
             );
           })}
         </div>
+        </>)}
       </main>
     </div>
   );

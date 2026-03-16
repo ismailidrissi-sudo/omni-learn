@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useUser } from "@/lib/use-user";
+import { useI18n } from "@/lib/i18n/context";
+import { apiFetch } from "@/lib/api";
 
 type MicroItem = {
   id: string;
@@ -19,6 +22,16 @@ type CourseItem = {
   type: string;
   durationMinutes?: number;
   description?: string;
+};
+
+type PodcastItem = {
+  id: string;
+  title: string;
+  type: string;
+  durationMinutes?: number;
+  description?: string;
+  metadata?: string | Record<string, unknown>;
+  mediaId?: string;
 };
 
 function parseMetadata(meta: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -38,70 +51,69 @@ function getVideoUrl(item: MicroItem): string | null {
 }
 
 async function fetchTrendingMicro(limit = 4): Promise<MicroItem[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-  const res = await fetch(`${base}/microlearning/feed?userId=anonymous&limit=${limit}&offset=0`, { cache: "no-store" });
+  const res = await apiFetch(`/microlearning/feed?userId=anonymous&limit=${limit}&offset=0`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
 async function fetchTrendingCourses(limit = 3): Promise<CourseItem[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-  const res = await fetch(`${base}/content?type=COURSE`, { cache: "no-store" });
+  const res = await apiFetch("/content?type=COURSE");
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
   return arr.slice(0, limit);
 }
 
-async function fetchAllMicro(limit = 20): Promise<MicroItem[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-  const res = await fetch(`${base}/microlearning/feed?userId=anonymous&limit=${limit}&offset=0`, { cache: "no-store" });
+async function fetchTrendingPodcasts(limit = 3): Promise<PodcastItem[]> {
+  const res = await apiFetch("/content?type=PODCAST");
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  const arr = Array.isArray(data) ? data : [];
+  return arr.slice(0, limit);
 }
 
 export function TrendingContent() {
+  const { t } = useI18n();
   const { user } = useUser();
   const isSignedIn = !!user;
   const [trendingMicro, setTrendingMicro] = useState<MicroItem[]>([]);
   const [trendingCourses, setTrendingCourses] = useState<CourseItem[]>([]);
-  const [allMicro, setAllMicro] = useState<MicroItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [authModal, setAuthModal] = useState<{ open: boolean; type: "micro" | "course" }>({ open: false, type: "micro" });
+  const [trendingPodcasts, setTrendingPodcasts] = useState<PodcastItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [authModal, setAuthModal] = useState<{ open: boolean; type: "micro" | "course" | "podcast" }>({ open: false, type: "micro" });
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       fetchTrendingMicro(4),
       fetchTrendingCourses(3),
-      fetchAllMicro(20),
+      fetchTrendingPodcasts(3),
     ])
-      .then(([micro, courses, feed]) => {
+      .then(([micro, courses, podcasts]) => {
         if (!cancelled) {
           setTrendingMicro(micro);
           setTrendingCourses(courses);
-          setAllMicro(feed);
+          setTrendingPodcasts(podcasts);
         }
       })
-      .catch(() => setTrendingMicro([]))
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
-  const handleCourseClick = (item: CourseItem) => {
+  const handleContentClick = (id: string, type: "course" | "podcast") => {
     if (!isSignedIn) {
-      setAuthModal({ open: true, type: "course" });
+      setAuthModal({ open: true, type });
       return;
     }
-    window.location.href = `/content/${item.id}`;
+    window.location.href = `/content/${id}`;
   };
 
-  const microItems = trendingMicro.length > 0 ? trendingMicro : allMicro.slice(0, 4);
+  const hasContent = trendingMicro.length > 0 || trendingCourses.length > 0 || trendingPodcasts.length > 0;
 
-  if (loading) {
+  if (!loaded) {
     return (
-      <section className="px-4 py-16 md:px-8">
+      <section className="px-4 py-20 md:px-8 md:py-28">
         <div className="mx-auto max-w-6xl">
-          <div className="flex items-center justify-center py-20">
+          <div className="flex items-center justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#059669] border-t-transparent" />
           </div>
         </div>
@@ -109,151 +121,186 @@ export function TrendingContent() {
     );
   }
 
+  if (!hasContent) return null;
+
   return (
-    <section className="px-4 py-16 md:px-8">
+    <section className="px-4 py-20 md:px-8 md:py-28">
       <div className="mx-auto max-w-6xl">
-        {/* Welcome */}
-        <div className="mb-16 rounded-2xl bg-[#059669] px-6 py-10 text-white md:px-10 md:py-12">
-          <h2 className="text-2xl font-bold md:text-3xl">Welcome to Omni Learn</h2>
-          <p className="mt-2 text-lg opacity-90">
-            {isSignedIn ? `Hello, ${user?.name ?? "Learner"}!` : "Unleash your potential"}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-[#F5F5DC] md:text-4xl">
+            {t("landing.trending.title")}
+          </h2>
+          <p className="mt-4 text-gray-600 dark:text-[#D4B896] max-w-2xl mx-auto">
+            {t("landing.trending.subtitle")}
           </p>
-          {!isSignedIn && (
-            <Link
-              href="/signin"
-              className="mt-4 inline-block rounded-lg bg-white px-6 py-2.5 text-[#059669] font-semibold transition hover:opacity-90"
-            >
-              Sign in with Google
-            </Link>
-          )}
-        </div>
+        </motion.div>
 
-        {/* Trending Micro-Learnings - horizontal list of 4 */}
-        <div className="mb-16">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Trending Micro-Learnings</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">Short videos to learn on the go</p>
-          {microItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-gray-500">
-              No micro-learnings yet. Content will appear here once available.
-            </div>
-          ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-            {microItems.map((item) => {
-              const videoUrl = getVideoUrl(item);
-              return (
-                <Link
-                  key={item.id}
-                  href={`/micro/${item.id}`}
-                  className="flex-shrink-0 w-56 rounded-xl overflow-hidden bg-gray-900 border border-gray-700 hover:border-[#059669] transition group block"
-                >
-                  <div className="aspect-[9/12] bg-gray-800 relative">
-                    {videoUrl ? (
-                      <video
-                        src={videoUrl}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-4xl text-gray-500">▶</div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3">
-                      <p className="text-white font-medium text-sm line-clamp-2">{item.title}</p>
-                      {item.durationMinutes && (
-                        <p className="text-gray-300 text-xs mt-1">{item.durationMinutes} min</p>
+        {/* Micro-Learnings */}
+        {trendingMicro.length > 0 && (
+          <div className="mb-14">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+              {t("landing.trending.micro")}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {t("landing.trending.microDesc")}
+            </p>
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+              {trendingMicro.map((item) => {
+                const videoUrl = getVideoUrl(item);
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/micro/${item.id}`}
+                    className="flex-shrink-0 w-56 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[#059669] transition group block"
+                  >
+                    <div className="aspect-[9/12] bg-gray-200 dark:bg-gray-800 relative">
+                      {videoUrl ? (
+                        <video
+                          src={videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-4xl text-gray-400 dark:text-gray-500">▶</div>
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <p className="text-white font-medium text-sm line-clamp-2">{item.title}</p>
+                        {item.durationMinutes && (
+                          <p className="text-gray-300 text-xs mt-1">{item.durationMinutes} min</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-          )}
-        </div>
-
-        {/* Trending Courses - 3 courses grid */}
-        <div className="mb-16">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Trending Courses</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">Deep-dive into new skills</p>
-          {trendingCourses.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-gray-500">
-              No courses yet. Content will appear here once available.
-            </div>
-          ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {trendingCourses.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleCourseClick(item)}
-                className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-6 hover:border-[#059669] hover:shadow-lg transition"
-              >
-                <div className="w-12 h-12 rounded-lg bg-[#059669]/20 flex items-center justify-center text-2xl mb-4">📚</div>
-                <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">{item.title}</h4>
-                {item.durationMinutes && (
-                  <p className="text-sm text-gray-500 mt-2">{item.durationMinutes} min</p>
-                )}
-              </button>
-            ))}
-          </div>
-          )}
-        </div>
-
-        {/* All content - more to explore */}
-        {(allMicro.length > 4 || trendingCourses.length > 0) && (
-          <div className="mb-16">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">More to explore</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">Browse all microlearnings and courses</p>
-            <div className="rounded-xl border-l-4 border-[#059669] bg-white dark:bg-gray-900/50 p-6">
-              <Link
-                href={isSignedIn ? "/discover" : "/signin"}
-                className="block"
-              >
-                <h4 className="font-semibold text-gray-900 dark:text-white">Browse all content</h4>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  {allMicro.length > 0 ? `${allMicro.length} videos` : ""} • Search & discover
-                </p>
-                <span className="inline-block mt-3 text-[#059669] font-medium">Explore →</span>
-              </Link>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Auth prompt modal */}
-        {authModal.open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sign in to continue</h3>
-              <p className="mt-2 text-gray-600 dark:text-gray-400">
-                {authModal.type === "micro"
-                  ? "Sign in to watch micro-learning videos."
-                  : "Sign in to enroll in courses and track your progress."}
-              </p>
-              <div className="mt-6 flex flex-col gap-3">
-                <Link
-                  href="/signin"
-                  className="block text-center rounded-lg bg-[#059669] px-4 py-3 text-white font-semibold hover:opacity-90"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href="/signup"
-                  className="block text-center rounded-lg border border-[#059669] px-4 py-3 text-[#059669] font-semibold hover:bg-[#059669]/10"
-                >
-                  Create account
-                </Link>
+        {/* Courses */}
+        {trendingCourses.length > 0 && (
+          <div className="mb-14">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+              {t("landing.trending.courses")}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {t("landing.trending.coursesDesc")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {trendingCourses.map((item) => (
                 <button
-                  onClick={() => setAuthModal({ open: false, type: "micro" })}
-                  className="text-gray-500 text-sm py-2"
+                  key={item.id}
+                  onClick={() => handleContentClick(item.id, "course")}
+                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-6 hover:border-[#059669] hover:shadow-lg transition"
                 >
-                  Cancel
+                  <div className="w-12 h-12 rounded-lg bg-[#059669]/15 flex items-center justify-center text-2xl mb-4">📚</div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">{item.title}</h4>
+                  {item.durationMinutes && (
+                    <p className="text-sm text-gray-500 mt-2">{item.durationMinutes} min</p>
+                  )}
                 </button>
-              </div>
+              ))}
             </div>
           </div>
         )}
+
+        {/* Podcasts */}
+        {trendingPodcasts.length > 0 && (
+          <div className="mb-14">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+              {t("landing.trending.podcasts")}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {t("landing.trending.podcastsDesc")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {trendingPodcasts.map((item) => {
+                const meta = parseMetadata(item.metadata);
+                const thumbnailUrl = meta?.thumbnailUrl as string | undefined;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleContentClick(item.id, "podcast")}
+                    className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-6 hover:border-[#059669] hover:shadow-lg transition"
+                  >
+                    {thumbnailUrl ? (
+                      <div className="mb-4 rounded-lg overflow-hidden aspect-video">
+                        <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-[#059669]/15 flex items-center justify-center text-2xl mb-4">🎧</div>
+                    )}
+                    <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">{item.title}</h4>
+                    {item.durationMinutes && (
+                      <p className="text-sm text-gray-500 mt-2">{item.durationMinutes} min</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Explore all */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center"
+        >
+          <Link
+            href={isSignedIn ? "/discover" : "/signup"}
+            className="inline-flex items-center gap-2 rounded-lg border-2 border-[#059669] px-6 py-3 text-base font-semibold text-[#059669] transition-all hover:bg-[#059669] hover:text-white dark:text-[#10b981] dark:border-[#10b981] dark:hover:bg-[#10b981] dark:hover:text-white"
+          >
+            {t("landing.trending.exploreAll")}
+            <span aria-hidden>→</span>
+          </Link>
+        </motion.div>
       </div>
+
+      {/* Auth prompt modal */}
+      {authModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t("landing.signInToContinue")}</h3>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+              {authModal.type === "micro"
+                ? "Sign in to watch micro-learning videos."
+                : authModal.type === "podcast"
+                  ? "Sign in to listen to podcasts."
+                  : "Sign in to enroll in courses and track your progress."}
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <Link
+                href="/signin"
+                className="block text-center rounded-lg bg-[#059669] px-4 py-3 text-white font-semibold hover:opacity-90"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="block text-center rounded-lg border border-[#059669] px-4 py-3 text-[#059669] font-semibold hover:bg-[#059669]/10"
+              >
+                Create account
+              </Link>
+              <button
+                onClick={() => setAuthModal({ open: false, type: "micro" })}
+                className="text-gray-500 text-sm py-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

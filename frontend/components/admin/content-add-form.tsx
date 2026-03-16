@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { UrlPreview } from "@/components/admin/url-preview";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
 
 export type ContentType =
   | "COURSE"
@@ -179,9 +180,8 @@ export function ContentAddForm({
     setSaving(true);
     try {
       if (contentType === "COURSE") {
-        const res = await fetch(`${API}/content/courses`, {
+        const res = await apiFetch("/content/courses", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: title.trim(),
             description: description.trim() || undefined,
@@ -205,7 +205,6 @@ export function ContentAddForm({
       const payload = buildPayload();
       if (!payload) throw new Error("Invalid payload");
 
-      // MICRO_LEARNING: create one ContentItem per video
       if (contentType === "MICRO_LEARNING") {
         const valid = microVideos.filter((v) => v.url.trim());
         for (const v of valid) {
@@ -220,9 +219,8 @@ export function ContentAddForm({
             mediaId: v.url,
             metadata: { videoUrl: v.url, hlsUrl: v.url, description: v.description },
           };
-          const res = await fetch(`${API}/content`, {
+          const res = await apiFetch("/content", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(p),
           });
           if (!res.ok) throw new Error(await res.text());
@@ -231,9 +229,8 @@ export function ContentAddForm({
         return;
       }
 
-      const res = await fetch(`${API}/content`, {
+      const res = await apiFetch("/content", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -285,7 +282,8 @@ export function ContentAddForm({
       {contentType === "COURSE" && (
         <div className="space-y-3">
           <p className="text-sm text-brand-grey">
-            Create the course first, then add curriculum (sections & items) in the next step.
+            Create the course first, then add curriculum (sections &amp; lessons) in the next step.
+            You can use YouTube, Vimeo, or any external video URL for your lessons.
           </p>
           <Input
             label="SCORM Package URL (optional)"
@@ -311,14 +309,18 @@ export function ContentAddForm({
               + Add another video
             </Button>
           </div>
+          <p className="text-xs text-brand-grey">
+            Paste any video link — YouTube, Vimeo, Dailymotion, or a direct video URL.
+          </p>
           {microVideos.map((v, i) => (
             <div key={i} className="p-3 rounded-lg border border-brand-grey-light space-y-2">
               <Input
                 label="Video URL"
                 value={v.url}
                 onChange={(e) => updateMicroVideo(i, "url", e.target.value)}
-                placeholder="https://...m3u8 or direct video URL"
+                placeholder="https://youtube.com/watch?v=... or https://vimeo.com/... or direct URL"
               />
+              <UrlPreview url={v.url} type="video" />
               <Input
                 label="Description"
                 value={v.description}
@@ -382,12 +384,15 @@ export function ContentAddForm({
               />
             </>
           ) : (
-            <Input
-              label="Video URL"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://...mp4 or video URL"
-            />
+            <>
+              <Input
+                label="Video URL"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=... or https://vimeo.com/... or direct URL"
+              />
+              <UrlPreview url={videoUrl} type="video" />
+            </>
           )}
         </div>
       )}
@@ -443,8 +448,9 @@ export function ContentAddForm({
                 label="URL or content"
                 value={item.url}
                 onChange={(e) => updateGuideItem(i, "url", e.target.value)}
-                placeholder="https://... or content URL"
+                placeholder={item.format === "video" ? "https://youtube.com/watch?v=... or direct video URL" : "https://... or content URL"}
               />
+              {item.format === "video" && <UrlPreview url={item.url} type="video" />}
               <Input
                 label="Description"
                 value={item.description}
@@ -478,12 +484,15 @@ export function ContentAddForm({
 
       {/* VIDEO (standalone) */}
       {contentType === "VIDEO" && (
-        <Input
-          label="Video URL"
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          placeholder="https://...m3u8 or direct video URL"
-        />
+        <div className="space-y-1">
+          <Input
+            label="Video URL"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            placeholder="https://youtube.com/watch?v=... or https://vimeo.com/... or direct URL"
+          />
+          <UrlPreview url={videoUrl} type="video" />
+        </div>
       )}
 
       {/* QUIZ_ASSESSMENT */}
@@ -544,7 +553,7 @@ export function ContentAddForm({
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
       <div className="flex gap-2 pt-4">
         <Button onClick={handleSubmit} disabled={saving || !canSubmit}>
           {saving ? "Saving..." : "Save"}

@@ -5,9 +5,7 @@ import Image from "next/image";
 import { useTheme } from "next-themes";
 
 /**
- * OmnilearnLogo — Uses Omni Learn logo from assets
- * omnilearn.space | Afflatus Consulting Group
- * Brand colors: green and beige
+ * OmnilearnLogo — Uses the current Omni Learn brand logo.
  */
 
 type LogoSize = "sm" | "md" | "lg";
@@ -20,9 +18,9 @@ interface OmnilearnLogoProps {
 }
 
 const sizeConfig: Record<LogoSize, { height: number; fontSize: number }> = {
-  lg: { height: 48, fontSize: 22 },
-  md: { height: 38, fontSize: 16 },
-  sm: { height: 28, fontSize: 13 },
+  lg: { height: 64, fontSize: 22 },
+  md: { height: 48, fontSize: 16 },
+  sm: { height: 36, fontSize: 13 },
 };
 
 export function OmnilearnLogo({ size = "md", className = "", variant = "light" }: OmnilearnLogoProps) {
@@ -35,7 +33,7 @@ export function OmnilearnLogo({ size = "md", className = "", variant = "light" }
     variant === "auto"
       ? mounted && resolvedTheme === "dark"
       : variant === "dark";
-  const w = Math.round(height * (182.54 / 25.19));
+  const w = height;
   const textClass = isDark ? "text-[#F5F5DC]" : "text-[#1a1212]";
 
   if (imgError) {
@@ -49,7 +47,7 @@ export function OmnilearnLogo({ size = "md", className = "", variant = "light" }
   return (
     <div className={`flex items-center min-w-[100px] ${className}`}>
       <Image
-        src="/omni-learn-logo.svg"
+        src="/omni-learn-logo.png"
         alt="Omni Learn"
         width={w}
         height={height}

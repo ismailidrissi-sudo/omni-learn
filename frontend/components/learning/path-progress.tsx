@@ -37,7 +37,7 @@ export function PathProgress({
 }: PathProgressProps) {
   const { t } = useI18n();
   return (
-    <div className="rounded-lg border border-brand-grey-light bg-white p-6">
+    <div className="rounded-lg border border-[var(--color-bg-secondary)] bg-[var(--color-bg-primary)] p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="font-semibold text-brand-grey-dark">{pathName}</h2>
         <span className="text-brand-purple font-bold">{progressPct}%</span>

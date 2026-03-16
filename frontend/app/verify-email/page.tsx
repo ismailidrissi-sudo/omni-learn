@@ -6,8 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 function VerifyContent() {
   const router = useRouter();
@@ -22,7 +21,7 @@ function VerifyContent() {
       setMessage("Missing verification token");
       return;
     }
-    fetch(`${API}/profile/verify-email?token=${encodeURIComponent(token)}`)
+    apiFetch(`/profile/verify-email?token=${encodeURIComponent(token)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {

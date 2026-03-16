@@ -14,9 +14,10 @@ import { GameCard } from "@/components/learning/game-card";
 import { track } from "@/lib/analytics";
 import { useUser } from "@/lib/use-user";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const USER_ID = "user-1";
 
 const WIZARD_STEPS = [
   { id: "1", title: "Define scope", content: "Identify the key areas and objectives for your implementation.", checklist: ["List stakeholders", "Define success criteria", "Set timeline"] },
@@ -35,7 +36,7 @@ type Enrollment = { id: string; progressPct: number; stepProgress: { stepId: str
 export default function LearnPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const [view, setView] = useState<"progress" | "wizard" | "quiz" | "game">("progress");
   const [paths, setPaths] = useState<Path[]>([]);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
@@ -46,8 +47,17 @@ export default function LearnPage() {
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
   const [loading, setLoading] = useState(true);
 
+  const userId = user?.id;
+
   useEffect(() => {
-    fetch(`${API}/learning-paths`)
+    if (!userLoading && !user) {
+      router.replace(`/signin?redirect=/learn`);
+    }
+  }, [userLoading, user, router]);
+
+  useEffect(() => {
+    if (!userId) return;
+    apiFetch("/learning-paths")
       .then((r) => r.json())
       .then((p: Path[]) => {
         setPaths(Array.isArray(p) ? p : []);
@@ -55,48 +65,49 @@ export default function LearnPage() {
       })
       .catch(() => setPaths([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
-    fetch(`${API}/gamification/points/${USER_ID}`)
+    if (!userId) return;
+    apiFetch(`/gamification/points/${userId}`)
       .then((r) => r.json())
       .then((d) => setPoints(d?.points ?? 0))
       .catch(() => {});
-    fetch(`${API}/gamification/badges/${USER_ID}`)
+    apiFetch(`/gamification/badges/${userId}`)
       .then((r) => r.json())
       .then((b: { badge: { name: string; icon: string }; earnedAt: string }[]) => {
         setBadges((Array.isArray(b) ? b : []).map((x, i) => ({ id: String(i), name: x.badge?.name ?? "", icon: x.badge?.icon ?? "🏆", earnedAt: x.earnedAt ?? "" })));
       })
       .catch(() => {});
-    fetch(`${API}/gamification/streak/${USER_ID}`)
+    apiFetch(`/gamification/streak/${userId}`)
       .then((r) => r.json())
       .then((s) => setStreak({ currentStreak: s?.currentStreak ?? 0, longestStreak: s?.longestStreak ?? 0 }))
       .catch(() => {});
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
-    if (!selectedPathId) return;
-    fetch(`${API}/learning-paths/${selectedPathId}`)
+    if (!selectedPathId || !userId) return;
+    apiFetch(`/learning-paths/${selectedPathId}`)
       .then((r) => r.json())
       .then(setPathDetail)
       .catch(() => setPathDetail(null));
-    fetch(`${API}/learning-paths/${selectedPathId}/enrollment/${USER_ID}`)
+    apiFetch(`/learning-paths/${selectedPathId}/enrollment/${userId}`)
       .then((r) => r.json())
       .then(setEnrollment)
       .catch(() => setEnrollment(null));
-  }, [selectedPathId]);
+  }, [selectedPathId, userId]);
 
   const enroll = () => {
-    if (!selectedPathId) return;
-    fetch(`${API}/learning-paths/${selectedPathId}/enroll`, {
+    if (!selectedPathId || !userId) return;
+    apiFetch(`/learning-paths/${selectedPathId}/enroll`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: USER_ID }),
+      body: JSON.stringify({ userId }),
     })
       .then((r) => r.json())
       .then((e) => {
         setEnrollment(e);
-        track("ENROLLMENT", { userId: USER_ID, pathId: selectedPathId });
+        track("ENROLLMENT", { userId, pathId: selectedPathId });
       });
   };
 
@@ -118,7 +129,7 @@ export default function LearnPage() {
 
   const updateStepProgress = (contentId: string, stepId: string, status: string) => {
     if (!enrollment?.id) return;
-    fetch(`${API}/learning-paths/enrollments/${enrollment.id}/steps/${stepId}/progress`, {
+    apiFetch(`/learning-paths/enrollments/${enrollment.id}/steps/${stepId}/progress`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -132,7 +143,7 @@ export default function LearnPage() {
               }
             : null
         );
-        track("STEP_PROGRESS", { userId: USER_ID, pathId: selectedPathId ?? undefined, contentId });
+        track("STEP_PROGRESS", { userId: userId ?? undefined, pathId: selectedPathId ?? undefined, contentId });
       });
   };
 
@@ -143,12 +154,24 @@ export default function LearnPage() {
   };
 
   const addPoints = (pts: number, reason: string) => {
-    fetch(`${API}/gamification/points`, {
+    if (!userId) return;
+    apiFetch(`/gamification/points`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: USER_ID, points: pts }),
+      body: JSON.stringify({ userId, points: pts }),
     }).then(() => setPoints((p) => p + pts));
   };
+
+  if (userLoading || !user) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-[#0f1510] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-green border-t-transparent" />
+          <p className="text-sm text-[var(--color-text-muted)]">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -161,6 +184,7 @@ export default function LearnPage() {
             <Button variant="ghost" size="sm" onClick={() => setView("progress")}>{t("nav.myProgress")}</Button>
             <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
             <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
+            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
             <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
             {user?.planId === "NEXUS" && (
               <Link href="/admin/nexus"><Button variant="outline" size="sm">My Company</Button></Link>
@@ -218,8 +242,8 @@ export default function LearnPage() {
             steps={WIZARD_STEPS}
             onComplete={() => {
               addPoints(50, "guide_complete");
-              track("GUIDE_COMPLETE", { userId: USER_ID });
-              alert(t("learn.guideComplete"));
+              track("GUIDE_COMPLETE", { userId });
+              toast(t("learn.guideComplete"), "success");
             }}
           />
         )}
@@ -231,8 +255,8 @@ export default function LearnPage() {
             onComplete={(score, passed) => {
               const pts = passed ? 100 : Math.round(score);
               addPoints(pts, passed ? "quiz_passed" : "quiz_attempt");
-              track("QUIZ_COMPLETE", { userId: USER_ID, score, passed });
-              alert(`${passed ? t("learn.passed") : t("learn.notPassed")}: ${score}% — +${pts} ${t("learn.points")}`);
+              track("QUIZ_COMPLETE", { userId, score, passed });
+              toast(`${passed ? t("learn.passed") : t("learn.notPassed")}: ${score}% — +${pts} ${t("learn.points")}`, passed ? "success" : "warning");
             }}
           />
         )}
@@ -243,8 +267,8 @@ export default function LearnPage() {
             type="scenario"
             onComplete={(s) => {
               addPoints(s, "game_complete");
-              track("GAME_COMPLETE", { userId: USER_ID, score: s });
-              alert(`${t("learn.score")}: ${s} ${t("learn.points")}`);
+              track("GAME_COMPLETE", { userId, score: s });
+              toast(`${t("learn.score")}: ${s} ${t("learn.points")}`, "success");
             }}
           />
         )}

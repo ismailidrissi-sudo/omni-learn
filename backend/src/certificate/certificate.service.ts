@@ -84,11 +84,42 @@ export class CertificateService {
     });
   }
 
+  /** Get all templates for a tenant */
+  async getAllTemplatesForTenant(tenantId: string) {
+    return this.prisma.certificateTemplate.findMany({
+      where: { tenantId },
+      include: { domain: true },
+      orderBy: { domain: { sortOrder: 'asc' } },
+    });
+  }
+
   /** Get template for domain (single, for issuance) */
   async getTemplateForDomain(tenantId: string, domainId: string) {
     return this.prisma.certificateTemplate.findUnique({
       where: {
         tenantId_domainId: { tenantId, domainId },
+      },
+      include: { domain: true },
+    });
+  }
+
+  /** Update template design (admin) */
+  async updateTemplate(
+    id: string,
+    dto: {
+      templateName?: string;
+      themeConfig?: Record<string, unknown>;
+      elementsConfig?: Record<string, unknown>;
+      signatories?: Array<{ name: string; title: string }>;
+    },
+  ) {
+    return this.prisma.certificateTemplate.update({
+      where: { id },
+      data: {
+        ...(dto.templateName != null && { templateName: dto.templateName }),
+        ...(dto.themeConfig != null && { themeConfig: JSON.stringify(dto.themeConfig) }),
+        ...(dto.elementsConfig != null && { elementsConfig: JSON.stringify(dto.elementsConfig) }),
+        ...(dto.signatories != null && { signatories: JSON.stringify(dto.signatories) }),
       },
       include: { domain: true },
     });

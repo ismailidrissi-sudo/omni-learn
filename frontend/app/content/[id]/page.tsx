@@ -8,8 +8,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { CourseReviews } from "@/components/learning/course-reviews";
 import { ScormViewer } from "@/components/media/scorm-viewer";
-import { VideoPlayer } from "@/components/media/video-player";
-import { AdInjectedPlayer } from "@/components/media/ad-injected-player";
+import { SmartVideo } from "@/components/media/smart-video";
 import { PodcastPlayer } from "@/components/media/podcast-player";
 import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
@@ -28,20 +27,37 @@ type ContentItem = {
   adsEnabled?: boolean;
 };
 
+type CurriculumSection = {
+  id: string;
+  title: string;
+  items: { id: string; itemType: string; title: string; contentUrl?: string | null; metadata?: Record<string, unknown> | null }[];
+};
+
 export default function ContentPage() {
   const params = useParams();
   const { t } = useI18n();
   const id = params?.id as string;
   const [content, setContent] = useState<ContentItem | null>(null);
+  const [curriculum, setCurriculum] = useState<CurriculumSection[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
-    apiFetch(`/content/${id}`)
-      .then((r) => r.json())
+    apiFetch(`/content/${id}?admin=true`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((c) => {
+        if (!c?.type) throw new Error("Invalid content");
         setContent(c);
-        if (c) track("CONTENT_VIEW", { contentId: id });
+        track("CONTENT_VIEW", { contentId: id });
+        if (c.type === "COURSE") {
+          apiFetch(`/curriculum/courses/${id}`)
+            .then((r) => r.ok ? r.json() : [])
+            .then((data) => setCurriculum(Array.isArray(data) ? data : []))
+            .catch(() => setCurriculum([]));
+        }
       })
       .catch(() => setContent(null))
       .finally(() => setLoading(false));
@@ -61,32 +77,69 @@ export default function ContentPage() {
     switch (content.type) {
       case "COURSE": {
         const scorm = meta as { scormPackageUrl?: string; xapiEndpoint?: string };
-        if (scorm?.scormPackageUrl) {
-          return (
-            <ScormViewer
-              scormPackageUrl={scorm.scormPackageUrl}
-              xapiEndpoint={scorm.xapiEndpoint}
-              onComplete={() => {}}
-            />
-          );
-        }
-        break;
+        const totalItems = curriculum.reduce((acc, s) => acc + s.items.length, 0);
+        const firstVideoItem = curriculum
+          .flatMap((s) => s.items)
+          .find((i) => i.itemType === "VIDEO" && i.contentUrl);
+
+        return (
+          <div className="space-y-6">
+            {firstVideoItem?.contentUrl && (
+              <SmartVideo src={firstVideoItem.contentUrl} title={firstVideoItem.title} />
+            )}
+
+            <Link
+              href={`/course/${content.id}`}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition-colors"
+            >
+              {t("content.startCourse")}
+            </Link>
+
+            {curriculum.length > 0 && (
+              <div className="rounded-lg border border-brand-grey-light overflow-hidden">
+                <div className="px-4 py-3 bg-brand-grey-light/30 border-b border-brand-grey-light">
+                  <h3 className="font-semibold text-brand-grey-dark text-sm">
+                    {t("content.courseContents")} &middot; {curriculum.length} sections &middot; {totalItems} lessons
+                  </h3>
+                </div>
+                <div className="divide-y divide-brand-grey-light">
+                  {curriculum.map((section, sIdx) => (
+                    <div key={section.id} className="px-4 py-3">
+                      <p className="text-sm font-medium text-brand-grey-dark">
+                        Section {sIdx + 1}: {section.title}
+                      </p>
+                      <p className="text-xs text-brand-grey mt-0.5">
+                        {section.items.length} lessons
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {scorm?.scormPackageUrl && (
+              <ScormViewer
+                scormPackageUrl={scorm.scormPackageUrl}
+                xapiEndpoint={scorm.xapiEndpoint}
+                onComplete={() => {}}
+              />
+            )}
+          </div>
+        );
       }
       case "VIDEO":
       case "MICRO_LEARNING": {
         const vid = meta as { hlsUrl?: string; videoUrl?: string; thumbnailUrl?: string };
         const src = content.mediaId || vid?.hlsUrl || vid?.videoUrl || "";
         if (src) {
-          const adsEnabled = content.adsEnabled ?? false;
-          return adsEnabled ? (
-            <AdInjectedPlayer
+          return (
+            <SmartVideo
               src={src}
               hlsUrl={vid?.hlsUrl || vid?.videoUrl}
               poster={vid?.thumbnailUrl}
-              adsEnabled
+              title={content.title}
+              adsEnabled={content.adsEnabled ?? false}
             />
-          ) : (
-            <VideoPlayer src={src} hlsUrl={vid?.hlsUrl || vid?.videoUrl} poster={vid?.thumbnailUrl} />
           );
         }
         break;
@@ -97,7 +150,7 @@ export default function ContentPage() {
         const videoUrl = pod?.videoUrl || "";
         if (videoUrl) {
           return (
-            <VideoPlayer src={videoUrl} hlsUrl={videoUrl} poster={pod?.thumbnailUrl} />
+            <SmartVideo src={videoUrl} hlsUrl={videoUrl} poster={pod?.thumbnailUrl} title={content.title} />
           );
         }
         if (audioUrl) {
@@ -148,7 +201,7 @@ export default function ContentPage() {
                     <p className="text-brand-grey-dark text-sm">{item.description}</p>
                   )}
                   {item.format === "video" || isVideo ? (
-                    <VideoPlayer src={item.url} hlsUrl={item.url} />
+                    <SmartVideo src={item.url} hlsUrl={item.url} title={item.description} />
                   ) : item.format === "audio" || isAudio ? (
                     <AudioPlayer audioUrl={item.url} title={item.description} />
                   ) : item.format === "document" || isDoc ? (

@@ -3,9 +3,7 @@
 import Image from "next/image";
 
 /**
- * LearnLogo — Omni Learn Brand Identity
- * Visual & Brand Identity | Afflatus Consulting Group
- * Red and beige palette
+ * LearnLogo — Omni Learn Brand Identity.
  */
 
 type LogoSize = "sm" | "md" | "lg";
@@ -17,15 +15,15 @@ interface LearnLogoProps {
 }
 
 const sizeConfig: Record<LogoSize, { height: number }> = {
-  lg: { height: 40 },
-  md: { height: 28 },
-  sm: { height: 18 },
+  lg: { height: 64 },
+  md: { height: 48 },
+  sm: { height: 36 },
 };
 
-export function LearnLogo({ size = "md", variant = "purple", className = "" }: LearnLogoProps) {
+export function LearnLogo({ size = "md", variant: _variant = "purple", className = "" }: LearnLogoProps) {
   const { height } = sizeConfig[size];
-  const w = Math.round(height * (182.54 / 25.19));
-  const logoSrc = variant === "white" ? "/omni-learn-logo-light.svg" : "/omni-learn-logo.svg";
+  const w = height;
+  const logoSrc = "/omni-learn-logo.png";
 
   return (
     <div className={`flex items-center ${className}`}>

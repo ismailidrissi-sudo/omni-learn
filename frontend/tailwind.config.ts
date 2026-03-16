@@ -42,16 +42,17 @@ const config: Config = {
         brand: brandColors,
       },
       fontFamily: {
-        sans: ["var(--font-avenir)", "Avenir", "Avenir Next", "Work Sans", "Segoe UI", "sans-serif"],
-        display: ["var(--font-avenir)", "Avenir", "Avenir Next", "Work Sans", "Segoe UI", "sans-serif"],
-        landing: ["var(--font-dm-sans)", "DM Sans", "Inter", "sans-serif"],
+        sans: ["var(--font-futura)", "Futura", "Futura PT", "Jost", "Century Gothic", "sans-serif"],
+        display: ["var(--font-futura)", "Futura", "Futura PT", "Jost", "Century Gothic", "sans-serif"],
+        landing: ["var(--font-futura)", "Futura", "Futura PT", "Jost", "Century Gothic", "sans-serif"],
       },
       fontSize: {
-        "brand-title": ["40px", { lineHeight: "1.2" }],
-        "brand-subheading": ["23px", { lineHeight: "1.3" }],
-        "brand-paragraph": ["13px", { lineHeight: "1.6" }],
-        "brand-button": ["29px", { lineHeight: "1" }],
-        "brand-link": ["13px", { lineHeight: "1.5" }],
+        "brand-title": ["2.5rem", { lineHeight: "1.2", letterSpacing: "-0.02em" }],
+        "brand-subheading": ["1.4375rem", { lineHeight: "1.3", letterSpacing: "-0.01em" }],
+        "brand-paragraph": ["0.9375rem", { lineHeight: "1.6" }],
+        "brand-button": ["1rem", { lineHeight: "1", letterSpacing: "0.01em" }],
+        "brand-link": ["0.875rem", { lineHeight: "1.5" }],
+        "brand-caption": ["0.8125rem", { lineHeight: "1.4", letterSpacing: "0.01em" }],
       },
       keyframes: {
         marquee: {

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -15,6 +16,7 @@ export class ProfileService {
     data: {
       tenantId?: string;
       companyName?: string;
+      companyLogoUrl?: string;
       industryId?: string;
       departmentId?: string;
       positionId?: string;
@@ -33,12 +35,19 @@ export class ProfileService {
       const existing = await this.prisma.tenant.findUnique({ where: { slug } });
       if (existing) {
         tenantId = existing.id;
+        if (data.companyLogoUrl && !existing.logoUrl) {
+          await this.prisma.tenant.update({
+            where: { id: existing.id },
+            data: { logoUrl: data.companyLogoUrl },
+          });
+        }
       } else {
         const created = await this.prisma.tenant.create({
           data: {
             name: data.companyName,
             slug: slug || `company-${Date.now()}`,
             industryId: data.industryId || undefined,
+            logoUrl: data.companyLogoUrl || undefined,
           },
         });
         tenantId = created.id;
@@ -125,8 +134,8 @@ export class ProfileService {
       data: {
         industryId: data.industryId ?? undefined,
         linkedinProfileUrl: linkedinUrl || undefined,
-        targetMarkets: data.targetMarkets ? (data.targetMarkets as unknown) : undefined,
-        productsServices: data.productsServices ? (data.productsServices as unknown) : undefined,
+        targetMarkets: data.targetMarkets ? (data.targetMarkets as Prisma.InputJsonValue) : undefined,
+        productsServices: data.productsServices ? (data.productsServices as Prisma.InputJsonValue) : undefined,
         staffingLevel: data.staffingLevel ?? undefined,
         companyProfileComplete: true,
       },
@@ -149,5 +158,52 @@ export class ProfileService {
 
   private isValidLinkedInUrl(url: string): boolean {
     return /^https?:\/\/(www\.)?linkedin\.com\/(in|company)\/[\w-]+\/?$/i.test(url);
+  }
+
+  /** Current user requests to be a trainer (pending admin approval) */
+  async requestTrainerAccess(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { trainerRequested: true },
+    });
+    return { success: true, message: 'Trainer access requested. An admin will review your request.' };
+  }
+
+  /** List users who requested trainer access and are pending approval (admin only) */
+  async getPendingTrainerRequests() {
+    return this.prisma.user.findMany({
+      where: { trainerRequested: true, trainerApprovedAt: null },
+      select: { id: true, email: true, name: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** Approve a user as trainer — they get INSTRUCTOR role and can create content (admin only) */
+  async approveTrainer(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    if (!user.trainerRequested) {
+      throw new BadRequestException('User has not requested trainer access');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { trainerApprovedAt: new Date() },
+    });
+    return { success: true, message: 'Trainer approved' };
+  }
+
+  /** Reject trainer request — user can request again later (admin only) */
+  async rejectTrainer(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { trainerRequested: false, trainerApprovedAt: null },
+    });
+    return { success: true, message: 'Trainer request rejected' };
   }
 }

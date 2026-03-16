@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/lib/i18n/context";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { useUser } from "@/lib/use-user";
+import { apiFetch } from "@/lib/api";
 
 type Review = { id: string; userId: string; rating: number; review?: string; helpfulCount: number; createdAt: string };
 type Stats = { total: number; average: number; distribution: { rating: number; count: number }[] };
@@ -16,7 +16,9 @@ export interface CourseReviewsProps {
   currentUserId?: string;
 }
 
-export function CourseReviews({ contentId, currentUserId = "user-1" }: CourseReviewsProps) {
+export function CourseReviews({ contentId, currentUserId }: CourseReviewsProps) {
+  const { user } = useUser();
+  const resolvedUserId = currentUserId ?? user?.id;
   const { t } = useI18n();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -25,33 +27,33 @@ export function CourseReviews({ contentId, currentUserId = "user-1" }: CourseRev
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/reviews/content/${contentId}`)
+    apiFetch(`/reviews/content/${contentId}`)
       .then((r) => r.json())
       .then((d) => setReviews(d.reviews || []))
       .catch(() => setReviews([]));
-    fetch(`${API}/reviews/content/${contentId}/stats`)
+    apiFetch(`/reviews/content/${contentId}/stats`)
       .then((r) => r.json())
       .then(setStats)
       .catch(() => setStats(null));
   }, [contentId]);
 
   const submitReview = () => {
-    if (rating < 1 || rating > 5) return;
-    fetch(`${API}/reviews/content/${contentId}`, {
+    if (rating < 1 || rating > 5 || !resolvedUserId) return;
+    apiFetch(`/reviews/content/${contentId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: currentUserId, rating, review: reviewText }),
+      body: JSON.stringify({ userId: resolvedUserId, rating, review: reviewText }),
     })
       .then(() => {
         setSubmitted(true);
-        fetch(`${API}/reviews/content/${contentId}`).then((r) => r.json()).then((d) => setReviews(d.reviews || []));
-        fetch(`${API}/reviews/content/${contentId}/stats`).then((r) => r.json()).then(setStats);
+        apiFetch(`/reviews/content/${contentId}`).then((r) => r.json()).then((d) => setReviews(d.reviews || []));
+        apiFetch(`/reviews/content/${contentId}/stats`).then((r) => r.json()).then(setStats);
       });
   };
 
-  const markHelpful = (userId: string) => {
-    fetch(`${API}/reviews/content/${contentId}/helpful/${userId}`, { method: "POST" })
-      .then(() => fetch(`${API}/reviews/content/${contentId}`).then((r) => r.json()).then((d) => setReviews(d.reviews || [])));
+  const markHelpful = (reviewUserId: string) => {
+    apiFetch(`/reviews/content/${contentId}/helpful/${reviewUserId}`, { method: "POST" })
+      .then(() => apiFetch(`/reviews/content/${contentId}`).then((r) => r.json()).then((d) => setReviews(d.reviews || [])));
   };
 
   return (

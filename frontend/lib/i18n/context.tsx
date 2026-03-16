@@ -72,9 +72,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {
-      const value = getNested(translationsMap as Record<string, unknown>, key);
-      const str = value ?? key;
-      return params ? interpolate(str, params) : str;
+      const value =
+        getNested(translationsMap as Record<string, unknown>, key) ??
+        getNested(translations.en as Record<string, unknown>, key) ??
+        key;
+      return params ? interpolate(value, params) : value;
     },
     [translationsMap]
   );

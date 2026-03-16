@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LearnLogo } from "@/components/ui/learn-logo";
@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { CourseBuilder } from "@/components/admin/course-builder";
 import { ContentAddForm, type ContentType } from "@/components/admin/content-add-form";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚", label: "Course" },
@@ -40,7 +40,7 @@ type ContentItem = {
   userAssignments?: { userId: string; user: { id: string; name: string; email: string } }[];
 };
 
-export default function AdminContentPage() {
+function AdminContentPageContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -49,6 +49,8 @@ export default function AdminContentPage() {
   const [filterType, setFilterType] = useState<string>("");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ContentItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Form state
   const [formType, setFormType] = useState("COURSE");
@@ -72,11 +74,15 @@ export default function AdminContentPage() {
   const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
 
   const loadContent = () => {
-    const q = filterType ? `?type=${filterType}` : "";
-    fetch(`${API}/content${q}`)
+    setLoading(true);
+    setError("");
+    const params = new URLSearchParams({ admin: "true" });
+    if (filterType) params.set("type", filterType);
+    apiFetch(`/content?${params}`)
       .then((r) => r.json())
       .then((data) => setContent(Array.isArray(data) ? data : []))
-      .catch(() => setContent([]));
+      .catch(() => setError("Failed to load content. Please try again later."))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -91,9 +97,9 @@ export default function AdminContentPage() {
   }, [editId, content]);
 
   useEffect(() => {
-    fetch(`${API}/company/tenants`).then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d : [])).catch(() => setTenants([]));
-    fetch(`${API}/domains`).then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
-    fetch(`${API}/company/users`).then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => setUsers([]));
+    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d : [])).catch(() => setTenants([]));
+    apiFetch("/domains").then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
+    apiFetch("/company/users").then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => setUsers([]));
   }, []);
 
   const filteredContent = content.filter(
@@ -138,7 +144,7 @@ export default function AdminContentPage() {
     setFormThumbnailUrl((meta.thumbnailUrl as string) ?? "");
     setFormMediaId(item.mediaId ?? "");
     setFormDomainId(item.domainId ?? "");
-    const full = await fetch(`${API}/content/${item.id}`).then((r) => r.json()).catch(() => ({}));
+    const full = await apiFetch(`/content/${item.id}?admin=true`).then((r) => r.json()).catch(() => ({}));
     setFormAssignToAllCompanies(!full.tenantAssignments?.length);
     setFormTenantIds((full.tenantAssignments ?? []).map((a: { tenantId: string }) => a.tenantId));
     setFormUserIds((full.userAssignments ?? []).map((a: { userId: string }) => a.userId));
@@ -181,9 +187,8 @@ export default function AdminContentPage() {
     };
 
     if (editing) {
-      fetch(`${API}/content/${editing.id}`, {
+      apiFetch(`/content/${editing.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
         .then(() => {
@@ -193,10 +198,8 @@ export default function AdminContentPage() {
         })
         .catch(console.error);
     } else if (formType === "COURSE") {
-      // Udemy-style course: create empty course, then open curriculum builder
-      fetch(`${API}/content/courses`, {
+      apiFetch("/content/courses", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: formTitle.trim(),
           durationMinutes: duration,
@@ -214,9 +217,8 @@ export default function AdminContentPage() {
         })
         .catch(console.error);
     } else {
-      fetch(`${API}/content`, {
+      apiFetch("/content", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
         .then(() => {
@@ -230,7 +232,7 @@ export default function AdminContentPage() {
 
   const deleteContent = (id: string) => {
     if (!confirm(t("admin.contentDeleteConfirm"))) return;
-    fetch(`${API}/content/${id}`, { method: "DELETE" })
+    apiFetch(`/content/${id}`, { method: "DELETE" })
       .then(loadContent)
       .catch(console.error);
   };
@@ -239,10 +241,14 @@ export default function AdminContentPage() {
     <nav className="flex items-center gap-4">
       <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
       <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
+      <Link href="/admin/domains"><Button variant="ghost" size="sm">Domains</Button></Link>
       <Link href="/admin/content"><Button variant="primary" size="sm">{t("nav.content")}</Button></Link>
+      <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
       <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
+      <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
       <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
       <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
+      <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
       <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
         <NavToggles />
       </div>
@@ -477,6 +483,11 @@ export default function AdminContentPage() {
           </Button>
         </div>
 
+        {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
+
+        {loading ? (
+          <div className="min-h-[200px] flex items-center justify-center"><p className="text-brand-grey">Loading...</p></div>
+        ) : (<>
         <div className="flex gap-4 mb-6 flex-wrap">
           <Input
             placeholder={t("admin.searchContent")}
@@ -541,7 +552,16 @@ export default function AdminContentPage() {
             );
           })}
         </div>
+        </>)}
       </main>
     </div>
+  );
+}
+
+export default function AdminContentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white p-6">Loading content...</div>}>
+      <AdminContentPageContent />
+    </Suspense>
   );
 }

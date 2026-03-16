@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
 
 interface ContactSalesModalProps {
   open: boolean;
@@ -13,17 +15,28 @@ export function ContactSalesModal({ open, onClose }: ContactSalesModalProps) {
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production: POST to /api/leads or CRM
-    setSubmitted(true);
+    setError("");
+    try {
+      const res = await apiFetch("/company/leads", {
+        method: "POST",
+        body: JSON.stringify({ company, email }),
+      });
+      if (!res.ok) throw new Error("Failed to submit");
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
   };
 
   const handleClose = () => {
     setCompany("");
     setEmail("");
     setSubmitted(false);
+    setError("");
     onClose();
   };
 
@@ -87,6 +100,7 @@ export function ContactSalesModal({ open, onClose }: ContactSalesModalProps) {
                     required
                   />
                 </div>
+                {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
                 <div className="flex gap-3 pt-2">
                   <Button type="button" variant="ghost" className="flex-1" onClick={handleClose}>
                     Cancel

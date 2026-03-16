@@ -1,24 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignIn";
+import { LinkedInSignInButton } from "@/components/auth/LinkedInSignIn";
 import { useI18n } from "@/lib/i18n/context";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { apiFetch } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-export default function SignUpPage() {
+function SignUpContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [trainerRequested, setTrainerRequested] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [referralCode] = useState(searchParams.get("ref") ?? "");
+  const [referrerValid, setReferrerValid] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!referralCode) return;
+    apiFetch(`/referral/resolve/${referralCode}`)
+      .then((r) => r.json())
+      .then((d) => setReferrerValid(d.valid === true))
+      .catch(() => setReferrerValid(false));
+  }, [referralCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,10 +45,9 @@ export default function SignUpPage() {
       return;
     }
     try {
-      const res = await fetch(`${API}/auth/signup`, {
+      const res = await apiFetch("/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, trainerRequested, ...(referralCode ? { referralCode } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -98,13 +110,21 @@ export default function SignUpPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-[#059669]/30 bg-white dark:bg-[#1a1e18] p-8 shadow-lg dark:shadow-none"
         >
+          {referralCode && referrerValid && (
+            <div className="mb-4 rounded-lg bg-[#059669]/10 dark:bg-[#059669]/20 border border-[#059669]/30 px-4 py-3">
+              <p className="text-sm font-medium text-[#059669] dark:text-[#10b981]">
+                You&apos;ve been invited! Sign up to unlock special benefits.
+              </p>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-[#1a1212] dark:text-brand-heading">{t("auth.signUp")}</h1>
           <p className="mt-2 text-gray-600 dark:text-brand-stardustLight">
             {t("auth.signUpSubtitle")}
           </p>
 
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col items-center gap-3">
             <GoogleSignInButton useOneTap={false} />
+            <LinkedInSignInButton referralCode={referralCode} />
           </div>
 
           <div className="my-6 flex items-center gap-4">
@@ -114,11 +134,7 @@ export default function SignUpPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <p className="rounded-lg bg-red-100 dark:bg-red-900/30 px-4 py-2 text-sm text-red-800 dark:text-red-200">
-                {error}
-              </p>
-            )}
+            {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-brand-stardustLight">
                 Full name
@@ -155,6 +171,17 @@ export default function SignUpPage() {
                 className="w-full rounded-lg border border-gray-200 dark:border-[#059669]/30 bg-gray-50 dark:bg-[#F5F5DC]/5 px-4 py-3 text-[#1a1212] dark:text-[#F5F5DC] placeholder:text-gray-500 dark:placeholder:text-[#D4B896]/60 focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
               />
             </div>
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 dark:border-[#059669]/30 bg-gray-50/50 dark:bg-[#F5F5DC]/5 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={trainerRequested}
+                onChange={(e) => setTrainerRequested(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-[#059669] focus:ring-[#059669]"
+              />
+              <span className="text-sm text-gray-700 dark:text-brand-stardustLight">
+                I want to create content as a trainer (subject to admin approval)
+              </span>
+            </label>
             <button
               type="submit"
               className="w-full rounded-lg px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 bg-gradient-to-br from-[#059669] to-[#10b981]"
@@ -172,5 +199,13 @@ export default function SignUpPage() {
         </motion.div>
       </main>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="h-10 w-10 rounded-full border-4 border-[#059669] border-t-transparent animate-spin" /></div>}>
+      <SignUpContent />
+    </Suspense>
   );
 }

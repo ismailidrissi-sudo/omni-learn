@@ -1,6 +1,7 @@
 export { LandingHeader } from "./LandingHeader";
 export { LandingHero } from "./LandingHero";
 export { MissionSection } from "./MissionSection";
+export { EnterpriseSection } from "./EnterpriseSection";
 export { StorySection } from "./StorySection";
 export { TrustBar } from "./TrustBar";
 export { BentoGrid } from "./BentoGrid";

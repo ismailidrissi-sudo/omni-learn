@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { useUser } from "@/lib/use-user";
+import { apiFetch } from "@/lib/api";
 
 export default function DiscoverPage() {
   const { t } = useI18n();
+  const { user } = useUser();
+  const userId = user?.id ?? "anonymous";
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -20,22 +22,22 @@ export default function DiscoverPage() {
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/intelligence/recommendations?userId=user-1`)
+    apiFetch(`/intelligence/recommendations?userId=${userId}`)
       .then((r) => r.json())
       .then((d) => (Array.isArray(d) ? d : []))
       .then(setRecommendations)
       .catch(() => setRecommendations([]));
-    fetch(`${API}/intelligence/path-suggestions?userId=user-1`)
+    apiFetch(`/intelligence/path-suggestions?userId=${userId}`)
       .then((r) => r.json())
       .then((d) => (Array.isArray(d) ? d : []))
       .then(setPathSuggestions)
       .catch(() => setPathSuggestions([]));
-  }, []);
+  }, [userId]);
 
   const search = () => {
     if (!query.trim()) return;
     setSearching(true);
-    fetch(`${API}/intelligence/search?q=${encodeURIComponent(query)}`)
+    apiFetch(`/intelligence/search?q=${encodeURIComponent(query)}`)
       .then((r) => r.json())
       .then((d) => (Array.isArray(d) ? d : []))
       .then(setSearchResults)
@@ -52,6 +54,7 @@ export default function DiscoverPage() {
         <nav className="flex items-center gap-4">
           <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
           <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
+          <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
           <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
             <NavToggles />

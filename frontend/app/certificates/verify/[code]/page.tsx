@@ -8,8 +8,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 export default function VerifyCertificatePage() {
   const params = useParams();
@@ -26,7 +25,7 @@ export default function VerifyCertificatePage() {
 
   useEffect(() => {
     if (!code) return;
-    fetch(`${API}/certificates/verify/${code}`)
+    apiFetch(`/certificates/verify/${code}`)
       .then((r) => r.json())
       .then(setCert)
       .catch(() => setCert(null))

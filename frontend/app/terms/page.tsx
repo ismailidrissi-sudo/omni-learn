@@ -1,45 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
-import { useI18n } from "@/lib/i18n/context";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { StaticPage } from "@/components/static-page";
 
 export default function TermsPage() {
-  const { t } = useI18n();
   return (
-    <div className="min-h-screen bg-[#F5F5DC] dark:bg-[#0f1510]">
-      <header className="border-b border-gray-200 dark:border-white/10 px-4 py-4 md:px-8 flex justify-between items-center">
-        <Link href="/">
-          <OmnilearnLogo size="md" variant="light" />
-        </Link>
-        <NavToggles />
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-brand-heading">
-          {t("landing.footer.terms")}
-        </h1>
-        <p className="mt-4 text-gray-600 dark:text-brand-stardustLight">
-          {t("pages.terms.intro")}
-        </p>
-        <div className="mt-8 space-y-6 text-gray-700 dark:text-gray-300">
-          <section>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-heading">
-              {t("pages.terms.section1Title")}
-            </h2>
-            <p className="mt-2">{t("pages.terms.section1Content")}</p>
-          </section>
-          <section>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-heading">
-              {t("pages.terms.section2Title")}
-            </h2>
-            <p className="mt-2">{t("pages.terms.section2Content")}</p>
-          </section>
-        </div>
-        <Link href="/" className="mt-12 inline-block text-brand-nova hover:underline">
-          ← {t("pages.backToHome")}
-        </Link>
-      </main>
-    </div>
+    <StaticPage
+      slug="terms"
+      titleKey="landing.footer.terms"
+      introKey="pages.terms.intro"
+      defaultSections={[
+        { titleKey: "pages.terms.section1Title", contentKey: "pages.terms.section1Content" },
+        { titleKey: "pages.terms.section2Title", contentKey: "pages.terms.section2Content" },
+        { titleKey: "pages.terms.section3Title", contentKey: "pages.terms.section3Content" },
+        { titleKey: "pages.terms.section4Title", contentKey: "pages.terms.section4Content" },
+        { titleKey: "pages.terms.section5Title", contentKey: "pages.terms.section5Content" },
+        { titleKey: "pages.terms.section6Title", contentKey: "pages.terms.section6Content" },
+        { titleKey: "pages.terms.section7Title", contentKey: "pages.terms.section7Content" },
+        { titleKey: "pages.terms.section8Title", contentKey: "pages.terms.section8Content" },
+      ]}
+    />
   );
 }

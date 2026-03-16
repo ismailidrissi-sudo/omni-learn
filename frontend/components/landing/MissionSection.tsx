@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n/context";
 export function MissionSection() {
   const { t } = useI18n();
   return (
-    <section id="enterprise" className="scroll-mt-24 px-4 py-16 md:px-8 md:py-24">
+    <section id="mission" className="scroll-mt-24 px-4 py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-4xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

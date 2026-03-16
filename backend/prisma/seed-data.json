@@ -52,10 +52,38 @@
   "users": [
     { "email": "admin@acme.com", "name": "Admin User", "department": "IT", "position": "CEO" },
     { "email": "trainer@acme.com", "name": "Jane Trainer", "department": "L&D", "position": "Trainer" },
-    { "email": "learner@acme.com", "name": "John Learner", "department": "OPS", "position": "Specialist" }
+    { "email": "learner@acme.com", "name": "John Learner", "department": "OPS", "position": "Specialist" },
+    { "email": "sarah.mitchell@afflatus.com", "name": "Sarah Mitchell", "department": "L&D", "position": "CEO", "tenantSlug": "afflatus" },
+    { "email": "david.chen@afflatus.com", "name": "David Chen", "department": "IT", "position": "CTO", "tenantSlug": "afflatus" },
+    { "email": "amira.hassan@afflatus.com", "name": "Amira Hassan", "department": "OPS", "position": "Trainer", "tenantSlug": "afflatus" },
+    { "email": "james.oconnor@afflatus.com", "name": "James O'Connor", "department": "QA", "position": "Specialist", "tenantSlug": "afflatus" },
+    { "email": "lina.park@afflatus.com", "name": "Lina Park", "department": "MKT", "position": "Analyst", "tenantSlug": "afflatus" },
+    { "email": "omar.benali@afflatus.com", "name": "Omar Benali", "department": "HR", "position": "HR Manager", "tenantSlug": "afflatus" },
+    { "email": "elena.rodriguez@afflatus.com", "name": "Elena Rodriguez", "department": "R&D", "position": "Specialist", "tenantSlug": "afflatus" },
+    { "email": "tom.wright@afflatus.com", "name": "Tom Wright", "department": "SALES", "position": "Coordinator", "tenantSlug": "afflatus" }
   ],
   "tenants": [
-    { "name": "OmniLearn", "slug": "omnilearn", "industryCode": "61", "linkedinProfileUrl": "https://linkedin.com/company/omnilearn", "staffingLevel": "11-50", "targetMarkets": ["B2B", "Enterprise"], "productsServices": ["LMS", "Corporate Training"] }
+    { "name": "OmniLearn", "slug": "omnilearn", "industryCode": "61", "linkedinProfileUrl": "https://linkedin.com/company/omnilearn", "staffingLevel": "11-50", "targetMarkets": ["B2B", "Enterprise"], "productsServices": ["LMS", "Corporate Training"] },
+    {
+      "name": "Afflatus Consulting Group",
+      "slug": "afflatus",
+      "industryCode": "54",
+      "linkedinProfileUrl": "https://linkedin.com/company/afflatus-consulting-group",
+      "staffingLevel": "11-50",
+      "targetMarkets": ["B2B", "Enterprise", "SMB"],
+      "productsServices": ["Management Consulting", "Corporate Training", "Digital Transformation", "Food Safety Consulting"],
+      "branding": {
+        "appName": "Afflatus Academy",
+        "tagline": "Inspiring Growth Through Knowledge — Professional Development by Afflatus Consulting Group",
+        "logoUrl": "/afflatus-logo.png",
+        "faviconUrl": "/afflatus-logo.png",
+        "primaryColor": "#7B1F5C",
+        "secondaryColor": "#2D2D2D",
+        "accentColor": "#A93F7B",
+        "fontFamily": "Inter, sans-serif",
+        "navStyle": "topbar"
+      }
+    }
   ],
   "domains": [
     { "name": "Food Safety", "slug": "food-safety", "icon": "🔬", "color": "#0891b2", "sortOrder": 0 },

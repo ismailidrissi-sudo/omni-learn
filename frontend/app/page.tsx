@@ -5,6 +5,7 @@ import {
   LandingHero,
   TrendingContent,
   MissionSection,
+  EnterpriseSection,
   StorySection,
   TrustBar,
   BentoGrid,
@@ -19,12 +20,13 @@ export default function Home() {
       <LandingHeader />
       <div>
         <LandingHero />
-        <TrendingContent />
-        <MissionSection />
-        <StorySection />
         <TrustBar />
+        <StorySection />
         <BentoGrid />
         <DomainExpertise />
+        <MissionSection />
+        <EnterpriseSection />
+        <TrendingContent />
         <PricingSection />
         <CTASection />
       </div>

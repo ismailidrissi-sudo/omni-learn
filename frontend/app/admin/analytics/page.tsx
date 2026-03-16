@@ -6,9 +6,9 @@ import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 type Overview = { enrollments: number; completions: number; eventsByType?: Record<string, number> };
 type Event = { id: string; eventType: string; userId?: string; pathId?: string; createdAt: string };
@@ -23,22 +23,32 @@ export default function AnalyticsPage() {
     predictedCompletionRate: number;
     totalActive: number;
   } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     const q = tenantId ? `?tenantId=${tenantId}` : "";
-    fetch(`${API}/analytics/overview${q}`)
-      .then((r) => r.json())
-      .then(setOverview)
-      .catch(() => setOverview(null));
-    fetch(`${API}/analytics/events${q}`)
-      .then((r) => r.json())
-      .then(setEvents)
-      .catch(() => setEvents([]));
-    fetch(`${API}/intelligence/predictive${q}`)
-      .then((r) => r.json())
-      .then(setPredictive)
-      .catch(() => setPredictive(null));
+    Promise.all([
+      apiFetch(`/analytics/overview${q}`).then((r) => r.json()).then(setOverview),
+      apiFetch(`/analytics/events${q}`).then((r) => r.json()).then(setEvents),
+      apiFetch(`/intelligence/predictive${q}`).then((r) => r.json()).then(setPredictive),
+    ])
+      .catch(() => setError("Failed to load analytics data. Please try again later."))
+      .finally(() => setLoading(false));
   }, [tenantId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-green border-t-transparent" />
+          <p className="text-sm text-[var(--color-text-muted)]">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -49,8 +59,11 @@ export default function AnalyticsPage() {
         <nav className="flex items-center gap-4">
           <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
           <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
+          <Link href="/admin/domains"><Button variant="ghost" size="sm">Domains</Button></Link>
           <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
+          <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
           <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
+          <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
           <Link href="/admin/analytics"><Button variant="primary" size="sm">{t("nav.analytics")}</Button></Link>
           <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
@@ -61,6 +74,8 @@ export default function AnalyticsPage() {
 
       <main className="max-w-5xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-brand-grey-dark mb-6">{t("admin.analyticsDashboard")}</h1>
+
+        {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>

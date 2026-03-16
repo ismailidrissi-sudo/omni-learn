@@ -1,9 +1,12 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards, Req, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ProfileService } from './profile.service';
+import { RbacGuard } from '../auth/guards/rbac.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RbacRole } from '../constants/rbac.constant';
 
 /**
- * Profile Controller — User profile completion, tenant profile
+ * Profile Controller — User profile completion, tenant profile, trainer approval (admin)
  * omnilearn.space | Afflatus Consulting Group
  */
 
@@ -19,6 +22,7 @@ export class ProfileController {
     @Body() body: {
       tenantId?: string;
       companyName?: string;
+      companyLogoUrl?: string;
       industryId?: string;
       departmentId?: string;
       positionId?: string;
@@ -67,5 +71,38 @@ export class ProfileController {
   @Get('options')
   async getProfileOptions() {
     return this.profile.getProfileOptions();
+  }
+
+  /** Request trainer access — sets trainerRequested; admin must approve (authenticated user) */
+  @Post('request-trainer')
+  @UseGuards(AuthGuard('jwt'))
+  async requestTrainerAccess(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.requestTrainerAccess(userId);
+  }
+
+  /** List users pending trainer approval (admin only) */
+  @Get('trainer-requests')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async getPendingTrainerRequests() {
+    return this.profile.getPendingTrainerRequests();
+  }
+
+  /** Approve a user as trainer — grants content creation access (admin only) */
+  @Patch('users/:userId/trainer-approve')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async approveTrainer(@Param('userId') userId: string) {
+    return this.profile.approveTrainer(userId);
+  }
+
+  /** Reject trainer request (admin only) */
+  @Patch('users/:userId/trainer-reject')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async rejectTrainer(@Param('userId') userId: string) {
+    return this.profile.rejectTrainer(userId);
   }
 }

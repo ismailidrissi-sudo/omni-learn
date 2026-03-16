@@ -1,38 +1,82 @@
-# omnilearn.space — Deploy to Cloudflare Pages
-# Phase 1 | Afflatus Consulting Group
+# omnilearn.space — CD Pipeline
+# Deploys to Hostinger VPS via SSH + Docker Compose
+#
+# Triggers:
+#   - Push to master (automatic)
+#   - Manual dispatch (trigger from Cursor terminal or GitHub UI)
+#
+# Required GitHub Secrets:
+#   DEPLOY_HOST       — VPS IP (187.124.42.35)
+#   DEPLOY_USER       — SSH user (root or deploy user)
+#   DEPLOY_SSH_KEY    — Private SSH key for the VPS
+#   POSTGRES_PASSWORD — Production database password
+#   JWT_SECRET        — JWT signing secret
+#
+# Optional GitHub Secrets:
+#   GOOGLE_CLIENT_ID, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET
+#   SMTP_URL, MAIL_FROM, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+#   NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_LINKEDIN_CLIENT_ID
 
 name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  APP_DIR: /opt/omnilearn
 
 jobs:
-  deploy-frontend:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
         with:
-          node-version: "20"
-          cache: "npm"
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: APP_DIR
+          script: |
+            set -e
 
-      - name: Install dependencies
-        run: npm ci
+            cd $APP_DIR
 
-      - name: Build frontend
-        run: npm run build -w frontend
-        env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:4000' }}
+            echo "==> Pulling latest code..."
+            git pull origin master
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: omnilearn
-          directory: frontend
-          # Configure build in Cloudflare dashboard or use git integration
-        continue-on-error: true
+            echo "==> Writing production .env..."
+            cat > .env << 'ENVEOF'
+            POSTGRES_USER=omnilearn
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=omnilearn
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            CORS_ORIGINS=https://omnilearn.space,https://www.omnilearn.space
+            FRONTEND_URL=https://omnilearn.space
+            NEXT_PUBLIC_API_URL=https://omnilearn.space/api
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            LINKEDIN_CLIENT_ID=${{ secrets.LINKEDIN_CLIENT_ID }}
+            LINKEDIN_CLIENT_SECRET=${{ secrets.LINKEDIN_CLIENT_SECRET }}
+            LINKEDIN_CALLBACK_URL=https://omnilearn.space/auth/linkedin/callback
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+            NEXT_PUBLIC_LINKEDIN_CLIENT_ID=${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
+            SMTP_URL=${{ secrets.SMTP_URL }}
+            MAIL_FROM=${{ secrets.MAIL_FROM }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            ENVEOF
+
+            echo "==> Building and starting containers..."
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            echo "==> Waiting for backend to be ready..."
+            sleep 10
+
+            echo "==> Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+
+            echo "==> Cleaning up old images..."
+            docker image prune -f
+
+            echo "==> Deploy complete!"

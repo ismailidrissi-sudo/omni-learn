@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { apiFetch } from "@/lib/api";
 
 type Branding = {
   logoUrl?: string;
@@ -15,12 +14,12 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const [branding, setBranding] = useState<Branding | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/company/tenants`)
+    apiFetch("/company/tenants")
       .then((r) => r.json())
       .then((tenants: { id: string }[]) => {
         const first = Array.isArray(tenants) ? tenants[0] : null;
         if (first) {
-          return fetch(`${API}/company/tenants/${first.id}/branding`).then((r) => r.json());
+          return apiFetch(`/company/tenants/${first.id}/branding`).then((r) => r.json());
         }
         return null;
       })

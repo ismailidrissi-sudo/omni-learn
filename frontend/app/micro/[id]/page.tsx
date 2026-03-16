@@ -5,8 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { toast } from "@/lib/use-toast";
 
 type MicroItem = {
   id: string;
@@ -40,10 +39,12 @@ function VideoCard({
   item,
   isActive,
   muted,
+  onEnded,
 }: {
   item: MicroItem;
   isActive: boolean;
   muted: boolean;
+  onEnded?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrl = getVideoUrl(item);
@@ -64,13 +65,13 @@ function VideoCard({
         ref={videoRef}
         src={videoUrl}
         className="absolute inset-0 w-full h-full object-cover"
-        loop
         muted={muted}
         playsInline
         onClick={() => {
           if (videoRef.current?.paused) videoRef.current.play();
           else videoRef.current?.pause();
         }}
+        onEnded={onEnded}
       />
       {/* Bottom - title overlay */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 pb-24 bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
@@ -91,6 +92,7 @@ export default function MicroPlayerPage() {
   const userId = user?.id ?? "anonymous";
   const [items, setItems] = useState<MicroItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -106,7 +108,7 @@ export default function MicroPlayerPage() {
 
   useEffect(() => {
     const targetId = initialIdRef.current;
-    fetch(`${API}/microlearning/feed?userId=${userId}&limit=50&offset=0`)
+    apiFetch(`/microlearning/feed?userId=${userId}&limit=50&offset=0`)
       .then((r) => r.json())
       .then((data: MicroItem[]) => {
         const arr = Array.isArray(data) ? data : [];
@@ -128,7 +130,7 @@ export default function MicroPlayerPage() {
           setItems([]);
         }
       })
-      .catch(() => setItems([]))
+      .catch(() => setError("Content not found"))
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -157,6 +159,14 @@ export default function MicroPlayerPage() {
       router.replace(`/micro/${items[newIndex].id}`, { scroll: false });
     }
   }, [items, activeIndex, router]);
+
+  const handleVideoEnded = useCallback(() => {
+    if (activeIndex < items.length - 1) {
+      const nextIndex = activeIndex + 1;
+      setActiveIndex(nextIndex);
+      router.replace(`/micro/${items[nextIndex].id}`, { scroll: false });
+    }
+  }, [activeIndex, items, router]);
 
   const handleLike = async () => {
     if (!activeItem) return;
@@ -202,15 +212,14 @@ export default function MicroPlayerPage() {
           url: `${window.location.origin}/micro/${activeItem.id}`,
         });
         if (userId !== "anonymous") {
-          await fetch(`${API}/microlearning/${activeItem.id}/share`, {
+          await apiFetch(`/microlearning/${activeItem.id}/share`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId }),
           });
         }
       } else {
         await navigator.clipboard.writeText(`${window.location.origin}/micro/${activeItem.id}`);
-        alert("Link copied!");
+        toast("Link copied!", "success");
       }
     } catch {}
   };
@@ -266,6 +275,17 @@ export default function MicroPlayerPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white p-6">
+        <p className="text-lg mb-4">{error}</p>
+        <Link href="/" className="text-[#059669] font-semibold underline">
+          Back to home
+        </Link>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white p-6">
@@ -294,6 +314,7 @@ export default function MicroPlayerPage() {
             item={item}
             isActive={index === activeIndex}
             muted={muted}
+            onEnded={index === activeIndex ? handleVideoEnded : undefined}
           />
         ))}
       </div>

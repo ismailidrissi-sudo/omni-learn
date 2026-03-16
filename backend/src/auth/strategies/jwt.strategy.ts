@@ -13,7 +13,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || process.env.KEYCLOAK_PUBLIC_KEY || 'dev-secret',
+      secretOrKey: (() => {
+        const secret = process.env.JWT_SECRET || process.env.KEYCLOAK_PUBLIC_KEY;
+        if (!secret && process.env.NODE_ENV === 'production') {
+          throw new Error('JWT_SECRET or KEYCLOAK_PUBLIC_KEY is required in production');
+        }
+        return secret || 'dev-secret-local-only';
+      })(),
       algorithms: ['RS256', 'HS256'],
     });
   }

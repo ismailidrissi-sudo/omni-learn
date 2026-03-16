@@ -71,6 +71,7 @@ enum ContractStatus {
 enum SsoProviderType {
   SAML_2_0
   OIDC
+  LINKEDIN_OIDC
 }
 
 enum UserGroupType {
@@ -129,12 +130,15 @@ model User {
   tenantId      String?
   externalId    String?
   linkedinProfileUrl String?    // For recommendation optimization
+  linkedinAccessToken String?   // Encrypted; for LinkedIn contacts import (referral system)
   profileComplete Boolean       @default(false)  // Onboarding completed
   planId        SubscriptionPlan @default(EXPLORER)
   billingCycle  BillingCycle?    // null for free/enterprise
   sectorFocus   String?          // For Specialist: Biotech, Food Safety, AI, etc.
   stripeCustomerId String?       // Stripe customer ID for billing
   stripeSubscriptionId String?  // Active subscription ID
+  trainerRequested   Boolean      @default(false)  // User requested to be a trainer (content creator)
+  trainerApprovedAt DateTime?    // When set, user has INSTRUCTOR role and can create content
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -575,6 +579,13 @@ model TenantBranding {
   faviconUrl     String?
   primaryColor   String?  @default("#6B4E9A")
   secondaryColor String?  @default("#8D8D8D")
+  accentColor    String?
+  appName        String?
+  tagline        String?
+  loginBgUrl     String?
+  emailLogoUrl   String?
+  fontFamily     String?
+  navStyle       String?  @default("topbar") // "topbar" | "sidebar"
   customCss      String?
   settings       Json?    @default("{}")
   updatedAt      DateTime @updatedAt
@@ -760,6 +771,115 @@ model MicroLearningComment {
   @@index([userId])
 }
 
+// ── SITE PAGES (admin-editable static pages: about, terms, privacy, etc.) ──
+
+model SitePage {
+  id        String   @id @default(uuid())
+  slug      String   @unique       // e.g. "about", "terms", "privacy"
+  title     String
+  sections  Json     @default("[]") // Array of { title: string, content: string }
+  updatedBy String?                 // User ID of last editor
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_pages")
+}
+
+// ── REFERRAL SYSTEM ──
+
+enum ReferralStatus {
+  PENDING
+  SIGNED_UP
+  CONVERTED
+  EXPIRED
+}
+
+enum RewardStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model ReferralCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   @unique
+  label     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referrals   Referral[]
+  invitations ReferralInvitation[]
+
+  @@index([userId])
+  @@index([code])
+}
+
+model Referral {
+  id               String         @id @default(uuid())
+  referralCodeId   String
+  referrerId       String
+  referredUserId   String?
+  referredEmail    String
+  status           ReferralStatus @default(PENDING)
+  channel          String?
+  convertedAt      DateTime?
+  signedUpAt       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  referralCode ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([referralCodeId, referredEmail])
+  @@index([referrerId])
+  @@index([referredUserId])
+  @@index([referredEmail])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ReferralReward {
+  id           String           @id @default(uuid())
+  userId       String
+  referralId   String?
+  rewardType   String
+  grantedPlan  SubscriptionPlan
+  durationDays Int
+  status       RewardStatus     @default(ACTIVE)
+  startsAt     DateTime         @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  metadata     Json?            @default("{}")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([referralId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model ReferralInvitation {
+  id             String   @id @default(uuid())
+  referralCodeId String
+  senderUserId   String
+  recipientEmail String
+  recipientName  String?
+  source         String   @default("manual")
+  sentAt         DateTime @default(now())
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  metadata       Json?    @default("{}")
+
+  referralCode ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([referralCodeId, recipientEmail])
+  @@index([senderUserId])
+  @@index([recipientEmail])
+  @@index([sentAt])
+}
+
 // ── PHASE 4: SCIM PROVISIONING ──
 
 model ScimProvisioningLog {
@@ -774,4 +894,52 @@ model ScimProvisioningLog {
 
   @@index([operation])
   @@index([resourceType])
+}
+
+// ── ENTERPRISE: TRAINING ASSIGNMENTS (Compliance) ──
+
+enum AssignmentStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+model TrainingAssignment {
+  id           String           @id @default(uuid())
+  tenantId     String
+  contentId    String?
+  pathId       String?
+  assigneeType String           // "ALL", "GROUP", "USER"
+  assigneeId   String?          // groupId or userId (null for ALL)
+  dueDate      DateTime
+  status       AssignmentStatus @default(PENDING)
+  assignedBy   String?
+  completedAt  DateTime?
+  metadata     Json?            @default("{}")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([assigneeType, assigneeId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+// ── ENTERPRISE: NOTIFICATIONS ──
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String?
+  type      String   // "TRAINING_ASSIGNED", "DUE_DATE_APPROACHING", "PATH_COMPLETED", "CERTIFICATE_ISSUED"
+  title     String
+  body      String?
+  isRead    Boolean  @default(false)
+  metadata  Json?    @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([tenantId])
+  @@index([createdAt])
 }

@@ -8,7 +8,7 @@ import { MailerService } from '../mailer/mailer.service';
 import { RbacRole } from '../constants/rbac.constant';
 
 /**
- * Auth Service — Keycloak SSO + Google Sign-In + Multi-tenant RBAC
+ * Auth Service — Keycloak SSO + Google Sign-In + LinkedIn Sign-In + Multi-tenant RBAC
  * omnilearn.space | Afflatus Consulting Group
  */
 
@@ -33,8 +33,8 @@ export class AuthService {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
   }
 
-  /** Sign up with email/password — sends verification email */
-  async signUp(email: string, password: string, name: string): Promise<{ message: string; userId: string }> {
+  /** Sign up with email/password — sends verification email. trainerRequested: user wants to be a trainer (content creator), pending admin approval. */
+  async signUp(email: string, password: string, name: string, trainerRequested = false): Promise<{ message: string; userId: string }> {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictException('An account with this email already exists');
@@ -54,6 +54,7 @@ export class AuthService {
         emailVerified: false,
         emailVerifyToken: token,
         emailVerifyExpiresAt: expiresAt,
+        trainerRequested: !!trainerRequested,
       },
     });
 
@@ -64,8 +65,17 @@ export class AuthService {
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
   }
 
+  /** Build JWT roles for a user: learner_basic + instructor if approved trainer */
+  private getRolesForUser(user: { trainerApprovedAt?: Date | null }): string[] {
+    const roles = ['learner_basic'];
+    if (user?.trainerApprovedAt) {
+      roles.push('instructor');
+    }
+    return roles;
+  }
+
   /** Login with email/password (after verification) */
-  async loginWithPassword(email: string, password: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string } }> {
+  async loginWithPassword(email: string, password: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
@@ -77,22 +87,38 @@ export class AuthService {
     if (!valid) {
       throw new UnauthorizedException('Invalid email or password');
     }
+    const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
       preferred_username: user.email,
-      realm_access: { roles: ['learner_basic'] },
+      realm_access: { roles },
     });
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
     };
   }
 
   private generateVerifyToken(): string {
     return crypto.randomBytes(32).toString('hex');
   }
-  /** Map Keycloak realm roles to our RBAC roles */
+  /** Refresh JWT — reissue token with same claims for a valid user (includes instructor if approved trainer) */
+  async refreshToken(userId: string): Promise<{ accessToken: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    const roles = this.getRolesForUser(user);
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      preferred_username: user.email,
+      realm_access: { roles },
+    });
+    return { accessToken };
+  }
+
   mapKeycloakRoleToRbac(keycloakRole: string): RbacRole | null {
     const mapping: Record<string, RbacRole> = {
       super_admin: RbacRole.SUPER_ADMIN,
@@ -126,7 +152,7 @@ export class AuthService {
   }
 
   /** Dev-only: Login with email/password, return JWT with admin role */
-  async devLogin(email: string, password: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string } }> {
+  async devLogin(email: string, password: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
     if (!adminEmail || !adminPassword) {
@@ -149,12 +175,12 @@ export class AuthService {
     });
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
     };
   }
 
   /** Verify Google ID token and create/update user, return our JWT */
-  async verifyGoogleToken(idToken: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string } }> {
+  async verifyGoogleToken(idToken: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
     if (!process.env.GOOGLE_CLIENT_ID) {
       throw new UnauthorizedException('Google Sign-In not configured (GOOGLE_CLIENT_ID)');
     }
@@ -184,15 +210,184 @@ export class AuthService {
         data: { externalId },
       });
     }
+    const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
       preferred_username: user.email,
-      realm_access: { roles: ['learner_basic'] },
+      realm_access: { roles },
     });
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+    };
+  }
+
+  /**
+   * Exchange LinkedIn authorization code for tokens, fetch profile, and
+   * create/update user. Returns our JWT.
+   */
+  async verifyLinkedInCode(code: string): Promise<{ accessToken: string; linkedinAccessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+    const redirectUri = process.env.LINKEDIN_CALLBACK_URL || 'http://localhost:3000/auth/linkedin/callback';
+
+    if (!clientId || !clientSecret) {
+      throw new UnauthorizedException('LinkedIn Sign-In not configured (LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET)');
+    }
+
+    const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const err = await tokenResponse.text();
+      throw new UnauthorizedException(`LinkedIn token exchange failed: ${err}`);
+    }
+
+    const tokens = (await tokenResponse.json()) as {
+      access_token: string;
+      expires_in: number;
+      id_token?: string;
+    };
+
+    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+
+    if (!profileResponse.ok) {
+      throw new UnauthorizedException('Failed to fetch LinkedIn profile');
+    }
+
+    const profile = (await profileResponse.json()) as {
+      sub: string;
+      email?: string;
+      name?: string;
+      given_name?: string;
+      family_name?: string;
+      picture?: string;
+    };
+
+    if (!profile.sub || !profile.email) {
+      throw new UnauthorizedException('LinkedIn profile missing required fields (sub, email)');
+    }
+
+    const externalId = `linkedin:${profile.sub}`;
+    const displayName = profile.name
+      ?? [profile.given_name, profile.family_name].filter(Boolean).join(' ')
+      ?? profile.email.split('@')[0];
+
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ externalId }, { email: profile.email }] },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: profile.email,
+          name: displayName,
+          externalId,
+          emailVerified: true,
+        },
+      });
+    } else {
+      const updates: Record<string, unknown> = {};
+      if (!user.externalId) updates.externalId = externalId;
+      if (!user.emailVerified) updates.emailVerified = true;
+      if (Object.keys(updates).length > 0) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: updates,
+        });
+      }
+    }
+
+    const roles = this.getRolesForUser(user);
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      preferred_username: user.email,
+      realm_access: { roles },
+    });
+
+    return {
+      accessToken,
+      linkedinAccessToken: tokens.access_token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        profileComplete: user.profileComplete,
+        needsProfileCompletion: !user.profileComplete,
+      },
+    };
+  }
+
+  /**
+   * Handle the Passport-callback flow: profile already resolved by LinkedInStrategy.
+   */
+  async loginWithLinkedInProfile(profile: {
+    linkedinId: string;
+    email?: string;
+    name?: string;
+    accessToken: string;
+  }): Promise<{ accessToken: string; linkedinAccessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
+    if (!profile.email) {
+      throw new UnauthorizedException('LinkedIn account has no email');
+    }
+
+    const externalId = `linkedin:${profile.linkedinId}`;
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ externalId }, { email: profile.email }] },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: profile.email,
+          name: profile.name ?? profile.email.split('@')[0],
+          externalId,
+          emailVerified: true,
+        },
+      });
+    } else {
+      const updates: Record<string, unknown> = {};
+      if (!user.externalId) updates.externalId = externalId;
+      if (!user.emailVerified) updates.emailVerified = true;
+      if (Object.keys(updates).length > 0) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: updates,
+        });
+      }
+    }
+
+    const roles = this.getRolesForUser(user);
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      preferred_username: user.email,
+      realm_access: { roles },
+    });
+
+    return {
+      accessToken,
+      linkedinAccessToken: profile.accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        profileComplete: user.profileComplete,
+        needsProfileCompletion: !user.profileComplete,
+      },
     };
   }
 }

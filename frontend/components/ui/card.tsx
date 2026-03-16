@@ -2,10 +2,7 @@
 
 import * as React from "react";
 
-/**
- * Card — Brand-styled card with blueprint effect
- * background: nebula, border: nova 8%
- */
+/** Card — Brand-styled card */
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "accent" | "glow" | "glow-pulsar" | "glow-solar";
@@ -48,7 +45,7 @@ const CardTitle = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <h3
     ref={ref}
-    className={`text-base font-semibold leading-none tracking-tight text-brand-black ${className}`}
+    className={`text-base font-semibold leading-none tracking-tight text-[var(--color-text-primary)] ${className}`}
     {...props}
   />
 ));

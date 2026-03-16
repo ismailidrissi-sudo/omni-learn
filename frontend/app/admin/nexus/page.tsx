@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 type EmployeeProgress = {
   userId: string;
   name: string;
@@ -29,19 +27,9 @@ export default function NexusAdminPage() {
 
   useEffect(() => {
     if (!user?.tenantId) return;
-    fetch(`${API}/company/users?tenantId=${user.tenantId}`)
+    apiFetch(`/company/tenants/${user.tenantId}/analytics`)
       .then((r) => r.json())
-      .then((users: { id: string; name: string; email: string }[]) => {
-        setEmployees(
-          users.map((u) => ({
-            userId: u.id,
-            name: u.name,
-            email: u.email,
-            enrollments: 0,
-            completedPct: 0,
-          }))
-        );
-      })
+      .then((data: EmployeeProgress[]) => setEmployees(data))
       .catch(() => setEmployees([]));
   }, [user?.tenantId]);
 

@@ -74,12 +74,23 @@ export class ContentService {
     });
   }
 
-  /** Find all content with tier-based access filtering */
-  async findAll(type?: string, userId?: string | null) {
+  /** Find all content with tier-based access filtering (adminMode skips filtering) */
+  async findAll(type?: string, userId?: string | null, adminMode = false) {
+    const typeFilter = type
+      ? { type: type as 'COURSE' | 'VIDEO' | 'MICRO_LEARNING' | 'PODCAST' | 'DOCUMENT' | 'IMPLEMENTATION_GUIDE' | 'QUIZ_ASSESSMENT' | 'GAME' }
+      : {};
+
+    if (adminMode) {
+      return this.prisma.contentItem.findMany({
+        where: typeFilter,
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
     const ctx = await this.accessService.getAccessContext(userId ?? null);
     const accessWhere = this.accessService.buildContentWhere(ctx);
     const where = type
-      ? { AND: [{ type: type as 'COURSE' | 'VIDEO' | 'MICRO_LEARNING' | 'PODCAST' | 'DOCUMENT' | 'IMPLEMENTATION_GUIDE' | 'QUIZ_ASSESSMENT' | 'GAME' }, accessWhere] }
+      ? { AND: [typeFilter, accessWhere] }
       : accessWhere;
     return this.prisma.contentItem.findMany({
       where,
@@ -87,7 +98,7 @@ export class ContentService {
     });
   }
 
-  async findOne(id: string, userId?: string | null) {
+  async findOne(id: string, userId?: string | null, adminMode = false) {
     const content = await this.prisma.contentItem.findUniqueOrThrow({
       where: { id },
       include: {
@@ -96,6 +107,9 @@ export class ContentService {
         userAssignments: { include: { user: true } },
       },
     });
+    if (adminMode) {
+      return { ...content, adsEnabled: false };
+    }
     const ctx = await this.accessService.getAccessContext(userId ?? null);
     const canAccess = await this.accessService.canAccessContent(id, ctx);
     if (!canAccess) {

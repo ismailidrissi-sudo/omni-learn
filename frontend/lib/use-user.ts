@@ -13,6 +13,8 @@ export interface User {
   billingCycle?: string | null;
   sectorFocus?: string | null;
   tenantId?: string | null;
+  trainerRequested?: boolean;
+  trainerApprovedAt?: string | null;
 }
 
 export function useUser(): { user: User | null; loading: boolean } {

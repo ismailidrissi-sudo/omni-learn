@@ -9,8 +9,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { useUser } from "@/lib/use-user";
+import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 
 type Channel = { id: string; name: string; slug: string; description?: string; _count?: { topics: number } };
 type Topic = { id: string; title: string; authorId: string; status: string; createdAt: string; _count?: { posts: number } };
@@ -18,6 +19,8 @@ type Post = { id: string; body: string; authorId: string; createdAt: string };
 
 export default function ForumPage() {
   const { t } = useI18n();
+  const { user } = useUser();
+  const authorId = user?.id ?? "anonymous";
   const [channels, setChannels] = useState<Channel[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
@@ -32,7 +35,7 @@ export default function ForumPage() {
   const [newChannelSlug, setNewChannelSlug] = useState("");
 
   useEffect(() => {
-    fetch(`${API}/forum/channels`)
+    apiFetch("/forum/channels")
       .then((r) => r.json())
       .then(setChannels)
       .catch(() => setChannels([]))
@@ -41,7 +44,7 @@ export default function ForumPage() {
 
   useEffect(() => {
     if (!selectedChannel) return;
-    fetch(`${API}/forum/channels/${selectedChannel}/topics`)
+    apiFetch(`/forum/channels/${selectedChannel}/topics`)
       .then((r) => r.json())
       .then(setTopics)
       .catch(() => setTopics([]));
@@ -49,7 +52,7 @@ export default function ForumPage() {
 
   useEffect(() => {
     if (!selectedTopic) return;
-    fetch(`${API}/forum/topics/${selectedTopic.id}`)
+    apiFetch(`/forum/topics/${selectedTopic.id}`)
       .then((r) => r.json())
       .then((d) => setPosts(d.posts || []))
       .catch(() => setPosts([]));
@@ -57,10 +60,9 @@ export default function ForumPage() {
 
   const createTopic = () => {
     if (!selectedChannel || !newTopicTitle.trim() || !newTopicBody.trim()) return;
-    fetch(`${API}/forum/channels/${selectedChannel}/topics`, {
+    apiFetch(`/forum/channels/${selectedChannel}/topics`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ authorId: "user-1", title: newTopicTitle, body: newTopicBody }),
+      body: JSON.stringify({ authorId, title: newTopicTitle, body: newTopicBody }),
     })
       .then(async (r) => {
         if (!r.ok) {
@@ -72,16 +74,15 @@ export default function ForumPage() {
       .then(() => {
         setNewTopicTitle("");
         setNewTopicBody("");
-        fetch(`${API}/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+        apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
       })
-      .catch((e) => alert(e.message || "Failed to create topic"));
+      .catch((e) => toast(e.message || "Failed to create topic", "error"));
   };
 
   const createChannel = () => {
     if (!newChannelName.trim() || !newChannelSlug.trim()) return;
-    fetch(`${API}/forum/channels`, {
+    apiFetch("/forum/channels", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newChannelName, slug: newChannelSlug }),
     })
       .then((r) => r.json())
@@ -89,16 +90,15 @@ export default function ForumPage() {
         setNewChannelName("");
         setNewChannelSlug("");
         setShowCreateChannel(false);
-        fetch(`${API}/forum/channels`).then((r) => r.json()).then(setChannels);
+        apiFetch("/forum/channels").then((r) => r.json()).then(setChannels);
       });
   };
 
   const addPost = () => {
     if (!selectedTopic || !newPostBody.trim()) return;
-    fetch(`${API}/forum/topics/${selectedTopic.id}/posts`, {
+    apiFetch(`/forum/topics/${selectedTopic.id}/posts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ authorId: "user-1", body: newPostBody }),
+      body: JSON.stringify({ authorId, body: newPostBody }),
     })
       .then(async (r) => {
         if (!r.ok) {
@@ -109,23 +109,22 @@ export default function ForumPage() {
       })
       .then(() => {
         setNewPostBody("");
-        fetch(`${API}/forum/topics/${selectedTopic.id}`).then((r) => r.json()).then((d) => setPosts(d.posts || []));
-        if (selectedChannel) fetch(`${API}/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+        apiFetch(`/forum/topics/${selectedTopic.id}`).then((r) => r.json()).then((d) => setPosts(d.posts || []));
+        if (selectedChannel) apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
       })
-      .catch((e) => alert(e.message || "Failed to add post"));
+      .catch((e) => toast(e.message || "Failed to add reply", "error"));
   };
 
   const moderate = (targetType: "TOPIC" | "POST", targetId: string, action: string) => {
-    fetch(`${API}/forum/moderate`, {
+    apiFetch("/forum/moderate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType, targetId, action, moderatorId: "user-1", reason: "Moderated" }),
+      body: JSON.stringify({ targetType, targetId, action, moderatorId: authorId, reason: "Moderated" }),
     }).then(() => {
       if (targetType === "TOPIC") {
         setSelectedTopic(null);
-        fetch(`${API}/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+        apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
       } else {
-        fetch(`${API}/forum/topics/${selectedTopic?.id}`).then((r) => r.json()).then((d) => setPosts(d.posts || []));
+        apiFetch(`/forum/topics/${selectedTopic?.id}`).then((r) => r.json()).then((d) => setPosts(d.posts || []));
       }
     });
   };
@@ -133,9 +132,9 @@ export default function ForumPage() {
   const pinTopic = (topicId?: string) => {
     const id = topicId ?? selectedTopic?.id;
     if (!id) return;
-    fetch(`${API}/forum/topics/${id}/pin`, { method: "PUT" }).then(() => {
+    apiFetch(`/forum/topics/${id}/pin`, { method: "PUT" }).then(() => {
       if (selectedChannel) {
-        fetch(`${API}/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+        apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
       }
     });
   };
@@ -143,9 +142,9 @@ export default function ForumPage() {
   const closeTopic = (topicId?: string) => {
     const id = topicId ?? selectedTopic?.id;
     if (!id) return;
-    fetch(`${API}/forum/topics/${id}/close`, { method: "PUT" }).then(() => {
+    apiFetch(`/forum/topics/${id}/close`, { method: "PUT" }).then(() => {
       if (selectedTopic?.id === id) setSelectedTopic(null);
-      selectedChannel && fetch(`${API}/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+      selectedChannel && apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
     });
   };
 
@@ -159,6 +158,7 @@ export default function ForumPage() {
           <Link href="/learn">
             <Button variant="ghost" size="sm">{t("nav.learn")}</Button>
           </Link>
+          <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
           <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
           <Link href="/admin/paths">
             <Button variant="outline" size="sm">{t("nav.admin")}</Button>

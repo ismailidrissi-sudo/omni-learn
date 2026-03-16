@@ -16,6 +16,9 @@ import { ScimModule } from './scim/scim.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { MicrolearningModule } from './microlearning/microlearning.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { SitePagesModule } from './site-pages/site-pages.module';
+import { ReferralModule } from './referral/referral.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { SubscriptionModule } from './subscription/subscription.module';
     IntelligenceModule,
     MicrolearningModule,
     SubscriptionModule,
+    SitePagesModule,
+    ReferralModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

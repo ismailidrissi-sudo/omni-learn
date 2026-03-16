@@ -10,9 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PathBuilder } from "@/components/admin/path-builder";
 import { NavToggles } from "@/components/ui/nav-toggles";
-
-// Domains are fetched from API (GET /domains?tenantId=) — Dynamic Domain System per architecture
-const DEFAULT_TENANT_ID = "acme"; // Will be replaced with actual tenant from auth/context
+import { useUser } from "@/lib/use-user";
+import { apiFetch } from "@/lib/api";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚" },
@@ -29,6 +28,8 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function AdminPathsPage() {
   const { t } = useI18n();
+  const { user } = useUser();
+  const userTenantId = user?.tenantId;
   const [view, setView] = useState<"list" | "builder">("list");
   const [search, setSearch] = useState("");
   const [domains, setDomains] = useState<Array<{ id: string; name: string; slug: string; icon?: string }>>([]);
@@ -44,22 +45,16 @@ export default function AdminPathsPage() {
     }>
   >([]);
 
-  // Fetch tenant + domains on mount (Dynamic Domain System)
   useEffect(() => {
-    fetch(`${API}/company/tenants`)
-      .then((r) => r.json())
-      .then((tenants: { id: string; slug: string }[]) => {
-        const tid = tenants?.[0]?.id ?? null;
-        setTenantId(tid);
-        if (tid) {
-          fetch(`${API}/domains?tenantId=${tid}`)
-            .then((r) => r.json())
-            .then((d: { id: string; name: string; slug: string; icon?: string }[]) => setDomains(Array.isArray(d) ? d : []))
-            .catch(() => setDomains([]));
-        }
-      })
-      .catch(() => {});
-  }, []);
+    const tid = userTenantId ?? null;
+    setTenantId(tid);
+    if (tid) {
+      apiFetch(`/domains?tenantId=${tid}`)
+        .then((r) => r.json())
+        .then((d: { id: string; name: string; slug: string; icon?: string }[]) => setDomains(Array.isArray(d) ? d : []))
+        .catch(() => setDomains([]));
+    }
+  }, [userTenantId]);
 
   const domainsForBuilder = domains.length > 0
     ? domains.map((d) => ({ id: d.id, name: d.name, icon: d.icon ?? "📚" }))
@@ -72,8 +67,11 @@ export default function AdminPathsPage() {
         <nav className="flex items-center gap-4">
           <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
           <Link href="/admin/paths"><Button variant="primary" size="sm">{t("nav.paths")}</Button></Link>
+          <Link href="/admin/domains"><Button variant="ghost" size="sm">Domains</Button></Link>
           <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
+          <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
           <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
+          <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
           <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
           <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">

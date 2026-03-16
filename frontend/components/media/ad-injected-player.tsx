@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n/context";
 import { VideoPlayer } from "./video-player";
 
 /**
@@ -18,14 +19,15 @@ interface AdInjectedPlayerProps {
 
 /** Mock ad banner — replace with real ad network integration */
 function AdBanner() {
+  const { t } = useI18n();
   return (
     <div
       className="flex items-center justify-center py-3 px-4 text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-b-lg border-t border-gray-200 dark:border-gray-700"
       style={{ minHeight: 50 }}
     >
-      <span className="opacity-75">Advertisement</span>
+      <span className="opacity-75">{t("media.advertisement")}</span>
       <span className="mx-2">·</span>
-      <span className="opacity-75">Upgrade to remove ads</span>
+      <span className="opacity-75">{t("media.upgradeToRemoveAds")}</span>
     </div>
   );
 }
