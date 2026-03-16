@@ -5,9 +5,11 @@ import { Strategy } from 'passport-linkedin-oauth2';
 @Injectable()
 export class LinkedInStrategy extends PassportStrategy(Strategy, 'linkedin') {
   constructor() {
+    const clientID = process.env.LINKEDIN_CLIENT_ID || 'disabled';
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'disabled';
     super({
-      clientID: process.env.LINKEDIN_CLIENT_ID || '',
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || '',
+      clientID,
+      clientSecret,
       callbackURL: process.env.LINKEDIN_CALLBACK_URL || 'http://localhost:4000/auth/linkedin/callback',
       scope: ['openid', 'profile', 'email'],
       state: true,
