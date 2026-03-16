@@ -73,8 +73,8 @@ jobs:
             echo "==> Waiting for backend to be ready..."
             sleep 10
 
-            echo "==> Running database migrations..."
-            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js migrate deploy
+            echo "==> Running database schema sync..."
+            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js db push --skip-generate
 
             echo "==> Cleaning up old images..."
             docker image prune -f
