@@ -13,6 +13,7 @@ export interface User {
   billingCycle?: string | null;
   sectorFocus?: string | null;
   tenantId?: string | null;
+  isAdmin?: boolean;
   trainerRequested?: boolean;
   trainerApprovedAt?: string | null;
 }

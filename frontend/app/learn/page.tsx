@@ -184,7 +184,7 @@ export default function LearnPage() {
             <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
             <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
             <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-            {user?.planId === "NEXUS" && (
+            {(user?.isAdmin || user?.planId === "NEXUS") && (
               <Link href="/admin/nexus"><Button variant="outline" size="sm">My Company</Button></Link>
             )}
             <Link href="/admin/paths"><Button variant="outline" size="sm">{t("nav.admin")}</Button></Link>

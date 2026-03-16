@@ -85,7 +85,7 @@ function ContactContent() {
   const { user } = useUser();
   const searchParams = useSearchParams();
   const isEnterprise = searchParams.get("interest") === "enterprise";
-  const isAdmin = user?.planId === "NEXUS" || user?.planId === "VISIONARY";
+  const isAdmin = !!user?.isAdmin || user?.planId === "NEXUS" || user?.planId === "VISIONARY";
 
   const defaultSections = [
     { titleKey: "pages.contact.section1Title", contentKey: "pages.contact.section1Content" },

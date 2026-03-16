@@ -65,8 +65,19 @@ export class AuthService {
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
   }
 
-  /** Build JWT roles for a user: learner_basic + instructor if approved trainer */
-  private getRolesForUser(user: { trainerApprovedAt?: Date | null }): string[] {
+  /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor if approved */
+  private getRolesForUser(user: { isAdmin?: boolean; trainerApprovedAt?: Date | null }): string[] {
+    if (user?.isAdmin) {
+      return [
+        'super_admin',
+        'company_admin',
+        'company_manager',
+        'instructor',
+        'content_moderator',
+        'learner_pro',
+        'learner_basic',
+      ];
+    }
     const roles = ['learner_basic'];
     if (user?.trainerApprovedAt) {
       roles.push('instructor');
@@ -162,16 +173,30 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
     let user = await this.prisma.user.findUnique({ where: { email } });
+    const adminData = {
+      isAdmin: true,
+      trainerRequested: true,
+      trainerApprovedAt: new Date(),
+      emailVerified: true,
+      profileComplete: true,
+      planId: 'NEXUS' as const,
+    };
     if (!user) {
       user = await this.prisma.user.create({
-        data: { email, name: 'Admin User' },
+        data: { email, name: 'Admin User', ...adminData },
+      });
+    } else if (!user.isAdmin) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: adminData,
       });
     }
+    const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
       preferred_username: user.email,
-      realm_access: { roles: ['super_admin'] },
+      realm_access: { roles },
     });
     return {
       accessToken,

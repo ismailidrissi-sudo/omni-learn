@@ -28,7 +28,7 @@ export default function CompanyAdminPage() {
   const [newSlug, setNewSlug] = useState("");
   const [error, setError] = useState("");
 
-  const isNexus = user?.planId === "NEXUS";
+  const isNexus = !!user?.isAdmin || user?.planId === "NEXUS";
 
   useEffect(() => {
     apiFetch("/profile/options").then((r) => r.json()).then((o) => setIndustries(o?.industries ?? [])).catch(() => {});

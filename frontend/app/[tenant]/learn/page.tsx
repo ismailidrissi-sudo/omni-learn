@@ -116,7 +116,7 @@ export default function TenantLearnPage() {
           <Link href={`/${slug}/learn`}><Button variant="primary" size="sm">{t("tenant.learn")}</Button></Link>
           <Link href={`/${slug}/discover`}><Button variant="ghost" size="sm">{t("tenant.discover")}</Button></Link>
           <Link href={`/${slug}/forum`}><Button variant="ghost" size="sm">{t("tenant.forum")}</Button></Link>
-          {(user?.planId === "NEXUS" || user?.trainerApprovedAt) && (
+          {(user?.isAdmin || user?.planId === "NEXUS" || user?.trainerApprovedAt) && (
             <Link href={`/${slug}/admin`}><Button variant="ghost" size="sm">{t("tenant.admin")}</Button></Link>
           )}
           <div className="pl-3 ml-3 border-l border-[var(--color-bg-secondary)]">

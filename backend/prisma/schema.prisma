@@ -137,6 +137,7 @@ model User {
   sectorFocus   String?          // For Specialist: Biotech, Food Safety, AI, etc.
   stripeCustomerId String?       // Stripe customer ID for billing
   stripeSubscriptionId String?  // Active subscription ID
+  isAdmin            Boolean      @default(false)  // Platform admin — grants all RBAC roles + trainer + approval rights
   trainerRequested   Boolean      @default(false)  // User requested to be a trainer (content creator)
   trainerApprovedAt DateTime?    // When set, user has INSTRUCTOR role and can create content
   createdAt     DateTime         @default(now())

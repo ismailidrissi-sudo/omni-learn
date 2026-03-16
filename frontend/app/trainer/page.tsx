@@ -54,8 +54,8 @@ export default function TrainerPage() {
   const [error, setError] = useState("");
   const [requestingTrainer, setRequestingTrainer] = useState(false);
 
-  const isApprovedTrainer = !!user?.trainerApprovedAt;
-  const trainerPending = !!user?.trainerRequested && !user?.trainerApprovedAt;
+  const isApprovedTrainer = !!user?.isAdmin || !!user?.trainerApprovedAt;
+  const trainerPending = !user?.isAdmin && !!user?.trainerRequested && !user?.trainerApprovedAt;
 
   const loadContent = () => {
     setLoading(true);

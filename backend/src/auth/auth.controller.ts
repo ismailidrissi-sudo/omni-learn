@@ -88,7 +88,7 @@ export class AuthController {
     if (!userId) throw new BadRequestException('Not authenticated');
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, tenantId: true, planId: true, billingCycle: true, sectorFocus: true, trainerRequested: true, trainerApprovedAt: true },
+      select: { id: true, email: true, name: true, tenantId: true, planId: true, billingCycle: true, sectorFocus: true, isAdmin: true, trainerRequested: true, trainerApprovedAt: true },
     });
     if (!user) throw new UnauthorizedException('User not found');
     return user;

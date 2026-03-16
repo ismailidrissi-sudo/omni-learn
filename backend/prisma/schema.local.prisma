@@ -61,6 +61,7 @@ model User {
   externalId         String?   // Keycloak sub
   linkedinProfileUrl String?   // For recommendation optimization
   profileComplete    Boolean   @default(false)  // Onboarding completed
+  isAdmin            Boolean   @default(false)
   trainerRequested   Boolean   @default(false)
   trainerApprovedAt  DateTime?
   createdAt          DateTime  @default(now())

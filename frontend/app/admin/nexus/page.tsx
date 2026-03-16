@@ -23,7 +23,7 @@ export default function NexusAdminPage() {
   const [employees, setEmployees] = useState<EmployeeProgress[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  const isNexus = user?.planId === "NEXUS";
+  const isNexus = !!user?.isAdmin || user?.planId === "NEXUS";
 
   useEffect(() => {
     if (!user?.tenantId) return;

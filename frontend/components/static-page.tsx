@@ -25,7 +25,7 @@ interface StaticPageProps {
 export function StaticPage({ slug, titleKey, introKey, defaultSections }: StaticPageProps) {
   const { t } = useI18n();
   const { user } = useUser();
-  const isAdmin = user?.planId === "NEXUS" || user?.planId === "VISIONARY";
+  const isAdmin = !!user?.isAdmin || user?.planId === "NEXUS" || user?.planId === "VISIONARY";
 
   const [apiSections, setApiSections] = useState<PageSection[] | null>(null);
   const [apiTitle, setApiTitle] = useState<string | null>(null);
