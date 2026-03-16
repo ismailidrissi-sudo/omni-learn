@@ -17,8 +17,6 @@ import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 const WIZARD_STEPS = [
   { id: "1", title: "Define scope", content: "Identify the key areas and objectives for your implementation.", checklist: ["List stakeholders", "Define success criteria", "Set timeline"] },
   { id: "2", title: "Gather resources", content: "Collect templates and reference materials.", templateUrl: "#" },
@@ -153,7 +151,7 @@ export default function LearnPage() {
     router.push(`/content/${contentId}`);
   };
 
-  const addPoints = (pts: number, reason: string) => {
+  const addPoints = (pts: number, _reason: string) => {
     if (!userId) return;
     apiFetch(`/gamification/points`, {
       method: "POST",

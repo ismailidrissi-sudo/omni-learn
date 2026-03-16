@@ -24,8 +24,6 @@ const CONTENT_TYPES = [
   { type: "VIDEO", icon: "🎬" },
 ];
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 export default function AdminPathsPage() {
   const { t } = useI18n();
   const { user } = useUser();
@@ -34,7 +32,7 @@ export default function AdminPathsPage() {
   const [search, setSearch] = useState("");
   const [domains, setDomains] = useState<Array<{ id: string; name: string; slug: string; icon?: string }>>([]);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [paths, setPaths] = useState<
+  const [paths] = useState<
     Array<{
       id: string;
       name: string;

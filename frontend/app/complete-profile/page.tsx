@@ -8,6 +8,7 @@ import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { NavToggles } from "@/components/ui/nav-toggles";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
+import { useI18n } from "@/lib/i18n/context";
 
 type Option = { id: string; name: string; code?: string };
 type Options = {
@@ -25,6 +26,7 @@ const STEPS = [
 
 export default function CompleteProfilePage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [options, setOptions] = useState<Options | null>(null);
   const [step, setStep] = useState(0);
 
@@ -278,7 +280,7 @@ export default function CompleteProfilePage() {
                       <option value="">Select industry</option>
                       {options?.industries?.map((i) => (
                         <option key={i.id} value={i.id}>
-                          {i.name}
+                          {(i.code && t(`industries.${i.code}`)) !== `industries.${i.code}` ? t(`industries.${i.code}`) : i.name}
                         </option>
                       ))}
                     </select>
@@ -310,7 +312,7 @@ export default function CompleteProfilePage() {
                       <option value="">Select department</option>
                       {options?.departments?.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.name}
+                          {(d.code && t(`departments.${d.code}`)) !== `departments.${d.code}` ? t(`departments.${d.code}`) : d.name}
                         </option>
                       ))}
                     </select>
@@ -328,7 +330,7 @@ export default function CompleteProfilePage() {
                       <option value="">Select position</option>
                       {options?.positions?.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {(p.code && t(`positions.${p.code}`)) !== `positions.${p.code}` ? t(`positions.${p.code}`) : p.name}
                         </option>
                       ))}
                     </select>

@@ -16,9 +16,9 @@ export default function DiscoverPage() {
   const { user } = useUser();
   const userId = user?.id ?? "anonymous";
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [pathSuggestions, setPathSuggestions] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<Record<string, unknown>[]>([]);
+  const [recommendations, setRecommendations] = useState<Record<string, unknown>[]>([]);
+  const [pathSuggestions, setPathSuggestions] = useState<Record<string, unknown>[]>([]);
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {

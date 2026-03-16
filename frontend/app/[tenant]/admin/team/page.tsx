@@ -7,7 +7,7 @@ import { useTenant } from "@/components/providers/tenant-context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";

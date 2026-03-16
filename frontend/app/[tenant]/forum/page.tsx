@@ -28,7 +28,6 @@ export default function TenantForumPage() {
   const [loading, setLoading] = useState(true);
 
   const academyName = branding?.appName || tenant?.name || "Academy";
-  const primaryColor = branding?.primaryColor || "#059669";
 
   useEffect(() => {
     apiFetch("/forum/channels")

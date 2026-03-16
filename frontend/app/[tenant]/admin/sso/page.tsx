@@ -31,7 +31,7 @@ export default function SsoConfigPage() {
   const { t } = useI18n();
   const { tenant, branding, isLoading } = useTenant();
 
-  const [configs, setConfigs] = useState<SsoConfig[]>([]);
+  const [, setConfigs] = useState<SsoConfig[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<"SAML_2_0" | "OIDC">("SAML_2_0");
   const [form, setForm] = useState({
     entityId: "", metadataUrl: "", clientId: "", clientSecret: "",

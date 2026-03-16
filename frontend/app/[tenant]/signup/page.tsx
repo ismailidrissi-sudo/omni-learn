@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignIn";
 import { LinkedInSignInButton } from "@/components/auth/LinkedInSignIn";
@@ -16,7 +16,6 @@ import { apiFetch } from "@/lib/api";
 export default function TenantSignUpPage() {
   const params = useParams();
   const slug = typeof params.tenant === "string" ? params.tenant : "";
-  const router = useRouter();
   const { t } = useI18n();
   const { tenant, branding, isLoading } = useTenant();
 

@@ -16,7 +16,7 @@ export function ScormViewer({
   scormPackageUrl,
   xapiEndpoint,
   className = "",
-  onComplete,
+  onComplete: _onComplete,
 }: ScormViewerProps) {
   // SCORM packages typically have an index.html or launch file
   const launchUrl = scormPackageUrl.endsWith("/")

@@ -8,7 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { NavToggles } from "@/components/ui/nav-toggles";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
-import { useI18n } from "@/lib/i18n/context";
 
 type ReferralDashboard = {
   referralLink: string | null;
@@ -54,7 +53,6 @@ function buildShareUrl(channel: string, link: string, message: string) {
 }
 
 export default function ReferralsPage() {
-  const { t } = useI18n();
   const [dashboard, setDashboard] = useState<ReferralDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,9 +68,10 @@ export default function ReferralsPage() {
   const [selectedLinkedinContacts, setSelectedLinkedinContacts] = useState<Set<number>>(new Set());
   const [linkedinInviteResult, setLinkedinInviteResult] = useState<{ sent: number; skipped: number; errors: number } | null>(null);
   const [tab, setTab] = useState<"share" | "invite" | "gmail" | "linkedin">("share");
-  const [gsiLoaded, setGsiLoaded] = useState(false);
+  const [, setGsiLoaded] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof window !== "undefined" && !(window as any).google?.accounts?.oauth2) {
       const script = document.createElement("script");
       script.src = "https://accounts.google.com/gsi/client";
@@ -145,6 +144,7 @@ export default function ReferralsPage() {
     setError("");
     setGmailLoading(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const google = (window as any).google;
       if (!google?.accounts?.oauth2) {
         setError("Google API is loading. Please wait a moment and try again.");

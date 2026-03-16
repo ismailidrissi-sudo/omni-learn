@@ -144,7 +144,7 @@ export default function ForumPage() {
     if (!id) return;
     apiFetch(`/forum/topics/${id}/close`, { method: "PUT" }).then(() => {
       if (selectedTopic?.id === id) setSelectedTopic(null);
-      selectedChannel && apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
+      if (selectedChannel) apiFetch(`/forum/channels/${selectedChannel}/topics`).then((r) => r.json()).then(setTopics);
     });
   };
 

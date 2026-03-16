@@ -33,7 +33,7 @@ export default function CompliancePage() {
   const { tenant, branding, isLoading } = useTenant();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [contentOptions, setContentOptions] = useState<ContentOption[]>([]);
   const [pathOptions, setPathOptions] = useState<PathOption[]>([]);
 

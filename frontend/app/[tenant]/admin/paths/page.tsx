@@ -30,7 +30,6 @@ export default function TenantPathsAdminPage() {
   const [loading, setLoading] = useState(true);
 
   const academyName = branding?.appName || tenant?.name || "Academy";
-  const primaryColor = branding?.primaryColor || "#059669";
 
   useEffect(() => {
     apiFetch("/learning-paths")

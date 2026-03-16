@@ -54,7 +54,7 @@ export function BentoGrid() {
           viewport={{ once: true }}
           className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
         >
-          {cardKeys.map((card, i) => (
+          {cardKeys.map((card) => (
             <motion.div
               key={card.titleKey}
               variants={item}

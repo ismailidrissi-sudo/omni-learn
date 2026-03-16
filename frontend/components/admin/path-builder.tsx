@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/lib/i18n/context";
 
 interface Step {
@@ -23,7 +22,7 @@ interface PathBuilderProps {
   onSave: () => void;
 }
 
-export function PathBuilder({ domains, tenantId, contentTypes, onSave }: PathBuilderProps) {
+export function PathBuilder({ domains, contentTypes, onSave }: PathBuilderProps) {
   const { t } = useI18n();
   const [pathName, setPathName] = useState(t("pathBuilder.newLearningPath"));
   const [pathDomainId, setPathDomainId] = useState(domains[0]?.id ?? "");

@@ -20,7 +20,7 @@ const sizeConfig: Record<LogoSize, { height: number }> = {
   sm: { height: 36 },
 };
 
-export function LearnLogo({ size = "md", variant: _variant = "purple", className = "" }: LearnLogoProps) {
+export function LearnLogo({ size = "md", className = "" }: LearnLogoProps) {
   const { height } = sizeConfig[size];
   const w = height;
   const logoSrc = "/omni-learn-logo.png";

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignIn";
@@ -13,7 +13,6 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 
 function SignUpContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
   const [name, setName] = useState("");

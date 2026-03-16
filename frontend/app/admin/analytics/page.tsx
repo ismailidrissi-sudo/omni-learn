@@ -17,7 +17,7 @@ export default function AnalyticsPage() {
   const { t } = useI18n();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
-  const [tenantId, setTenantId] = useState("");
+  const [tenantId] = useState("");
   const [predictive, setPredictive] = useState<{
     atRiskEnrollments: { enrollmentId: string; pathName: string; progressPct: number; riskScore: number; reason: string }[];
     predictedCompletionRate: number;

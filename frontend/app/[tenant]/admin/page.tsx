@@ -27,10 +27,9 @@ export default function TenantAdminPage() {
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const { t } = useI18n();
   const { tenant, branding, isLoading } = useTenant();
-  const { user, loading: userLoading } = useUser();
+  const { loading: userLoading } = useUser();
 
   const academyName = branding?.appName || tenant?.name || "Academy";
-  const primaryColor = branding?.primaryColor || "#059669";
 
   if (isLoading || userLoading) {
     return (
