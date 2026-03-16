@@ -74,7 +74,7 @@ jobs:
             sleep 10
 
             echo "==> Running database migrations..."
-            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js migrate deploy
 
             echo "==> Cleaning up old images..."
             docker image prune -f

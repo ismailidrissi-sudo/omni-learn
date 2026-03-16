@@ -35,7 +35,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /app/package.json ./package.json
+
+RUN chown -R nestjs:nestjs node_modules/.prisma node_modules/prisma node_modules/@prisma
 
 USER nestjs
 EXPOSE 4000
