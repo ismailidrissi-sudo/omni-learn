@@ -81,6 +81,7 @@ export default function NexusAdminPage() {
               {t("nav.company")}
             </Button>
           </Link>
+          <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
             <NavToggles />
           </div>

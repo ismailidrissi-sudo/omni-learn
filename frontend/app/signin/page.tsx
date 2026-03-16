@@ -36,11 +36,18 @@ function SignInPageContent() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      if (res.status === 401 || res.status === 404) {
+      const isDev = process.env.NODE_ENV === "development";
+      if (isDev && (res.status === 401 || res.status === 404)) {
         res = await apiFetch("/auth/dev-login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
+      }
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(
+          "The API returned an unexpected response. Make sure the backend server is running."
+        );
       }
       const data = await res.json();
       const errMsg = data.message ?? "Login failed";
