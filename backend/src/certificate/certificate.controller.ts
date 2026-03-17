@@ -52,6 +52,12 @@ export class CertificateController {
     return this.certificateService.verifyCertificate(code);
   }
 
+  @Get('detail/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async getCertificateDetail(@Param('id') id: string) {
+    return this.certificateService.getCertificateDetail(id);
+  }
+
   @Get('user/:userId')
   @UseGuards(AuthGuard('jwt'))
   async getUserCertificates(@Param('userId') userId: string) {

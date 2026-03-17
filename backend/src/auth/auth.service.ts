@@ -287,15 +287,21 @@ export class AuthService {
           email: payload.email,
           name: payload.name ?? payload.email.split('@')[0],
           externalId,
+          emailVerified: true,
         },
       });
-    } else if (!existing.externalId) {
-      resolved = await this.prisma.user.update({
-        where: { id: existing.id },
-        data: { externalId },
-      });
     } else {
-      resolved = existing;
+      const updates: Record<string, unknown> = {};
+      if (!existing.externalId) updates.externalId = externalId;
+      if (!existing.emailVerified) updates.emailVerified = true;
+      if (Object.keys(updates).length > 0) {
+        resolved = await this.prisma.user.update({
+          where: { id: existing.id },
+          data: updates,
+        });
+      } else {
+        resolved = existing;
+      }
     }
     const user = await this.promoteIfAdmin(resolved);
     const roles = this.getRolesForUser(user);

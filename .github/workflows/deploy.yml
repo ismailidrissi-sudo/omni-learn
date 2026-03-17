@@ -13,6 +13,7 @@
 #   JWT_SECRET        — JWT signing secret
 #
 # Optional GitHub Secrets:
+#   ADMIN_EMAIL, ADMIN_PASSWORD
 #   GOOGLE_CLIENT_ID, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET
 #   SMTP_URL, MAIL_FROM, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 #   NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_LINKEDIN_CLIENT_ID
@@ -55,10 +56,13 @@ jobs:
             CORS_ORIGINS=https://omnilearn.space,https://www.omnilearn.space
             FRONTEND_URL=https://omnilearn.space
             NEXT_PUBLIC_API_URL=https://omnilearn.space/api
+            ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+            ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             LINKEDIN_CLIENT_ID=${{ secrets.LINKEDIN_CLIENT_ID }}
             LINKEDIN_CLIENT_SECRET=${{ secrets.LINKEDIN_CLIENT_SECRET }}
             LINKEDIN_CALLBACK_URL=https://omnilearn.space/auth/linkedin/callback
+            LINKEDIN_SERVER_CALLBACK_URL=https://omnilearn.space/api/auth/linkedin/callback
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
             NEXT_PUBLIC_LINKEDIN_CLIENT_ID=${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
             SMTP_URL=${{ secrets.SMTP_URL }}

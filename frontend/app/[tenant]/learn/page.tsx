@@ -7,6 +7,7 @@ import { useTenant } from "@/components/providers/tenant-context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
 import { Button } from "@/components/ui/button";
 import { PathProgress } from "@/components/learning/path-progress";
+import { CompletionCelebration } from "@/components/learning/completion-celebration";
 import { PointsBadgesStreaks } from "@/components/gamification/points-badges-streaks";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
@@ -38,6 +39,7 @@ export default function TenantLearnPage() {
   const [badges, setBadges] = useState<{ id: string; name: string; icon: string; earnedAt: string }[]>([]);
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
   const [loading, setLoading] = useState(true);
+  const [celebration, setCelebration] = useState<{ certId: string; pathName: string; domainName: string } | null>(null);
 
   const userId = user?.id;
   const academyName = branding?.appName || tenant?.name || "Academy";
@@ -89,12 +91,23 @@ export default function TenantLearnPage() {
 
   const completeStep = async (stepId: string) => {
     if (!enrollment) return;
-    await apiFetch(`/learning-paths/enrollments/${enrollment.id}/steps/${stepId}/progress`, {
+    const progressRes = await apiFetch(`/learning-paths/enrollments/${enrollment.id}/steps/${stepId}/progress`, {
       method: "POST",
       body: JSON.stringify({ status: "COMPLETED" }),
-    });
+    }).then((r) => r.json());
+
     const e = await apiFetch(`/learning-paths/${selectedPathId}/enrollment/${userId}`).then((r) => r.json());
     setEnrollment(e);
+
+    if (progressRes.enrollmentStatus === "COMPLETED" && progressRes.certificate?.id) {
+      const domainName =
+        typeof pathDetail?.domain === "string" ? pathDetail.domain : pathDetail?.domain?.name ?? "";
+      setCelebration({
+        certId: progressRes.certificate.id,
+        pathName: pathDetail?.name ?? "",
+        domainName,
+      });
+    }
   };
 
   if (tenantLoading || userLoading) {
@@ -115,6 +128,7 @@ export default function TenantLearnPage() {
         <nav className="flex items-center gap-3">
           <Link href={`/${slug}/learn`}><Button variant="primary" size="sm">{t("tenant.learn")}</Button></Link>
           <Link href={`/${slug}/discover`}><Button variant="ghost" size="sm">{t("tenant.discover")}</Button></Link>
+          <Link href={`/${slug}/certificates`}><Button variant="ghost" size="sm">{t("certificate.myCertificates")}</Button></Link>
           <Link href={`/${slug}/forum`}><Button variant="ghost" size="sm">{t("tenant.forum")}</Button></Link>
           {(user?.isAdmin || user?.planId === "NEXUS" || user?.trainerApprovedAt) && (
             <Link href={`/${slug}/admin`}><Button variant="ghost" size="sm">{t("tenant.admin")}</Button></Link>
@@ -186,6 +200,15 @@ export default function TenantLearnPage() {
           </div>
         </div>
       </main>
+
+      {celebration && (
+        <CompletionCelebration
+          certificateId={celebration.certId}
+          pathName={celebration.pathName}
+          domainName={celebration.domainName}
+          onClose={() => setCelebration(null)}
+        />
+      )}
     </div>
   );
 }

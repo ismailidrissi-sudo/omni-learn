@@ -39,6 +39,7 @@ services:
       LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
       LINKEDIN_CALLBACK_URL: ${LINKEDIN_CALLBACK_URL:-https://omnilearn.space/auth/linkedin/callback}
+      LINKEDIN_SERVER_CALLBACK_URL: ${LINKEDIN_SERVER_CALLBACK_URL:-https://omnilearn.space/api/auth/linkedin/callback}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
       FRONTEND_URL: ${FRONTEND_URL:-https://omnilearn.space}

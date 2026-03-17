@@ -30,7 +30,27 @@ function TenantSignInContent() {
 
   const academyName = branding?.appName || tenant?.name || "Academy";
   const primaryColor = branding?.primaryColor || "#059669";
-  const hasSso = (tenant?.ssoProviders?.length ?? 0) > 0;
+  const ssoProviders = tenant?.ssoProviders ?? [];
+  const hasSso = ssoProviders.length > 0;
+
+  const handleSsoClick = () => {
+    if (ssoProviders.includes("LINKEDIN_OIDC")) {
+      const clientId = process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID;
+      if (!clientId) return;
+      const redirectUri = `${window.location.origin}/auth/linkedin/callback`;
+      const state = JSON.stringify({ ref: "", redirect: `/${slug}/learn` });
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: "openid profile email",
+        state: encodeURIComponent(state),
+      });
+      window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+    } else {
+      setError("Enterprise SSO (SAML/OIDC) is being configured. Contact your administrator.");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +145,8 @@ function TenantSignInContent() {
             <LinkedInSignInButton />
             {hasSso && (
               <button
+                type="button"
+                onClick={handleSsoClick}
                 className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>

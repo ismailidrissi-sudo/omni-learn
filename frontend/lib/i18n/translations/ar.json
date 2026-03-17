@@ -347,7 +347,19 @@
     "code": "الرمز",
     "notFound": "الشهادة غير موجودة",
     "invalidOrExpired": "قد يكون رمز التحقق غير صالح أو منتهي الصلاحية.",
-    "backToHome": "العودة للرئيسية"
+    "backToHome": "العودة للرئيسية",
+    "congratulations": "تهانينا!",
+    "completedPath": "لقد أكملت بنجاح مسار التعلم",
+    "downloadPdf": "تحميل الشهادة",
+    "generating": "جاري الإنشاء...",
+    "earnedMessage": "تم الحصول على شهادتك. يمكنك تحميلها من صفحة الشهادات.",
+    "myCertificates": "شهاداتي",
+    "myCertificatesDescription": "عرض وتحميل شهادات الإكمال الخاصة بك.",
+    "noCertificatesYet": "لا توجد شهادات بعد",
+    "completePath": "أكمل مسار تعلم للحصول على شهادتك الأولى.",
+    "startLearning": "ابدأ التعلم",
+    "steps": "خطوات",
+    "verify": "تحقق"
   },
   "podcast": {
     "speed": "السرعة",

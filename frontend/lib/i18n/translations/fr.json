@@ -425,7 +425,19 @@
     "code": "Code",
     "notFound": "Certificat introuvable",
     "invalidOrExpired": "Le code de vérification est peut-être invalide ou expiré.",
-    "backToHome": "Retour à l'accueil"
+    "backToHome": "Retour à l'accueil",
+    "congratulations": "Félicitations !",
+    "completedPath": "Vous avez complété avec succès le parcours d'apprentissage",
+    "downloadPdf": "Télécharger le certificat",
+    "generating": "Génération...",
+    "earnedMessage": "Votre certificat a été obtenu. Vous pouvez le télécharger depuis votre page de certificats.",
+    "myCertificates": "Mes certificats",
+    "myCertificatesDescription": "Consultez et téléchargez vos certificats de complétion.",
+    "noCertificatesYet": "Pas encore de certificats",
+    "completePath": "Complétez un parcours d'apprentissage pour obtenir votre premier certificat.",
+    "startLearning": "Commencer à apprendre",
+    "steps": "étapes",
+    "verify": "Vérifier"
   },
   "podcast": {
     "speed": "Vitesse",

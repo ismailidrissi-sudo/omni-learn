@@ -7,10 +7,15 @@ export class LinkedInStrategy extends PassportStrategy(Strategy, 'linkedin') {
   constructor() {
     const clientID = process.env.LINKEDIN_CLIENT_ID || 'disabled';
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'disabled';
+    const serverCallbackUrl =
+      process.env.LINKEDIN_SERVER_CALLBACK_URL ||
+      (process.env.FRONTEND_URL
+        ? `${process.env.FRONTEND_URL}/api/auth/linkedin/callback`
+        : 'http://localhost:4000/auth/linkedin/callback');
     super({
       clientID,
       clientSecret,
-      callbackURL: process.env.LINKEDIN_CALLBACK_URL || 'http://localhost:4000/auth/linkedin/callback',
+      callbackURL: serverCallbackUrl,
       scope: ['openid', 'profile', 'email'],
       state: true,
     });

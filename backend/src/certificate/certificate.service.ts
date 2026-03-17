@@ -64,7 +64,7 @@ export class CertificateService {
     });
   }
 
-  /** Get user's certificates */
+  /** Get user's certificates with full details */
   async getUserCertificates(userId: string) {
     const enrollments = await this.prisma.pathEnrollment.findMany({
       where: { userId, status: EnrollmentStatus.COMPLETED },
@@ -72,8 +72,52 @@ export class CertificateService {
     });
     return this.prisma.issuedCertificate.findMany({
       where: { enrollmentId: { in: enrollments.map((e) => e.id) } },
-      include: { template: { include: { domain: true } } },
+      include: {
+        template: { include: { domain: true } },
+        enrollment: {
+          include: {
+            path: { include: { domain: true, _count: { select: { steps: true } } } },
+          },
+        },
+      },
+      orderBy: { issuedAt: 'desc' },
     });
+  }
+
+  /** Get single certificate with all data needed for PDF rendering */
+  async getCertificateDetail(certId: string) {
+    const cert = await this.prisma.issuedCertificate.findUniqueOrThrow({
+      where: { id: certId },
+      include: {
+        template: { include: { domain: true } },
+        enrollment: {
+          include: {
+            path: {
+              include: {
+                domain: true,
+                steps: { select: { id: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: cert.enrollment.userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    const totalHours = await this.prisma.pathStepProgress.aggregate({
+      where: { enrollmentId: cert.enrollmentId },
+      _sum: { timeSpent: true },
+    });
+
+    return {
+      ...cert,
+      user,
+      totalLearningMinutes: totalHours._sum.timeSpent ?? 0,
+    };
   }
 
   /** Get templates by domain (for admin) */

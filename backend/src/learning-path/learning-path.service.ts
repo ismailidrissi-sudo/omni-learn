@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
+import { CertificateService } from '../certificate/certificate.service';
+import { NotificationService } from '../notification/notification.service';
 
 /**
  * Learning Path Orchestration Engine
@@ -9,7 +11,13 @@ import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 
 @Injectable()
 export class LearningPathService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(LearningPathService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly certificateService: CertificateService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   /** Enroll a user in a learning path */
   async enrollUser(userId: string, pathId: string, deadline?: Date) {
@@ -84,10 +92,21 @@ export class LearningPathService {
       },
     });
 
-    // Recalculate overall progress percentage
     await this.recalculateProgressPct(enrollmentId);
 
-    return progress;
+    const enrollment = await this.prisma.pathEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: {
+        certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+      },
+    });
+
+    return {
+      ...progress,
+      enrollmentStatus: enrollment?.status,
+      progressPct: enrollment?.progressPct,
+      certificate: enrollment?.certificates?.[0] ?? null,
+    };
   }
 
   /** Recalculate enrollment progress percentage based on completed steps */
@@ -96,6 +115,7 @@ export class LearningPathService {
       where: { id: enrollmentId },
       include: {
         stepProgress: { include: { step: true } },
+        path: { include: { domain: true } },
       },
     });
 
@@ -105,7 +125,8 @@ export class LearningPathService {
     ).length;
     const progressPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-    const allCompleted = completedSteps === totalSteps;
+    const wasAlreadyCompleted = enrollment.status === EnrollmentStatus.COMPLETED;
+    const allCompleted = completedSteps === totalSteps && totalSteps > 0;
 
     await this.prisma.pathEnrollment.update({
       where: { id: enrollmentId },
@@ -117,6 +138,36 @@ export class LearningPathService {
         }),
       },
     });
+
+    if (allCompleted && !wasAlreadyCompleted) {
+      await this.autoIssueCertificate(enrollmentId, enrollment);
+    }
+  }
+
+  /** Auto-issue certificate and notify user when a learning path is completed */
+  private async autoIssueCertificate(
+    enrollmentId: string,
+    enrollment: { userId: string; path: { name: string; tenantId: string; domain: { name: string } | null } },
+  ) {
+    try {
+      const existing = await this.prisma.issuedCertificate.findFirst({
+        where: { enrollmentId },
+      });
+      if (existing) return;
+
+      const cert = await this.certificateService.issueCertificate(enrollmentId);
+
+      await this.notificationService.notifyCertificateIssued({
+        userId: enrollment.userId,
+        tenantId: enrollment.path.tenantId,
+        certificateName: `${enrollment.path.domain?.name ?? ''} — ${enrollment.path.name}`,
+        verifyCode: cert.verifyCode,
+      });
+
+      this.logger.log(`Certificate auto-issued for enrollment ${enrollmentId}`);
+    } catch (err) {
+      this.logger.error(`Failed to auto-issue certificate for enrollment ${enrollmentId}`, err);
+    }
   }
 
   /** List published learning paths (optionally by domain) */

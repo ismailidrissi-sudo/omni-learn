@@ -420,7 +420,19 @@
     "code": "Code",
     "notFound": "Certificate Not Found",
     "invalidOrExpired": "The verification code may be invalid or expired.",
-    "backToHome": "Back to Home"
+    "backToHome": "Back to Home",
+    "congratulations": "Congratulations!",
+    "completedPath": "You have successfully completed the learning path",
+    "downloadPdf": "Download Certificate",
+    "generating": "Generating...",
+    "earnedMessage": "Your certificate has been earned. You can download it from your certificates page.",
+    "myCertificates": "My Certificates",
+    "myCertificatesDescription": "View and download your earned completion certificates.",
+    "noCertificatesYet": "No Certificates Yet",
+    "completePath": "Complete a learning path to earn your first certificate.",
+    "startLearning": "Start Learning",
+    "steps": "steps",
+    "verify": "Verify"
   },
   "podcast": {
     "speed": "Speed",
