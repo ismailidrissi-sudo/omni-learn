@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { EnrollmentStatus } from '../constants/db.constant';
@@ -161,9 +162,9 @@ export class CertificateService {
       where: { id },
       data: {
         ...(dto.templateName != null && { templateName: dto.templateName }),
-        ...(dto.themeConfig != null && { themeConfig: dto.themeConfig }),
-        ...(dto.elementsConfig != null && { elementsConfig: dto.elementsConfig }),
-        ...(dto.signatories != null && { signatories: dto.signatories }),
+        ...(dto.themeConfig != null && { themeConfig: dto.themeConfig as Prisma.InputJsonValue }),
+        ...(dto.elementsConfig != null && { elementsConfig: dto.elementsConfig as Prisma.InputJsonValue }),
+        ...(dto.signatories != null && { signatories: dto.signatories as Prisma.InputJsonValue }),
       },
       include: { domain: true },
     });

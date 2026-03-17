@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -80,7 +81,7 @@ export class DomainsService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
-        metadata: dto.metadata ?? {},
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
     await this.ensureCertificateTemplate(domain.tenantId, domain.id, domain.color, domain.name);
@@ -99,7 +100,7 @@ export class DomainsService {
         ...(dto.color != null && { color: dto.color }),
         ...(dto.isActive != null && { isActive: dto.isActive }),
         ...(dto.sortOrder != null && { sortOrder: dto.sortOrder }),
-        ...(dto.metadata != null && { metadata: dto.metadata }),
+        ...(dto.metadata != null && { metadata: dto.metadata as Prisma.InputJsonValue }),
       },
     });
   }
