@@ -66,10 +66,10 @@ export class AuthService {
   }
 
   /** Auto-promote user to admin if their email matches ADMIN_EMAIL env var */
-  private async promoteIfAdmin(user: { id: string; email: string; isAdmin: boolean }): Promise<typeof user> {
+  private async promoteIfAdmin<T extends { id: string; email: string; isAdmin?: boolean }>(user: T): Promise<T> {
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail && user.email.toLowerCase() === adminEmail.toLowerCase() && !user.isAdmin) {
-      return this.prisma.user.update({
+      const promoted = await this.prisma.user.update({
         where: { id: user.id },
         data: {
           isAdmin: true,
@@ -77,9 +77,10 @@ export class AuthService {
           trainerApprovedAt: new Date(),
           emailVerified: true,
           profileComplete: true,
-          planId: 'NEXUS' as const,
-        },
+          planId: 'NEXUS',
+        } as any,
       });
+      return promoted as unknown as T;
     }
     return user;
   }
@@ -136,11 +137,11 @@ export class AuthService {
   }
   /** Refresh JWT — reissue token with same claims for a valid user (includes instructor if approved trainer) */
   async refreshToken(userId: string): Promise<{ accessToken: string }> {
-    let user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
+    const found = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!found) {
       throw new UnauthorizedException('User not found');
     }
-    user = await this.promoteIfAdmin(user);
+    const user = await this.promoteIfAdmin(found);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -200,8 +201,8 @@ export class AuthService {
       trainerApprovedAt: new Date(),
       emailVerified: true,
       profileComplete: true,
-      planId: 'NEXUS' as const,
-    };
+      planId: 'NEXUS',
+    } as any;
     if (!user) {
       user = await this.prisma.user.create({
         data: { email, name: 'Admin User', ...adminData },
@@ -239,24 +240,27 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Google token');
     }
     const externalId = `google:${payload.sub}`;
-    let user = await this.prisma.user.findFirst({
+    const existing = await this.prisma.user.findFirst({
       where: { OR: [{ externalId }, { email: payload.email }] },
     });
-    if (!user) {
-      user = await this.prisma.user.create({
+    let resolved: NonNullable<typeof existing>;
+    if (!existing) {
+      resolved = await this.prisma.user.create({
         data: {
           email: payload.email,
           name: payload.name ?? payload.email.split('@')[0],
           externalId,
         },
       });
-    } else if (!user.externalId) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
+    } else if (!existing.externalId) {
+      resolved = await this.prisma.user.update({
+        where: { id: existing.id },
         data: { externalId },
       });
+    } else {
+      resolved = existing;
     }
-    user = await this.promoteIfAdmin(user);
+    const user = await this.promoteIfAdmin(resolved);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -332,12 +336,13 @@ export class AuthService {
       ?? [profile.given_name, profile.family_name].filter(Boolean).join(' ')
       ?? profile.email.split('@')[0];
 
-    let user = await this.prisma.user.findFirst({
+    const existing = await this.prisma.user.findFirst({
       where: { OR: [{ externalId }, { email: profile.email }] },
     });
 
-    if (!user) {
-      user = await this.prisma.user.create({
+    let resolved: NonNullable<typeof existing>;
+    if (!existing) {
+      resolved = await this.prisma.user.create({
         data: {
           email: profile.email,
           name: displayName,
@@ -347,17 +352,19 @@ export class AuthService {
       });
     } else {
       const updates: Record<string, unknown> = {};
-      if (!user.externalId) updates.externalId = externalId;
-      if (!user.emailVerified) updates.emailVerified = true;
+      if (!existing.externalId) updates.externalId = externalId;
+      if (!existing.emailVerified) updates.emailVerified = true;
       if (Object.keys(updates).length > 0) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
+        resolved = await this.prisma.user.update({
+          where: { id: existing.id },
           data: updates,
         });
+      } else {
+        resolved = existing;
       }
     }
 
-    user = await this.promoteIfAdmin(user);
+    const user = await this.promoteIfAdmin(resolved);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -393,12 +400,13 @@ export class AuthService {
     }
 
     const externalId = `linkedin:${profile.linkedinId}`;
-    let user = await this.prisma.user.findFirst({
+    const existing = await this.prisma.user.findFirst({
       where: { OR: [{ externalId }, { email: profile.email }] },
     });
 
-    if (!user) {
-      user = await this.prisma.user.create({
+    let resolved: NonNullable<typeof existing>;
+    if (!existing) {
+      resolved = await this.prisma.user.create({
         data: {
           email: profile.email,
           name: profile.name ?? profile.email.split('@')[0],
@@ -408,17 +416,19 @@ export class AuthService {
       });
     } else {
       const updates: Record<string, unknown> = {};
-      if (!user.externalId) updates.externalId = externalId;
-      if (!user.emailVerified) updates.emailVerified = true;
+      if (!existing.externalId) updates.externalId = externalId;
+      if (!existing.emailVerified) updates.emailVerified = true;
       if (Object.keys(updates).length > 0) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
+        resolved = await this.prisma.user.update({
+          where: { id: existing.id },
           data: updates,
         });
+      } else {
+        resolved = existing;
       }
     }
 
-    user = await this.promoteIfAdmin(user);
+    const user = await this.promoteIfAdmin(resolved);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
