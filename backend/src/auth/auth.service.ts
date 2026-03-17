@@ -65,6 +65,25 @@ export class AuthService {
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
   }
 
+  /** Auto-promote user to admin if their email matches ADMIN_EMAIL env var */
+  private async promoteIfAdmin(user: { id: string; email: string; isAdmin: boolean }): Promise<typeof user> {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (adminEmail && user.email.toLowerCase() === adminEmail.toLowerCase() && !user.isAdmin) {
+      return this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isAdmin: true,
+          trainerRequested: true,
+          trainerApprovedAt: new Date(),
+          emailVerified: true,
+          profileComplete: true,
+          planId: 'NEXUS' as const,
+        },
+      });
+    }
+    return user;
+  }
+
   /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor if approved */
   private getRolesForUser(user: { isAdmin?: boolean; trainerApprovedAt?: Date | null }): string[] {
     if (user?.isAdmin) {
@@ -98,16 +117,17 @@ export class AuthService {
     if (!valid) {
       throw new UnauthorizedException('Invalid email or password');
     }
-    const roles = this.getRolesForUser(user);
+    const promoted = await this.promoteIfAdmin(user);
+    const roles = this.getRolesForUser(promoted);
     const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
+      sub: promoted.id,
+      email: promoted.email,
+      preferred_username: promoted.email,
       realm_access: { roles },
     });
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+      user: { id: promoted.id, email: promoted.email, name: promoted.name, profileComplete: promoted.profileComplete, needsProfileCompletion: !promoted.profileComplete },
     };
   }
 
@@ -116,10 +136,11 @@ export class AuthService {
   }
   /** Refresh JWT — reissue token with same claims for a valid user (includes instructor if approved trainer) */
   async refreshToken(userId: string): Promise<{ accessToken: string }> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    let user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+    user = await this.promoteIfAdmin(user);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -235,6 +256,7 @@ export class AuthService {
         data: { externalId },
       });
     }
+    user = await this.promoteIfAdmin(user);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -335,6 +357,7 @@ export class AuthService {
       }
     }
 
+    user = await this.promoteIfAdmin(user);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
@@ -395,6 +418,7 @@ export class AuthService {
       }
     }
 
+    user = await this.promoteIfAdmin(user);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
