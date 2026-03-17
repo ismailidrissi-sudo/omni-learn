@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 interface ExternalEmbedProps {
   src: string;
@@ -17,6 +17,19 @@ const ALLOW_BY_PROVIDER: Record<string, string> = {
   wistia: "autoplay; fullscreen",
 };
 
+function useEmbedSrc(src: string, provider: string): string {
+  return useMemo(() => {
+    if (provider !== "youtube" || typeof window === "undefined") return src;
+    try {
+      const url = new URL(src);
+      url.searchParams.set("origin", window.location.origin);
+      return url.toString();
+    } catch {
+      return src;
+    }
+  }, [src, provider]);
+}
+
 export function ExternalEmbed({
   src,
   provider,
@@ -25,6 +38,7 @@ export function ExternalEmbed({
 }: ExternalEmbedProps) {
   const [loaded, setLoaded] = useState(false);
   const allow = ALLOW_BY_PROVIDER[provider] ?? "autoplay; fullscreen";
+  const embedSrc = useEmbedSrc(src, provider);
 
   return (
     <div
@@ -37,12 +51,12 @@ export function ExternalEmbed({
         </div>
       )}
       <iframe
-        src={src}
+        src={embedSrc}
         title={title}
         className="absolute inset-0 w-full h-full border-0"
         allow={allow}
         allowFullScreen
-        referrerPolicy="no-referrer-when-downgrade"
+        referrerPolicy="strict-origin-when-cross-origin"
         loading="lazy"
         onLoad={() => setLoaded(true)}
       />

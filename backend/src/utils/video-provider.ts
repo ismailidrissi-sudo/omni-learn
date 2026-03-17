@@ -52,7 +52,7 @@ export function detectProvider(url: string): VideoProviderResult {
       return {
         provider: 'youtube',
         videoId,
-        embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`,
+        embedUrl: `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1&modestbranding=1`,
         thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
         valid: true,
       };
