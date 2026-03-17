@@ -69,7 +69,7 @@ function SignInPageContent() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login failed";
       setError(
-        msg === "Invalid credentials" ? t("auth.invalidCredentials") :
+        msg === "Invalid credentials" || msg === "Invalid email or password" ? t("auth.invalidCredentials") :
         msg === "Please verify your email before signing in" ? "Please verify your email first. Check your inbox." :
         msg === "Login failed" ? t("auth.loginFailed") : msg
       );

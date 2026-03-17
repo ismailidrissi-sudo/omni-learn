@@ -105,8 +105,45 @@ export class AuthService {
     return roles;
   }
 
-  /** Login with email/password (after verification) */
+  /** Login with email/password (after verification). Admin accounts (matching ADMIN_EMAIL) are auto-created and auto-verified. */
   async loginWithPassword(email: string, password: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const isAdminLogin = adminEmail && adminPassword
+      && email.toLowerCase() === adminEmail.toLowerCase()
+      && password === adminPassword;
+
+    if (isAdminLogin) {
+      let user = await this.prisma.user.findUnique({ where: { email } });
+      const adminData = {
+        isAdmin: true,
+        trainerRequested: true,
+        trainerApprovedAt: new Date(),
+        emailVerified: true,
+        profileComplete: true,
+        planId: 'NEXUS',
+      } as any;
+      if (!user) {
+        const passwordHash = await bcrypt.hash(password, 10);
+        user = await this.prisma.user.create({
+          data: { email, name: email.split('@')[0], passwordHash, ...adminData },
+        });
+      } else if (!user.isAdmin || !user.emailVerified) {
+        user = await this.prisma.user.update({ where: { id: user.id }, data: adminData });
+      }
+      const roles = this.getRolesForUser(user);
+      const accessToken = this.jwtService.sign({
+        sub: user.id,
+        email: user.email,
+        preferred_username: user.email,
+        realm_access: { roles },
+      });
+      return {
+        accessToken,
+        user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+      };
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');

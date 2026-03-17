@@ -10,7 +10,8 @@ function getToken(): string | null {
 
 function setToken(token: string) {
   localStorage.setItem("omnilearn_token", token);
-  document.cookie = `omnilearn_token=${token}; path=/; max-age=${60 * 60}; SameSite=Lax`;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `omnilearn_token=${token}; path=/; max-age=${60 * 60}; SameSite=Lax${secure}`;
 }
 
 function clearAuth() {
