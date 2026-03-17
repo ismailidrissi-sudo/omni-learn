@@ -28,7 +28,7 @@ export default function CompanyAdminPage() {
   const [newSlug, setNewSlug] = useState("");
   const [error, setError] = useState("");
 
-  const isNexus = !!user?.isAdmin || user?.planId === "NEXUS";
+  const isSuperAdmin = !!user?.isAdmin;
 
   useEffect(() => {
     apiFetch("/profile/options").then((r) => r.json()).then((o) => setIndustries(o?.industries ?? [])).catch(() => {});
@@ -37,7 +37,13 @@ export default function CompanyAdminPage() {
   useEffect(() => {
     setError("");
     apiFetch("/company/tenants")
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 403) {
+          setError("You don't have permission to view company data. Super admin access is required.");
+          return [];
+        }
+        return r.json();
+      })
       .then(setTenants)
       .catch(() => setError("Failed to load company data. Please try again later."));
   }, []);
@@ -84,16 +90,26 @@ export default function CompanyAdminPage() {
 
   const createTenant = () => {
     if (!newName.trim() || !newSlug.trim()) return;
+    setError("");
     apiFetch("/company/tenants", {
       method: "POST",
       body: JSON.stringify({ name: newName, slug: newSlug }),
     })
-      .then((r) => r.json())
-      .then(() => {
-        setNewName("");
-        setNewSlug("");
-        apiFetch("/company/tenants").then((r) => r.json()).then(setTenants);
-      });
+      .then((r) => {
+        if (r.status === 403) {
+          setError("You don't have permission to create clients. Super admin access is required.");
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data != null) {
+          setNewName("");
+          setNewSlug("");
+          apiFetch("/company/tenants").then((res) => res.json()).then(setTenants);
+        }
+      })
+      .catch(() => setError("Failed to create client. Please try again later."));
   };
 
   if (userLoading) {
@@ -104,18 +120,18 @@ export default function CompanyAdminPage() {
     );
   }
 
-  if (!isNexus) {
+  if (!isSuperAdmin) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
         <h1 className="text-2xl font-bold text-brand-grey-dark mb-4">
-          Nexus Enterprise Access Required
+          Super admin access required
         </h1>
         <p className="text-brand-grey mb-6 text-center max-w-md">
-          Company administration is available only for Nexus (Enterprise) plan subscribers.
-          Contact sales to upgrade your organization.
+          Creating and managing clients (tenants) is restricted to super administrators.
+          You don&apos;t have permission to access this page.
         </p>
-        <Link href="/#pricing">
-          <Button variant="primary">View Plans</Button>
+        <Link href="/learn">
+          <Button variant="primary">Back to Learn</Button>
         </Link>
       </div>
     );

@@ -195,7 +195,7 @@ export function ContentAddForm({
             },
           }),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(res.status === 403 ? "You don't have permission to add content." : await res.text());
         const created = await res.json();
         onSuccess();
         onCourseCreated?.(created.id, title.trim());
@@ -223,7 +223,7 @@ export function ContentAddForm({
             method: "POST",
             body: JSON.stringify(p),
           });
-          if (!res.ok) throw new Error(await res.text());
+          if (!res.ok) throw new Error(res.status === 403 ? "You don't have permission to add content." : await res.text());
         }
         onSuccess();
         return;
@@ -233,7 +233,7 @@ export function ContentAddForm({
         method: "POST",
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(res.status === 403 ? "You don't have permission to add content." : await res.text());
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");

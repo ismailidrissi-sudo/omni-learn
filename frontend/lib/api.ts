@@ -8,10 +8,12 @@ function getToken(): string | null {
   return localStorage.getItem("omnilearn_token");
 }
 
+const COOKIE_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 days — align with middleware so cookie outlives token refresh
+
 function setToken(token: string) {
   localStorage.setItem("omnilearn_token", token);
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `omnilearn_token=${token}; path=/; max-age=${60 * 60}; SameSite=Lax${secure}`;
+  document.cookie = `omnilearn_token=${token}; path=/; max-age=${COOKIE_MAX_AGE_SEC}; SameSite=Lax${secure}`;
 }
 
 function clearAuth() {
