@@ -14,6 +14,7 @@ interface SmartVideoProps {
   className?: string;
   adsEnabled?: boolean;
   onTimeUpdate?: (currentTime: number) => void;
+  onEnded?: () => void;
 }
 
 function AdBanner() {
@@ -38,6 +39,7 @@ export function SmartVideo({
   className = "",
   adsEnabled = false,
   onTimeUpdate,
+  onEnded,
 }: SmartVideoProps) {
   const detected = useMemo(() => detectProvider(src), [src]);
 
@@ -63,6 +65,7 @@ export function SmartVideo({
         poster={poster}
         className={className}
         onTimeUpdate={onTimeUpdate}
+        onEnded={onEnded}
       />
       {adsEnabled && <AdBanner />}
     </div>

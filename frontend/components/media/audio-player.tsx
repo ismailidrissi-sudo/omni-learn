@@ -13,6 +13,7 @@ interface AudioPlayerProps {
   title?: string;
   className?: string;
   onTimeUpdate?: (currentTime: number) => void;
+  onEnded?: () => void;
 }
 
 export function AudioPlayer({
@@ -20,6 +21,7 @@ export function AudioPlayer({
   title,
   className = "",
   onTimeUpdate,
+  onEnded,
 }: AudioPlayerProps) {
   const { t } = useI18n();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -38,6 +40,7 @@ export function AudioPlayer({
         controls
         className="w-full"
         onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
+        onEnded={() => onEnded?.()}
       />
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <span className="text-brand-grey text-sm">{t("podcast.speed")}:</span>

@@ -125,7 +125,16 @@ export default function CoursePlayerPage() {
       .then((data) => {
         if (data) {
           setEnrollCtx(data);
-          if (data.stepStatus === "COMPLETED") setCourseCompleted(true);
+          if (data.stepStatus === "COMPLETED") {
+            setCourseCompleted(true);
+            if (data.certificate?.id) {
+              setCelebration({
+                certId: data.certificate.id,
+                pathName: data.pathName,
+                domainName: data.domainName,
+              });
+            }
+          }
         }
       })
       .catch(() => {});
@@ -164,13 +173,13 @@ export default function CoursePlayerPage() {
     }
   }, [sections]);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (activeIndex < totalItems - 1) goToItem(allItems[activeIndex + 1].id);
-  };
+  }, [activeIndex, totalItems, allItems, goToItem]);
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     if (activeIndex > 0) goToItem(allItems[activeIndex - 1].id);
-  };
+  }, [activeIndex, allItems, goToItem]);
 
   const completeCourse = useCallback(async () => {
     if (!enrollCtx || completing || courseCompleted) return;
@@ -214,10 +223,16 @@ export default function CoursePlayerPage() {
     });
   };
 
+  const handleContentCompleted = useCallback(() => {
+    if (activeIndex < totalItems - 1) {
+      setTimeout(() => goNext(), 1200);
+    }
+  }, [activeIndex, totalItems, goNext]);
+
   const renderLesson = () => {
     if (!activeItem) {
       return (
-        <div className="flex items-center justify-center h-full text-brand-grey p-12">
+        <div className="flex items-center justify-center text-brand-grey p-12">
           <div className="text-center">
             <p className="text-lg mb-2">
               {totalItems === 0
@@ -235,14 +250,14 @@ export default function CoursePlayerPage() {
     switch (activeItem.itemType) {
       case "VIDEO":
         return url ? (
-          <SmartVideo src={url} title={activeItem.title} />
+          <SmartVideo src={url} title={activeItem.title} onEnded={handleContentCompleted} />
         ) : (
           <EmptyState label="No video URL set" />
         );
 
       case "AUDIO":
         return url ? (
-          <AudioPlayer audioUrl={url} title={activeItem.title} />
+          <AudioPlayer audioUrl={url} title={activeItem.title} onEnded={handleContentCompleted} />
         ) : (
           <EmptyState label="No audio URL set" />
         );
@@ -278,7 +293,7 @@ export default function CoursePlayerPage() {
           correctIndex: number;
         }>;
         return questions.length > 0 ? (
-          <QuizPlayer questions={questions} title={activeItem.title} />
+          <QuizPlayer questions={questions} title={activeItem.title} onCompleted={handleContentCompleted} />
         ) : (
           <EmptyState label="No quiz questions" />
         );
@@ -349,41 +364,39 @@ export default function CoursePlayerPage() {
       </header>
 
       <div className="flex flex-1 min-h-0 relative">
-        {/* Main content area — always full width */}
-        <main className="flex-1 min-w-0 flex flex-col w-full">
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
-            <div className="max-w-4xl mx-auto">
+        {/* Main content area */}
+        <main className="flex-1 min-w-0 overflow-y-auto w-full">
+          <div className="max-w-5xl mx-auto">
+            {/* Content rendered flush (no extra padding around video) */}
+            <div className="sm:px-4 lg:px-6">
               {renderLesson()}
             </div>
 
-            {/* Lesson title shown below video on mobile */}
-            {activeItem && (
-              <div className="sm:hidden mt-4 max-w-4xl mx-auto">
-                <p className="text-xs text-brand-grey">
-                  {activeIndex + 1} / {totalItems}
-                  {totalDuration > 0 && ` · ${totalDuration} min`}
-                </p>
-                <p className="text-sm font-medium text-brand-grey-dark mt-1">
-                  {activeItem.title}
-                </p>
-              </div>
-            )}
-          </div>
+            {/* Navigation bar directly under content */}
+            {totalItems > 0 && (
+              <div className="px-3 sm:px-4 lg:px-6 py-3 mt-1">
+                <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goPrev}
+                    disabled={activeIndex <= 0}
+                  >
+                    ← <span className="hidden sm:inline">{t("content.previous")}</span>
+                  </Button>
 
-          {/* Bottom navigation bar */}
-          {totalItems > 0 && (
-            <div className="border-t border-brand-grey-light px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between bg-white shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goPrev}
-                disabled={activeIndex <= 0}
-              >
-                ← <span className="hidden sm:inline">{t("content.previous")}</span>
-              </Button>
-              <div className="hidden sm:block text-sm text-brand-grey-dark font-medium truncate max-w-xs mx-4">
-                {activeItem?.title}
-              </div>
+                  <div className="flex-1 min-w-0 text-center">
+                    {activeItem && (
+                      <p className="text-sm text-brand-grey-dark font-medium truncate">
+                        {activeItem.title}
+                      </p>
+                    )}
+                    <p className="text-xs text-brand-grey mt-0.5">
+                      {activeIndex + 1} / {totalItems}
+                      {totalDuration > 0 && ` · ${totalDuration} min`}
+                    </p>
+                  </div>
+
               {isLastItem && enrollCtx && !courseCompleted ? (
                 <Button
                   variant="primary"
@@ -394,9 +407,26 @@ export default function CoursePlayerPage() {
                   {completing ? t("common.loading") : t("content.completeCourse")}
                 </Button>
               ) : isLastItem && courseCompleted ? (
-                <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                  ✓ {t("content.courseCompleted")}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                    ✓ {t("content.courseCompleted")}
+                  </span>
+                  {enrollCtx?.certificate?.id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCelebration({
+                          certId: enrollCtx.certificate!.id,
+                          pathName: enrollCtx.pathName,
+                          domainName: enrollCtx.domainName,
+                        })
+                      }
+                    >
+                      {t("certificate.viewCertificate")}
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="ghost"
@@ -407,8 +437,10 @@ export default function CoursePlayerPage() {
                   <span className="hidden sm:inline">{t("content.next")}</span> →
                 </Button>
               )}
-            </div>
-          )}
+                </div>
+              </div>
+            )}
+          </div>
         </main>
 
         {/* Sidebar backdrop on mobile */}
@@ -572,6 +604,7 @@ function EmptyState({ label }: { label: string }) {
 function QuizPlayer({
   questions,
   title,
+  onCompleted,
 }: {
   questions: Array<{
     id: string;
@@ -580,6 +613,7 @@ function QuizPlayer({
     correctIndex: number;
   }>;
   title: string;
+  onCompleted?: () => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -587,6 +621,13 @@ function QuizPlayer({
   const score = questions.reduce((acc, q) => {
     return acc + (answers[q.id] === q.correctIndex ? 1 : 0);
   }, 0);
+
+  const handleSubmit = () => {
+    setSubmitted(true);
+    if (onCompleted) {
+      setTimeout(() => onCompleted(), 2500);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-brand-grey-light bg-white p-6 space-y-6">
@@ -640,7 +681,7 @@ function QuizPlayer({
 
       {!submitted ? (
         <Button
-          onClick={() => setSubmitted(true)}
+          onClick={handleSubmit}
           disabled={Object.keys(answers).length < questions.length}
         >
           Submit Quiz

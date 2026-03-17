@@ -13,6 +13,7 @@ interface VideoPlayerProps {
   poster?: string;
   className?: string;
   onTimeUpdate?: (currentTime: number) => void;
+  onEnded?: () => void;
 }
 
 export function VideoPlayer({
@@ -21,6 +22,7 @@ export function VideoPlayer({
   poster,
   className = "",
   onTimeUpdate,
+  onEnded,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -56,6 +58,7 @@ export function VideoPlayer({
         playsInline
         poster={poster}
         onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
+        onEnded={() => onEnded?.()}
       />
     </div>
   );

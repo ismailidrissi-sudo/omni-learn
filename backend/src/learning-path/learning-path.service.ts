@@ -170,11 +170,11 @@ export class LearningPathService {
     }
   }
 
-  /** Find the user's active enrollment context for a given content item */
+  /** Find the user's enrollment context for a given content item (ACTIVE preferred, then COMPLETED) */
   async findEnrollmentForContent(userId: string, contentItemId: string) {
-    const stepProgress = await this.prisma.pathStepProgress.findFirst({
+    const rows = await this.prisma.pathStepProgress.findMany({
       where: {
-        enrollment: { userId, status: EnrollmentStatus.ACTIVE },
+        enrollment: { userId, status: { in: [EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED] } },
         step: { contentItemId },
       },
       include: {
@@ -186,7 +186,10 @@ export class LearningPathService {
         },
         step: true,
       },
+      orderBy: { enrollment: { status: 'asc' } },
     });
+
+    const stepProgress = rows[0];
     if (!stepProgress) return null;
 
     return {

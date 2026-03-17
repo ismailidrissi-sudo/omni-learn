@@ -38,6 +38,15 @@ export class LearningPathController {
     return this.learningPathService.getEnrollment(userId, pathId);
   }
 
+  @Get('enrollment-for-content')
+  @UseGuards(AuthGuard('jwt'))
+  async findEnrollmentForContent(
+    @Query('userId') userId: string,
+    @Query('contentId') contentId: string,
+  ) {
+    return this.learningPathService.findEnrollmentForContent(userId, contentId);
+  }
+
   @Get()
   @UseGuards(OptionalJwtGuard)
   async listPaths(@Query('tenantId') tenantId: string, @Query('domainId') domainId?: string) {
@@ -90,15 +99,6 @@ export class LearningPathController {
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
   async removeStep(@Param('stepId') stepId: string) {
     return this.crudService.removeStep(stepId);
-  }
-
-  @Get('enrollment-for-content')
-  @UseGuards(AuthGuard('jwt'))
-  async findEnrollmentForContent(
-    @Query('userId') userId: string,
-    @Query('contentId') contentId: string,
-  ) {
-    return this.learningPathService.findEnrollmentForContent(userId, contentId);
   }
 
   @Post('enrollments/:enrollmentId/steps/:stepId/progress')

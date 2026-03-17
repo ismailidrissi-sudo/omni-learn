@@ -457,7 +457,8 @@
     "completePath": "Complétez un parcours d'apprentissage pour obtenir votre premier certificat.",
     "startLearning": "Commencer à apprendre",
     "steps": "étapes",
-    "verify": "Vérifier"
+    "verify": "Vérifier",
+    "viewCertificate": "Voir le certificat"
   },
   "podcast": {
     "speed": "Vitesse",

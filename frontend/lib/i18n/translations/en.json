@@ -448,7 +448,8 @@
     "completePath": "Complete a learning path to earn your first certificate.",
     "startLearning": "Start Learning",
     "steps": "steps",
-    "verify": "Verify"
+    "verify": "Verify",
+    "viewCertificate": "View Certificate"
   },
   "podcast": {
     "speed": "Speed",
