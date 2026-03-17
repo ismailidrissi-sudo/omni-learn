@@ -57,9 +57,11 @@ export default function AdminDomainsPage() {
   const [saving, setSaving] = useState(false);
 
   const loadDomains = useCallback(() => {
-    if (!tenantId) return;
     setLoading(true);
-    apiFetch(`/domains?tenantId=${tenantId}&activeOnly=false`)
+    setError("");
+    const params = new URLSearchParams({ activeOnly: "false" });
+    if (tenantId) params.set("tenantId", tenantId);
+    apiFetch(`/domains?${params.toString()}`)
       .then((r) => r.json())
       .then((d: Domain[]) => setDomains(Array.isArray(d) ? d : []))
       .catch(() => setError("Failed to load domains"))

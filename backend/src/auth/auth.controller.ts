@@ -83,7 +83,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
-  async me(@Req() req: { user?: { sub?: string } }) {
+  async me(@Req() req: { user?: { sub?: string; roles?: string[] } }) {
     const userId = req.user?.sub;
     if (!userId) throw new BadRequestException('Not authenticated');
     const user = await this.prisma.user.findUnique({
@@ -91,7 +91,7 @@ export class AuthController {
       select: { id: true, email: true, name: true, tenantId: true, planId: true, billingCycle: true, sectorFocus: true, isAdmin: true, trainerRequested: true, trainerApprovedAt: true },
     });
     if (!user) throw new UnauthorizedException('User not found');
-    return user;
+    return { ...user, roles: req.user?.roles ?? [] };
   }
 
   @Post('refresh')

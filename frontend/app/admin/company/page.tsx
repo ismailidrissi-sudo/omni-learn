@@ -29,6 +29,7 @@ export default function CompanyAdminPage() {
   const [error, setError] = useState("");
 
   const isNexus = !!user?.isAdmin || user?.planId === "NEXUS";
+  const canCreateTenants = !!user?.roles?.includes("SUPER_ADMIN");
 
   useEffect(() => {
     apiFetch("/profile/options").then((r) => r.json()).then((o) => setIndustries(o?.industries ?? [])).catch(() => {});
@@ -84,16 +85,26 @@ export default function CompanyAdminPage() {
 
   const createTenant = () => {
     if (!newName.trim() || !newSlug.trim()) return;
+    setError("");
     apiFetch("/company/tenants", {
       method: "POST",
       body: JSON.stringify({ name: newName, slug: newSlug }),
     })
-      .then((r) => r.json())
-      .then(() => {
+      .then(async (r) => {
+        if (!r.ok) {
+          if (r.status === 403) {
+            setError("Only platform super-admins can create clients.");
+            return;
+          }
+          const data = await r.json().catch(() => ({}));
+          setError((data as { message?: string })?.message || "Failed to create client. Please try again.");
+          return;
+        }
         setNewName("");
         setNewSlug("");
-        apiFetch("/company/tenants").then((r) => r.json()).then(setTenants);
-      });
+        apiFetch("/company/tenants").then((res) => res.json()).then(setTenants);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to create client. Please try again."));
   };
 
   if (userLoading) {
@@ -155,11 +166,15 @@ export default function CompanyAdminPage() {
               <CardTitle>{t("admin.tenants")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Input className="min-w-0 flex-1" placeholder={t("admin.name")} value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <Input className="min-w-0 flex-1" placeholder={t("forum.slug")} value={newSlug} onChange={(e) => setNewSlug(e.target.value)} />
-                <Button size="sm" onClick={createTenant} className="shrink-0">{t("common.add")}</Button>
-              </div>
+              {canCreateTenants ? (
+                <div className="flex flex-wrap gap-2">
+                  <Input className="min-w-0 flex-1" placeholder={t("admin.name")} value={newName} onChange={(e) => setNewName(e.target.value)} />
+                  <Input className="min-w-0 flex-1" placeholder={t("forum.slug")} value={newSlug} onChange={(e) => setNewSlug(e.target.value)} />
+                  <Button size="sm" onClick={createTenant} className="shrink-0">{t("common.add")}</Button>
+                </div>
+              ) : (
+                <p className="text-brand-grey text-sm">Only platform super-admins can create clients.</p>
+              )}
               <div className="space-y-2">
                 {tenants.map((t) => (
                   <button

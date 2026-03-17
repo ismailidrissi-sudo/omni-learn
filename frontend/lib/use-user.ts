@@ -5,6 +5,8 @@ import { apiFetch } from "./api";
 
 export type UserPlan = "EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS";
 
+export type RbacRole = 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'COMPANY_MANAGER' | 'INSTRUCTOR' | 'CONTENT_MODERATOR' | 'LEARNER_PRO' | 'LEARNER_BASIC';
+
 export interface User {
   id: string;
   email: string;
@@ -16,6 +18,7 @@ export interface User {
   isAdmin?: boolean;
   trainerRequested?: boolean;
   trainerApprovedAt?: string | null;
+  roles?: RbacRole[];
 }
 
 export function useUser(): { user: User | null; loading: boolean } {

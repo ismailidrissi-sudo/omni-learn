@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PathBuilder } from "@/components/admin/path-builder";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
@@ -32,7 +33,7 @@ export default function AdminPathsPage() {
   const [search, setSearch] = useState("");
   const [domains, setDomains] = useState<Array<{ id: string; name: string; slug: string; icon?: string }>>([]);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [paths] = useState<
+  const [paths, setPaths] = useState<
     Array<{
       id: string;
       name: string;
@@ -42,17 +43,40 @@ export default function AdminPathsPage() {
       isPublished: boolean;
     }>
   >([]);
+  const [pathsLoading, setPathsLoading] = useState(true);
+  const [pathsError, setPathsError] = useState("");
 
   useEffect(() => {
     const tid = userTenantId ?? null;
     setTenantId(tid);
-    if (tid) {
-      apiFetch(`/domains?tenantId=${tid}`)
-        .then((r) => r.json())
-        .then((d: { id: string; name: string; slug: string; icon?: string }[]) => setDomains(Array.isArray(d) ? d : []))
-        .catch(() => setDomains([]));
-    }
+    const domainQuery = tid ? `?tenantId=${tid}` : "";
+    apiFetch(`/domains${domainQuery}`)
+      .then((r) => r.json())
+      .then((d: { id: string; name: string; slug: string; icon?: string }[]) => setDomains(Array.isArray(d) ? d : []))
+      .catch(() => setDomains([]));
   }, [userTenantId]);
+
+  useEffect(() => {
+    setPathsLoading(true);
+    setPathsError("");
+    const query = tenantId ? `?tenantId=${tenantId}` : "";
+    apiFetch(`/learning-paths${query}`)
+      .then((r) => r.json())
+      .then((data: Array<{ id: string; name: string; domain?: { id: string; name: string; slug: string }; domainId?: string; _count?: { steps: number }; isPublished?: boolean }>) => {
+        setPaths(
+          (Array.isArray(data) ? data : []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            domain: p.domain,
+            domainId: p.domainId,
+            steps: p._count?.steps ?? 0,
+            isPublished: p.isPublished ?? false,
+          }))
+        );
+      })
+      .catch(() => setPathsError("Failed to load paths. Please try again later."))
+      .finally(() => setPathsLoading(false));
+  }, [tenantId]);
 
   const domainsForBuilder = domains.length > 0
     ? domains.map((d) => ({ id: d.id, name: d.name, icon: d.icon ?? "📚" }))
@@ -94,6 +118,7 @@ export default function AdminPathsPage() {
 
         {view === "list" && (
           <div>
+            {pathsError && <ErrorBanner message={pathsError} onDismiss={() => setPathsError("")} className="mb-6" />}
             <div className="flex gap-4 mb-6">
               <Input
                 placeholder={t("admin.searchPaths")}
@@ -102,6 +127,11 @@ export default function AdminPathsPage() {
                 className="flex-1"
               />
             </div>
+            {pathsLoading ? (
+              <div className="min-h-[200px] flex items-center justify-center">
+                <p className="text-brand-grey">{t("common.loading")}</p>
+              </div>
+            ) : (
             <div className="space-y-4">
               {paths.length === 0 && (
                 <Card className="p-8 text-center text-brand-grey">
@@ -114,7 +144,7 @@ export default function AdminPathsPage() {
                   </Button>
                 </Card>
               )}
-              {paths.map((path) => (
+              {paths.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase())).map((path) => (
                 <Card key={path.id} className="p-4 flex justify-between items-center">
                   <div>
                     <h3 className="font-semibold text-brand-grey-dark">{path.name}</h3>
@@ -142,6 +172,7 @@ export default function AdminPathsPage() {
                 </Card>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -150,7 +181,27 @@ export default function AdminPathsPage() {
             domains={domainsForBuilder}
             tenantId={tenantId}
             contentTypes={CONTENT_TYPES}
-            onSave={() => setView("list")}
+            onSave={() => {
+              setView("list");
+              setPathsLoading(true);
+              const query = tenantId ? `?tenantId=${tenantId}` : "";
+              apiFetch(`/learning-paths${query}`)
+                .then((r) => r.json())
+                .then((data: Array<{ id: string; name: string; domain?: { id: string; name: string; slug: string }; domainId?: string; _count?: { steps: number }; isPublished?: boolean }>) => {
+                  setPaths(
+                    (Array.isArray(data) ? data : []).map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      domain: p.domain,
+                      domainId: p.domainId,
+                      steps: p._count?.steps ?? 0,
+                      isPublished: p.isPublished ?? false,
+                    }))
+                  );
+                })
+                .catch(() => setPathsError("Failed to load paths. Please try again later."))
+                .finally(() => setPathsLoading(false));
+            }}
           />
         )}
       </main>

@@ -31,9 +31,15 @@ const PUBLIC_PATHS = [
 ];
 
 function isProtected(pathname: string): boolean {
-  return PROTECTED_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  );
+  if (PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return true;
+  }
+  // Tenant-scoped admin: /:tenant/admin or /:tenant/admin/*
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length >= 2 && segments[1] === "admin") {
+    return true;
+  }
+  return false;
 }
 
 export function middleware(request: NextRequest) {

@@ -186,17 +186,29 @@ function AdminContentPageContent() {
       userIds,
     };
 
+    const onSaveError = (res: Response, fallback: string) => {
+      if (res.status === 403) {
+        setError("You don't have permission to add or edit content.");
+      } else {
+        res.json().then((data: { message?: string }) => setError(data?.message || fallback)).catch(() => setError(fallback));
+      }
+    };
+
     if (editing) {
       apiFetch(`/content/${editing.id}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       })
-        .then(() => {
+        .then(async (r) => {
+          if (!r.ok) {
+            onSaveError(r, "Failed to update content. Please try again.");
+            return;
+          }
           loadContent();
           setView("list");
           resetForm();
         })
-        .catch(console.error);
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to update content. Please try again."));
     } else if (formType === "COURSE") {
       apiFetch("/content/courses", {
         method: "POST",
@@ -210,31 +222,46 @@ function AdminContentPageContent() {
           scormMetadata: {},
         }),
       })
-        .then((r) => r.json())
-        .then((created) => {
+        .then(async (r) => {
+          if (!r.ok) {
+            onSaveError(r, "Failed to create course. Please try again.");
+            return;
+          }
+          const created = await r.json();
           loadContent();
           openCourseBuilder({ id: created.id, title: created.title });
         })
-        .catch(console.error);
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to create course. Please try again."));
     } else {
       apiFetch("/content", {
         method: "POST",
         body: JSON.stringify(payload),
       })
-        .then(() => {
+        .then(async (r) => {
+          if (!r.ok) {
+            onSaveError(r, "Failed to add content. Please try again.");
+            return;
+          }
           loadContent();
           setView("list");
           resetForm();
         })
-        .catch(console.error);
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to add content. Please try again."));
     }
   };
 
   const deleteContent = (id: string) => {
     if (!confirm(t("admin.contentDeleteConfirm"))) return;
     apiFetch(`/content/${id}`, { method: "DELETE" })
-      .then(loadContent)
-      .catch(console.error);
+      .then((r) => {
+        if (!r.ok) {
+          if (r.status === 403) setError("You don't have permission to delete content.");
+          else r.json().then((data: { message?: string }) => setError(data?.message || "Failed to delete.")).catch(() => setError("Failed to delete."));
+          return;
+        }
+        loadContent();
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to delete content."));
   };
 
   const navLinks = (
@@ -290,6 +317,7 @@ function AdminContentPageContent() {
         </header>
 
         <main className="max-w-2xl mx-auto p-6">
+          {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-brand-title text-brand-grey-dark font-bold">
               {t("admin.addContent")}
@@ -347,6 +375,7 @@ function AdminContentPageContent() {
         </header>
 
         <main className="max-w-2xl mx-auto p-6">
+          {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-brand-title text-brand-grey-dark font-bold">
               {t("admin.editContent")}
