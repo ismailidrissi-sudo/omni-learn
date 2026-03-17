@@ -7,31 +7,22 @@ import { useUser } from "@/lib/use-user";
 import { useI18n } from "@/lib/i18n/context";
 import { apiFetch } from "@/lib/api";
 
-type MicroItem = {
+type ContentItem = {
   id: string;
   title: string;
   type: string;
   metadata?: string | Record<string, unknown>;
   mediaId?: string;
   durationMinutes?: number;
-};
-
-type CourseItem = {
-  id: string;
-  title: string;
-  type: string;
-  durationMinutes?: number;
   description?: string;
 };
 
-type PodcastItem = {
+type RecommendationItem = {
   id: string;
   title: string;
-  type: string;
-  durationMinutes?: number;
+  type?: string;
   description?: string;
-  metadata?: string | Record<string, unknown>;
-  mediaId?: string;
+  durationMinutes?: number;
 };
 
 function parseMetadata(meta: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -43,61 +34,71 @@ function parseMetadata(meta: string | Record<string, unknown> | undefined): Reco
   }
 }
 
-function getVideoUrl(item: MicroItem): string | null {
+function getVideoUrl(item: ContentItem): string | null {
   const meta = parseMetadata(item.metadata);
   const hlsUrl = meta?.hlsUrl as string | undefined;
   const videoUrl = meta?.videoUrl as string | undefined;
   return hlsUrl || videoUrl || item.mediaId || null;
 }
 
-async function fetchTrendingMicro(limit = 4): Promise<MicroItem[]> {
-  const res = await apiFetch(`/microlearning/feed?userId=anonymous&limit=${limit}&offset=0`);
+async function fetchTrendingMicro(userId: string, limit = 4): Promise<ContentItem[]> {
+  const res = await apiFetch(`/microlearning/feed?userId=${encodeURIComponent(userId)}&limit=${limit}&offset=0`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
-async function fetchTrendingCourses(limit = 3): Promise<CourseItem[]> {
+async function fetchTrendingCourses(limit = 3): Promise<ContentItem[]> {
   const res = await apiFetch("/content?type=COURSE");
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
   return arr.slice(0, limit);
 }
 
-async function fetchTrendingPodcasts(limit = 3): Promise<PodcastItem[]> {
+async function fetchTrendingPodcasts(limit = 3): Promise<ContentItem[]> {
   const res = await apiFetch("/content?type=PODCAST");
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
   return arr.slice(0, limit);
 }
 
+async function fetchRecommendations(userId: string, limit = 4): Promise<RecommendationItem[]> {
+  const res = await apiFetch(`/intelligence/recommendations?userId=${encodeURIComponent(userId)}&limit=${limit}`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export function TrendingContent() {
   const { t } = useI18n();
   const { user } = useUser();
   const isSignedIn = !!user;
-  const [trendingMicro, setTrendingMicro] = useState<MicroItem[]>([]);
-  const [trendingCourses, setTrendingCourses] = useState<CourseItem[]>([]);
-  const [trendingPodcasts, setTrendingPodcasts] = useState<PodcastItem[]>([]);
+  const userId = user?.id ?? "anonymous";
+  const [trendingMicro, setTrendingMicro] = useState<ContentItem[]>([]);
+  const [trendingCourses, setTrendingCourses] = useState<ContentItem[]>([]);
+  const [trendingPodcasts, setTrendingPodcasts] = useState<ContentItem[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [authModal, setAuthModal] = useState<{ open: boolean; type: "micro" | "course" | "podcast" }>({ open: false, type: "micro" });
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetchTrendingMicro(4),
+      fetchTrendingMicro(userId, 4),
       fetchTrendingCourses(3),
       fetchTrendingPodcasts(3),
+      fetchRecommendations(userId, 4),
     ])
-      .then(([micro, courses, podcasts]) => {
+      .then(([micro, courses, podcasts, recs]) => {
         if (!cancelled) {
           setTrendingMicro(micro);
           setTrendingCourses(courses);
           setTrendingPodcasts(podcasts);
+          setRecommendations(recs);
         }
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   const handleContentClick = (id: string, type: "course" | "podcast") => {
     if (!isSignedIn) {
@@ -107,7 +108,7 @@ export function TrendingContent() {
     window.location.href = `/content/${id}`;
   };
 
-  const hasContent = trendingMicro.length > 0 || trendingCourses.length > 0 || trendingPodcasts.length > 0;
+  const hasContent = trendingMicro.length > 0 || trendingCourses.length > 0 || trendingPodcasts.length > 0 || recommendations.length > 0;
 
   if (!loaded) {
     return (
@@ -245,6 +246,37 @@ export function TrendingContent() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Personalized Recommendations */}
+        {recommendations.length > 0 && (
+          <div className="mb-14">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+              {t("landing.trending.recommended")}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {t("landing.trending.recommendedDesc")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {recommendations.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleContentClick(item.id, "course")}
+                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-5 hover:border-[#059669] hover:shadow-lg transition group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#059669]/20 to-[#10b981]/10 flex items-center justify-center text-xl mb-3">
+                    {item.type === "PODCAST" ? "🎧" : item.type === "MICRO_LEARNING" ? "▶" : "📚"}
+                  </div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2 text-sm">{item.title}</h4>
+                  {item.type && (
+                    <span className="inline-block mt-2 text-[10px] uppercase tracking-wider font-medium text-[#059669] dark:text-[#10b981]">
+                      {item.type.replace(/_/g, " ")}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
         )}

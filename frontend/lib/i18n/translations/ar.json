@@ -102,7 +102,8 @@
       "foodSafety": "سلامة الغذاء",
       "softSkills": "المهارات الناعمة",
       "operationalExcellence": "التميز التشغيلي",
-      "marketing": "التسويق"
+      "marketing": "التسويق",
+      "items": "عناصر"
     },
     "trending": {
       "title": "اكتشف ما هو رائج",
@@ -113,6 +114,8 @@
       "coursesDesc": "تعمق في مهارات جديدة",
       "podcasts": "البودكاست الرائج",
       "podcastsDesc": "استمع وتعلم أثناء التنقل",
+      "recommended": "مُوصى به لك",
+      "recommendedDesc": "اختيارات مخصصة بناءً على رحلتك التعليمية",
       "exploreAll": "استكشف كل المحتوى"
     },
     "signInToContinue": "سجّل الدخول للمتابعة",
