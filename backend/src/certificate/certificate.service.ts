@@ -161,9 +161,9 @@ export class CertificateService {
       where: { id },
       data: {
         ...(dto.templateName != null && { templateName: dto.templateName }),
-        ...(dto.themeConfig != null && { themeConfig: JSON.stringify(dto.themeConfig) }),
-        ...(dto.elementsConfig != null && { elementsConfig: JSON.stringify(dto.elementsConfig) }),
-        ...(dto.signatories != null && { signatories: JSON.stringify(dto.signatories) }),
+        ...(dto.themeConfig != null && { themeConfig: dto.themeConfig }),
+        ...(dto.elementsConfig != null && { elementsConfig: dto.elementsConfig }),
+        ...(dto.signatories != null && { signatories: dto.signatories }),
       },
       include: { domain: true },
     });

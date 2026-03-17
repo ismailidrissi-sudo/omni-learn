@@ -80,7 +80,7 @@ export class DomainsService {
         description: dto.description,
         icon: dto.icon,
         color: dto.color,
-        metadata: JSON.stringify(dto.metadata ?? {}),
+        metadata: dto.metadata ?? {},
       },
     });
     await this.ensureCertificateTemplate(domain.tenantId, domain.id, domain.color, domain.name);
@@ -99,7 +99,7 @@ export class DomainsService {
         ...(dto.color != null && { color: dto.color }),
         ...(dto.isActive != null && { isActive: dto.isActive }),
         ...(dto.sortOrder != null && { sortOrder: dto.sortOrder }),
-        ...(dto.metadata != null && { metadata: typeof dto.metadata === 'string' ? dto.metadata : JSON.stringify(dto.metadata) }),
+        ...(dto.metadata != null && { metadata: dto.metadata }),
       },
     });
   }
@@ -143,15 +143,15 @@ export class DomainsService {
         tenantId,
         domainId,
         templateName: `${domain.name} Certificate`,
-        themeConfig: JSON.stringify({
+        themeConfig: {
           primary_color: primaryColor,
           secondary_color: secondaryColor,
           accent_color: '#c8a951',
           seal_text: `CERTIFIED ${(domain.name).toUpperCase().replace(/\s+/g, ' ')} PROFESSIONAL`,
           title_font: 'Playfair Display',
           body_font: 'Source Serif 4',
-        }),
-        elementsConfig: JSON.stringify({
+        },
+        elementsConfig: {
           show_logo: true,
           show_qr: true,
           show_hours: true,
@@ -160,8 +160,8 @@ export class DomainsService {
           show_seal: true,
           show_expiry: false,
           show_badge: false,
-        }),
-        signatories: JSON.stringify([]),
+        },
+        signatories: [],
       },
     });
   }

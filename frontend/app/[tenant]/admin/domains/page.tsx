@@ -61,7 +61,10 @@ export default function TenantDomainsAdminPage() {
   const academyName = branding?.appName || tenant?.name || "Academy";
 
   const loadDomains = useCallback(() => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     apiFetch(`/domains?tenantId=${tenant.id}&activeOnly=false`)
       .then((r) => r.json())
@@ -105,7 +108,7 @@ export default function TenantDomainsAdminPage() {
 
   async function handleSave() {
     if (!form.name.trim()) { setError(t("adminTenant.domainNameRequired")); return; }
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setError("Tenant context not available. Please refresh and try again."); return; }
     setSaving(true);
     setError("");
     try {

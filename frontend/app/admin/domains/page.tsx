@@ -57,7 +57,10 @@ export default function AdminDomainsPage() {
   const [saving, setSaving] = useState(false);
 
   const loadDomains = useCallback(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     apiFetch(`/domains?tenantId=${tenantId}&activeOnly=false`)
       .then((r) => r.json())
@@ -103,7 +106,7 @@ export default function AdminDomainsPage() {
 
   async function handleSave() {
     if (!form.name.trim()) { setError("Domain name is required"); return; }
-    if (!tenantId) return;
+    if (!tenantId) { setError("No tenant associated with your account. Please contact support."); return; }
     setSaving(true);
     setError("");
     try {

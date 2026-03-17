@@ -118,7 +118,10 @@ export default function TenantCertificatesAdminPage() {
   const academyName = branding?.appName || tenant?.name || "Academy";
 
   const loadTemplates = useCallback(() => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     apiFetch(`/certificates/templates/all?tenantId=${tenant.id}`)
       .then((r) => r.json())

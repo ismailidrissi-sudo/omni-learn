@@ -114,7 +114,10 @@ export default function AdminCertificatesPage() {
   const tenantId = user?.tenantId;
 
   const loadTemplates = useCallback(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     apiFetch(`/certificates/templates/all?tenantId=${tenantId}`)
       .then((r) => r.json())

@@ -33,7 +33,7 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-async function tryRefreshToken(): Promise<string | null> {
+async function refreshTokenQuiet(): Promise<string | null> {
   const token = getToken();
   if (!token) return null;
 
@@ -45,10 +45,7 @@ async function tryRefreshToken(): Promise<string | null> {
         Authorization: `Bearer ${token}`,
       },
     });
-    if (!res.ok) {
-      clearAuth();
-      return null;
-    }
+    if (!res.ok) return null;
     const data = await res.json();
     if (data.accessToken) {
       setToken(data.accessToken);
@@ -56,9 +53,14 @@ async function tryRefreshToken(): Promise<string | null> {
     }
     return null;
   } catch {
-    clearAuth();
     return null;
   }
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  const result = await refreshTokenQuiet();
+  if (!result) clearAuth();
+  return result;
 }
 
 export async function apiFetch(
@@ -86,6 +88,19 @@ export async function apiFetch(
     );
   }
 
+  if (res.status === 403 && getToken() && !path.startsWith("/auth/")) {
+    const newToken = await refreshTokenQuiet();
+    if (newToken) {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...getAuthHeaders(),
+          ...(options.headers as Record<string, string>),
+        },
+      });
+    }
+  }
+
   if (res.status === 401 && getToken() && !path.startsWith("/auth/")) {
     if (!isRefreshing) {
       isRefreshing = true;
@@ -106,7 +121,7 @@ export async function apiFetch(
       });
     }
 
-    if (typeof window !== "undefined" && !path.startsWith("/auth/")) {
+    if (typeof window !== "undefined") {
       window.location.href = `/signin?redirect=${encodeURIComponent(window.location.pathname)}`;
     }
   }
