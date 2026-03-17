@@ -34,8 +34,8 @@ export interface CertificateData {
   grade?: string | null;
   issuedAt: string;
   totalLearningMinutes?: number;
-  themeConfig: ThemeConfig;
-  elementsConfig: ElementsConfig;
+  themeConfig: Partial<ThemeConfig> | ThemeConfig;
+  elementsConfig: Partial<ElementsConfig> | ElementsConfig;
   signatories: Signatory[];
   tenantName?: string;
 }
