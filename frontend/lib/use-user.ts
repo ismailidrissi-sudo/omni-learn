@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiFetch } from "./api";
+import { apiFetch, tryRefreshToken } from "./api";
 
 export type UserPlan = "EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS";
 
@@ -16,6 +16,17 @@ export interface User {
   isAdmin?: boolean;
   trainerRequested?: boolean;
   trainerApprovedAt?: string | null;
+}
+
+function getJwtRoles(): string[] {
+  try {
+    const token = localStorage.getItem("omnilearn_token");
+    if (!token) return [];
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.realm_access?.roles ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export function useUser(): { user: User | null; loading: boolean } {
@@ -37,7 +48,15 @@ export function useUser(): { user: User | null; loading: boolean } {
         if (r.ok) return r.json();
         return null;
       })
-      .then(setUser)
+      .then(async (profile: User | null) => {
+        if (profile && (profile.trainerApprovedAt || profile.isAdmin)) {
+          const roles = getJwtRoles();
+          if (!roles.includes("instructor")) {
+            await tryRefreshToken();
+          }
+        }
+        setUser(profile);
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);

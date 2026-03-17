@@ -86,7 +86,7 @@ export async function apiFetch(
     );
   }
 
-  if (res.status === 401 && getToken() && !path.includes("/auth/refresh")) {
+  if (res.status === 401 && getToken() && !path.startsWith("/auth/")) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = tryRefreshToken().finally(() => {
@@ -106,7 +106,7 @@ export async function apiFetch(
       });
     }
 
-    if (typeof window !== "undefined" && !path.includes("/auth/")) {
+    if (typeof window !== "undefined" && !path.startsWith("/auth/")) {
       window.location.href = `/signin?redirect=${encodeURIComponent(window.location.pathname)}`;
     }
   }
@@ -114,4 +114,4 @@ export async function apiFetch(
   return res;
 }
 
-export { API_URL, setToken, clearAuth };
+export { API_URL, setToken, clearAuth, tryRefreshToken };

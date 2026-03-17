@@ -145,8 +145,13 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || !user.passwordHash) {
+    if (!user) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+    if (!user.passwordHash) {
+      const provider = user.externalId?.startsWith('google:') ? 'Google'
+        : user.externalId?.startsWith('linkedin:') ? 'LinkedIn' : 'social login';
+      throw new UnauthorizedException(`This account uses ${provider}. Please sign in with ${provider} instead.`);
     }
     if (!user.emailVerified) {
       throw new UnauthorizedException('Please verify your email before signing in');
@@ -172,6 +177,25 @@ export class AuthService {
   private generateVerifyToken(): string {
     return crypto.randomBytes(32).toString('hex');
   }
+
+  /** Resend email verification link for unverified accounts */
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.emailVerified) {
+      return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
+    }
+    const token = this.generateVerifyToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifyToken: token, emailVerifyExpiresAt: expiresAt },
+    });
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
+    await this.mailer.sendVerificationEmail(email, user.name, verifyUrl);
+    return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
+  }
+
   /** Refresh JWT — reissue token with same claims for a valid user (includes instructor if approved trainer) */
   async refreshToken(userId: string): Promise<{ accessToken: string }> {
     const found = await this.prisma.user.findUnique({ where: { id: userId } });

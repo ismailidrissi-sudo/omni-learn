@@ -22,10 +22,13 @@ function SignInPageContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showResendVerify, setShowResendVerify] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setShowResendVerify(false);
     if (!email || !password) {
       setError(t("auth.enterEmailPassword"));
       return;
@@ -68,13 +71,45 @@ function SignInPageContent() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login failed";
-      setError(
-        msg === "Invalid credentials" || msg === "Invalid email or password" ? t("auth.invalidCredentials") :
-        msg === "Please verify your email before signing in" ? "Please verify your email first. Check your inbox." :
-        msg === "Login failed" ? t("auth.loginFailed") : msg
-      );
+      if (msg === "Invalid credentials" || msg === "Invalid email or password") {
+        setError(t("auth.invalidCredentials"));
+      } else if (msg === "Please verify your email before signing in") {
+        setError("Please verify your email first. Check your inbox for a verification link.");
+        setShowResendVerify(true);
+      } else if (msg.includes("uses Google")) {
+        setError("This account uses Google. Please click the Google button above to sign in.");
+      } else if (msg.includes("uses LinkedIn")) {
+        setError("This account uses LinkedIn. Please click the LinkedIn button above to sign in.");
+      } else if (msg.includes("uses social login")) {
+        setError("This account was created with social login. Try signing in with Google or LinkedIn above.");
+      } else if (msg === "Login failed") {
+        setError(t("auth.loginFailed"));
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError("Enter your email address above, then click Resend.");
+      return;
+    }
+    setResending(true);
+    try {
+      const res = await apiFetch("/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      setError(data.message || "Verification email sent. Check your inbox.");
+      setShowResendVerify(false);
+    } catch {
+      setError("Could not resend verification email. Please try again later.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -111,7 +146,17 @@ function SignInPageContent() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
+            {error && <ErrorBanner message={error} onDismiss={() => { setError(""); setShowResendVerify(false); }} />}
+            {showResendVerify && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="w-full text-sm font-medium text-[#059669] hover:underline disabled:opacity-60"
+              >
+                {resending ? "Sending..." : "Resend verification email"}
+              </button>
+            )}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-brand-stardustLight">
                 {t("auth.email")}

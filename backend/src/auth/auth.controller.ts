@@ -103,6 +103,12 @@ export class AuthController {
     return { accessToken };
   }
 
+  @Post('resend-verification')
+  async resendVerification(@Body() body: { email: string }) {
+    if (!body?.email) throw new BadRequestException('Email required');
+    return this.authService.resendVerification(body.email);
+  }
+
   @Post('dev-login')
   async devLogin(@Body() body: LoginDto) {
     if (process.env.NODE_ENV === 'production') {
