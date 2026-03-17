@@ -39,7 +39,7 @@ interface DomainForm {
 const EMPTY_FORM: DomainForm = { name: "", slug: "", description: "", icon: "📚", color: "#059669", sortOrder: 0 };
 
 function slugify(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 export default function TenantDomainsAdminPage() {

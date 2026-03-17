@@ -66,7 +66,7 @@ export class AuthService {
   }
 
   /** Auto-promote user to admin if their email matches ADMIN_EMAIL env var */
-  private async promoteIfAdmin<T extends { id: string; email: string; isAdmin?: boolean }>(user: T): Promise<T> {
+  private async promoteIfAdmin<T extends { id: string; email: string; isAdmin?: boolean; tenantId?: string | null }>(user: T): Promise<T> {
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail && user.email.toLowerCase() === adminEmail.toLowerCase() && !user.isAdmin) {
       const promoted = await this.prisma.user.update({
@@ -80,9 +80,29 @@ export class AuthService {
           planId: 'NEXUS',
         } as any,
       });
-      return promoted as unknown as T;
+      const withTenant = await this.ensureUserHasTenant(promoted);
+      return withTenant as unknown as T;
+    }
+    if (user.isAdmin && !user.tenantId) {
+      const withTenant = await this.ensureUserHasTenant(user as any);
+      return withTenant as unknown as T;
     }
     return user;
+  }
+
+  /** Ensure a user is assigned to a tenant. Finds the first existing tenant or creates a default one. */
+  private async ensureUserHasTenant(user: { id: string; tenantId?: string | null }) {
+    if (user.tenantId) return user;
+    let tenant = await this.prisma.tenant.findFirst({ orderBy: { createdAt: 'asc' } });
+    if (!tenant) {
+      tenant = await this.prisma.tenant.create({
+        data: { name: 'OmniLearn', slug: 'omnilearn' },
+      });
+    }
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: { tenantId: tenant.id },
+    });
   }
 
   /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor if approved */
@@ -131,6 +151,7 @@ export class AuthService {
       } else if (!user.isAdmin || !user.emailVerified) {
         user = await this.prisma.user.update({ where: { id: user.id }, data: adminData });
       }
+      user = await this.ensureUserHasTenant(user);
       const roles = this.getRolesForUser(user);
       const accessToken = this.jwtService.sign({
         sub: user.id,
@@ -274,6 +295,7 @@ export class AuthService {
         data: adminData,
       });
     }
+    user = await this.ensureUserHasTenant(user);
     const roles = this.getRolesForUser(user);
     const accessToken = this.jwtService.sign({
       sub: user.id,
