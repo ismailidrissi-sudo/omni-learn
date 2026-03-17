@@ -30,7 +30,13 @@ const PUBLIC_PATHS = [
   "/certificates/verify",
 ];
 
+/** Match /:tenant/admin or /:tenant/admin/... (tenant-scoped admin) */
+function isTenantAdminPath(pathname: string): boolean {
+  return /^\/[^/]+\/admin(\/|$)/.test(pathname);
+}
+
 function isProtected(pathname: string): boolean {
+  if (isTenantAdminPath(pathname)) return true;
   return PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   );

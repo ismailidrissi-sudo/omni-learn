@@ -31,6 +31,8 @@ npm run dev
 
 Frontend: http://localhost:3000 | Backend: http://localhost:4000
 
+**First super-admin (create clients / admin):** Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. In development, use the dev-login on the sign-in page with those credentials to get super-admin access; you can then create clients (tenants) at `/admin/company` and add content at `/admin/content`.
+
 ## Production (VPS)
 
 When deploying to your VPS with PostgreSQL:
