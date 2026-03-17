@@ -92,6 +92,15 @@ export class LearningPathController {
     return this.crudService.removeStep(stepId);
   }
 
+  @Get('enrollment-for-content')
+  @UseGuards(AuthGuard('jwt'))
+  async findEnrollmentForContent(
+    @Query('userId') userId: string,
+    @Query('contentId') contentId: string,
+  ) {
+    return this.learningPathService.findEnrollmentForContent(userId, contentId);
+  }
+
   @Post('enrollments/:enrollmentId/steps/:stepId/progress')
   @UseGuards(AuthGuard('jwt'))
   async updateStepProgress(

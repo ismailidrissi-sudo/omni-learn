@@ -170,6 +170,36 @@ export class LearningPathService {
     }
   }
 
+  /** Find the user's active enrollment context for a given content item */
+  async findEnrollmentForContent(userId: string, contentItemId: string) {
+    const stepProgress = await this.prisma.pathStepProgress.findFirst({
+      where: {
+        enrollment: { userId, status: EnrollmentStatus.ACTIVE },
+        step: { contentItemId },
+      },
+      include: {
+        enrollment: {
+          include: {
+            path: { include: { domain: true } },
+            certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+          },
+        },
+        step: true,
+      },
+    });
+    if (!stepProgress) return null;
+
+    return {
+      enrollmentId: stepProgress.enrollmentId,
+      stepId: stepProgress.stepId,
+      stepStatus: stepProgress.status,
+      pathName: stepProgress.enrollment.path.name,
+      domainName: stepProgress.enrollment.path.domain?.name ?? '',
+      progressPct: stepProgress.enrollment.progressPct,
+      certificate: stepProgress.enrollment.certificates?.[0] ?? null,
+    };
+  }
+
   /** List published learning paths (optionally by domain) */
   async listPaths(tenantId: string, domainId?: string) {
     return this.prisma.learningPath.findMany({

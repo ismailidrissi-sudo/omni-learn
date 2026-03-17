@@ -835,7 +835,11 @@
     "completedLesson": "Completed",
     "articleContent": "Article Content",
     "backToDiscover": "Back to Discover",
-    "contentViewerHint": "Content viewer will render based on type (video player, document viewer, quiz, etc.)"
+    "contentViewerHint": "Content viewer will render based on type (video player, document viewer, quiz, etc.)",
+    "completeCourse": "Complete Course",
+    "courseCompleted": "Course Completed",
+    "previous": "Previous",
+    "next": "Next"
   },
   "media": {
     "advertisement": "Advertisement",

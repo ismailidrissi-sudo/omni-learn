@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { SmartVideo } from "@/components/media/smart-video";
 import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
+import { CompletionCelebration } from "@/components/learning/completion-celebration";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
 type CourseSectionItem = {
@@ -37,6 +39,16 @@ type CourseInfo = {
   type: string;
 };
 
+type EnrollmentContext = {
+  enrollmentId: string;
+  stepId: string;
+  stepStatus: string;
+  pathName: string;
+  domainName: string;
+  progressPct: number;
+  certificate: { id: string; verifyCode: string } | null;
+};
+
 const ITEM_ICONS: Record<string, string> = {
   VIDEO: "🎬",
   AUDIO: "🎧",
@@ -49,6 +61,7 @@ const ITEM_ICONS: Record<string, string> = {
 export default function CoursePlayerPage() {
   const params = useParams();
   const { t } = useI18n();
+  const { user } = useUser();
   const courseId = params?.id as string;
 
   const [course, setCourse] = useState<CourseInfo | null>(null);
@@ -56,7 +69,26 @@ export default function CoursePlayerPage() {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [enrollCtx, setEnrollCtx] = useState<EnrollmentContext | null>(null);
+  const [visitedItems, setVisitedItems] = useState<Set<string>>(new Set());
+  const [completing, setCompleting] = useState(false);
+  const [courseCompleted, setCourseCompleted] = useState(false);
+  const [celebration, setCelebration] = useState<{
+    certId: string;
+    pathName: string;
+    domainName: string;
+  } | null>(null);
+  const startTime = useRef(Date.now());
+
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    setSidebarOpen(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setSidebarOpen(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     if (!courseId) return;
@@ -68,11 +100,11 @@ export default function CoursePlayerPage() {
         setCourse(courseData);
         const secs = Array.isArray(curriculumData) ? curriculumData : [];
         setSections(secs);
-        // Expand first section and select first item
         if (secs.length > 0) {
           setExpandedSections(new Set([secs[0].id]));
           if (secs[0].items.length > 0) {
             setActiveItemId(secs[0].items[0].id);
+            setVisitedItems(new Set([secs[0].items[0].id]));
           }
         }
       })
@@ -82,6 +114,22 @@ export default function CoursePlayerPage() {
       })
       .finally(() => setLoading(false));
   }, [courseId]);
+
+  useEffect(() => {
+    if (!user?.id || !courseId) return;
+    apiFetch(`/learning-paths/enrollment-for-content?userId=${user.id}&contentId=${courseId}`)
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((data) => {
+        if (data) {
+          setEnrollCtx(data);
+          if (data.stepStatus === "COMPLETED") setCourseCompleted(true);
+        }
+      })
+      .catch(() => {});
+  }, [user?.id, courseId]);
 
   const allItems = useMemo(
     () => sections.flatMap((s) => s.items),
@@ -103,16 +151,18 @@ export default function CoursePlayerPage() {
     (acc, i) => acc + (i.durationMinutes ?? 0),
     0,
   );
+  const isLastItem = activeIndex === totalItems - 1;
 
-  const goToItem = (itemId: string) => {
+  const goToItem = useCallback((itemId: string) => {
     setActiveItemId(itemId);
+    setVisitedItems((prev) => new Set([...prev, itemId]));
     const parentSection = sections.find((s) =>
       s.items.some((i) => i.id === itemId),
     );
     if (parentSection) {
       setExpandedSections((prev) => new Set([...prev, parentSection.id]));
     }
-  };
+  }, [sections]);
 
   const goNext = () => {
     if (activeIndex < totalItems - 1) goToItem(allItems[activeIndex + 1].id);
@@ -121,6 +171,39 @@ export default function CoursePlayerPage() {
   const goPrev = () => {
     if (activeIndex > 0) goToItem(allItems[activeIndex - 1].id);
   };
+
+  const completeCourse = useCallback(async () => {
+    if (!enrollCtx || completing || courseCompleted) return;
+    setCompleting(true);
+    try {
+      const timeSpentMinutes = Math.round((Date.now() - startTime.current) / 60000);
+      const res = await apiFetch(
+        `/learning-paths/enrollments/${enrollCtx.enrollmentId}/steps/${enrollCtx.stepId}/progress`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "COMPLETED",
+            timeSpent: timeSpentMinutes,
+          }),
+        },
+      );
+      const result = await res.json();
+      setCourseCompleted(true);
+
+      if (result.certificate?.id) {
+        setCelebration({
+          certId: result.certificate.id,
+          pathName: enrollCtx.pathName,
+          domainName: enrollCtx.domainName,
+        });
+      }
+    } catch {
+      // allow retry on failure
+    } finally {
+      setCompleting(false);
+    }
+  }, [enrollCtx, completing, courseCompleted]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -239,15 +322,15 @@ export default function CoursePlayerPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-brand-grey-light px-4 py-3 flex items-center gap-4 bg-white shrink-0 z-10">
-        <Link href="/">
+      <header className="border-b border-brand-grey-light px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 bg-white shrink-0 z-20">
+        <Link href="/" className="shrink-0">
           <LearnLogo size="sm" variant="purple" />
         </Link>
-        <div className="h-6 w-px bg-brand-grey-light" />
-        <h1 className="text-sm font-semibold text-brand-grey-dark truncate flex-1">
+        <div className="h-6 w-px bg-brand-grey-light hidden sm:block" />
+        <h1 className="text-xs sm:text-sm font-semibold text-brand-grey-dark truncate flex-1 min-w-0">
           {course.title}
         </h1>
-        <div className="flex items-center gap-2 text-sm text-brand-grey shrink-0">
+        <div className="hidden sm:flex items-center gap-2 text-sm text-brand-grey shrink-0">
           <span>
             {activeIndex + 1} / {totalItems}
           </span>
@@ -255,53 +338,102 @@ export default function CoursePlayerPage() {
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey"
+          className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey shrink-0"
           title={t("content.courseContents")}
         >
           ☰
         </button>
-        <NavToggles />
+        <div className="hidden sm:block">
+          <NavToggles />
+        </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Main content area */}
-        <main className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Main content area — always full width */}
+        <main className="flex-1 min-w-0 flex flex-col w-full">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
             <div className="max-w-4xl mx-auto">
               {renderLesson()}
             </div>
+
+            {/* Lesson title shown below video on mobile */}
+            {activeItem && (
+              <div className="sm:hidden mt-4 max-w-4xl mx-auto">
+                <p className="text-xs text-brand-grey">
+                  {activeIndex + 1} / {totalItems}
+                  {totalDuration > 0 && ` · ${totalDuration} min`}
+                </p>
+                <p className="text-sm font-medium text-brand-grey-dark mt-1">
+                  {activeItem.title}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Bottom navigation bar */}
           {totalItems > 0 && (
-            <div className="border-t border-brand-grey-light px-4 py-3 flex items-center justify-between bg-white shrink-0">
+            <div className="border-t border-brand-grey-light px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between bg-white shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={goPrev}
                 disabled={activeIndex <= 0}
               >
-                ← Previous
+                ← <span className="hidden sm:inline">{t("content.previous")}</span>
               </Button>
-              <div className="text-sm text-brand-grey-dark font-medium truncate max-w-xs mx-4">
+              <div className="hidden sm:block text-sm text-brand-grey-dark font-medium truncate max-w-xs mx-4">
                 {activeItem?.title}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goNext}
-                disabled={activeIndex >= totalItems - 1}
-              >
-                Next →
-              </Button>
+              {isLastItem && enrollCtx && !courseCompleted ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={completeCourse}
+                  disabled={completing}
+                >
+                  {completing ? t("common.loading") : t("content.completeCourse")}
+                </Button>
+              ) : isLastItem && courseCompleted ? (
+                <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                  ✓ {t("content.courseCompleted")}
+                </span>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goNext}
+                  disabled={activeIndex >= totalItems - 1}
+                >
+                  <span className="hidden sm:inline">{t("content.next")}</span> →
+                </Button>
+              )}
             </div>
           )}
         </main>
 
-        {/* Sidebar - Course Contents */}
+        {/* Sidebar backdrop on mobile */}
         {sidebarOpen && (
-          <aside className="w-80 shrink-0 border-l border-brand-grey-light bg-white overflow-y-auto">
-            <div className="p-4 border-b border-brand-grey-light">
+          <div
+            className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar - Course Contents */}
+        <aside
+          className={`
+            fixed top-0 right-0 h-full w-[85vw] max-w-sm z-40 bg-white shadow-xl
+            transform transition-transform duration-200 ease-in-out
+            lg:relative lg:w-80 lg:max-w-none lg:shadow-none lg:z-0
+            lg:border-l lg:border-brand-grey-light
+            ${sidebarOpen
+              ? "translate-x-0"
+              : "translate-x-full lg:hidden"
+            }
+          `}
+        >
+          <div className="flex items-center justify-between p-4 border-b border-brand-grey-light">
+            <div>
               <h2 className="font-semibold text-brand-grey-dark text-sm">
                 {t("content.courseContents")}
               </h2>
@@ -310,7 +442,15 @@ export default function CoursePlayerPage() {
                 {totalDuration > 0 && ` · ${totalDuration} min`}
               </p>
             </div>
+            <button
+              className="lg:hidden p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey"
+              onClick={() => setSidebarOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
 
+          <div className="overflow-y-auto h-[calc(100%-8rem)]">
             <div className="divide-y divide-brand-grey-light">
               {sections.map((section, sIdx) => {
                 const isExpanded = expandedSections.has(section.id);
@@ -345,6 +485,7 @@ export default function CoursePlayerPage() {
                       <div className="bg-brand-grey-light/10">
                         {section.items.map((item) => {
                           const isActive = item.id === activeItemId;
+                          const isVisited = visitedItems.has(item.id);
                           const icon = ITEM_ICONS[item.itemType] ?? "📄";
 
                           return (
@@ -355,15 +496,26 @@ export default function CoursePlayerPage() {
                                   ? "bg-brand-purple/10 border-l-2 border-brand-purple"
                                   : "hover:bg-brand-grey-light/30 border-l-2 border-transparent"
                               }`}
-                              onClick={() => goToItem(item.id)}
+                              onClick={() => {
+                                goToItem(item.id);
+                                if (window.innerWidth < 1024) setSidebarOpen(false);
+                              }}
                             >
-                              <span className="text-sm mt-0.5 shrink-0">{icon}</span>
+                              <span className="text-sm mt-0.5 shrink-0">
+                                {isVisited && !isActive ? (
+                                  <span className="text-green-500">✓</span>
+                                ) : (
+                                  icon
+                                )}
+                              </span>
                               <div className="flex-1 min-w-0">
                                 <p
                                   className={`text-sm truncate ${
                                     isActive
                                       ? "font-medium text-brand-purple"
-                                      : "text-brand-grey-dark"
+                                      : isVisited
+                                        ? "text-brand-grey-dark/70"
+                                        : "text-brand-grey-dark"
                                   }`}
                                 >
                                   {item.title}
@@ -384,18 +536,27 @@ export default function CoursePlayerPage() {
                 );
               })}
             </div>
+          </div>
 
-            <div className="p-4 border-t border-brand-grey-light">
-              <Link
-                href={`/content/${courseId}`}
-                className="text-sm text-brand-purple hover:underline"
-              >
-                {t("content.backToLearn")}
-              </Link>
-            </div>
-          </aside>
-        )}
+          <div className="p-4 border-t border-brand-grey-light">
+            <Link
+              href={`/content/${courseId}`}
+              className="text-sm text-brand-purple hover:underline"
+            >
+              {t("content.backToLearn")}
+            </Link>
+          </div>
+        </aside>
       </div>
+
+      {celebration && (
+        <CompletionCelebration
+          certificateId={celebration.certId}
+          pathName={celebration.pathName}
+          domainName={celebration.domainName}
+          onClose={() => setCelebration(null)}
+        />
+      )}
     </div>
   );
 }

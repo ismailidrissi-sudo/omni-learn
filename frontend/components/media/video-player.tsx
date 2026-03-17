@@ -48,11 +48,12 @@ export function VideoPlayer({
   }, [src, hlsUrl]);
 
   return (
-    <div className={`overflow-hidden rounded-lg bg-black ${className}`}>
+    <div className={`overflow-hidden rounded-none sm:rounded-lg bg-black ${className}`}>
       <video
         ref={videoRef}
         className="w-full aspect-video"
         controls
+        playsInline
         poster={poster}
         onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
       />

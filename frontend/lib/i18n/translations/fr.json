@@ -237,7 +237,11 @@
     "selectLesson": "Sélectionnez une leçon dans la barre latérale pour commencer.",
     "noLessons": "Ce cours n'a pas encore de leçons.",
     "completedLesson": "Terminé",
-    "articleContent": "Contenu de l'article"
+    "articleContent": "Contenu de l'article",
+    "completeCourse": "Terminer le cours",
+    "courseCompleted": "Cours terminé",
+    "previous": "Précédent",
+    "next": "Suivant"
   },
   "reviews": {
     "title": "Avis et notes",
@@ -763,7 +767,11 @@
     "completedLesson": "Terminé",
     "articleContent": "Contenu de l'article",
     "backToDiscover": "Retour à Découvrir",
-    "contentViewerHint": "Le lecteur de contenu s'affichera selon le type (vidéo, document, quiz, etc.)"
+    "contentViewerHint": "Le lecteur de contenu s'affichera selon le type (vidéo, document, quiz, etc.)",
+    "completeCourse": "Terminer le cours",
+    "courseCompleted": "Cours terminé",
+    "previous": "Précédent",
+    "next": "Suivant"
   },
   "notifications": {
     "title": "Notifications",

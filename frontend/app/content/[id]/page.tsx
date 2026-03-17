@@ -266,28 +266,28 @@ export default function ContentPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
+      <header className="border-b border-brand-grey-light px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2">
+        <Link href="/" className="shrink-0">
           <LearnLogo size="md" variant="purple" />
         </Link>
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 sm:gap-4">
           <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
-          <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
+          <Link href="/forum" className="hidden sm:inline-flex"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
+          <div className="hidden sm:flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
             <NavToggles />
           </div>
         </nav>
       </header>
 
-      <main className="max-w-3xl mx-auto p-6">
+      <main className="max-w-3xl mx-auto px-4 py-4 sm:p-6">
         <Link href="/learn" className="text-brand-purple text-sm mb-4 inline-block">{t("content.backToLearn")}</Link>
         {loading ? (
           <p className="text-brand-grey">{t("common.loading")}</p>
         ) : content ? (
           <>
-            <h1 className="text-2xl font-bold text-brand-grey-dark mb-2">{content.title}</h1>
-            <p className="text-brand-grey text-sm mb-6">{content.type} {content.durationMinutes && `· ${content.durationMinutes} min`}</p>
-            <div className="mb-8">{renderMedia()}</div>
+            <h1 className="text-xl sm:text-2xl font-bold text-brand-grey-dark mb-2">{content.title}</h1>
+            <p className="text-brand-grey text-sm mb-4 sm:mb-6">{content.type} {content.durationMinutes && `· ${content.durationMinutes} min`}</p>
+            <div className="mb-6 sm:mb-8 -mx-4 sm:mx-0">{renderMedia()}</div>
             <CourseReviews contentId={id} />
           </>
         ) : (

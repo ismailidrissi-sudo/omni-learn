@@ -236,7 +236,11 @@
     "selectLesson": "اختر درسًا من الشريط الجانبي لبدء التعلم.",
     "noLessons": "لا تحتوي هذه الدورة على دروس بعد.",
     "completedLesson": "مكتمل",
-    "articleContent": "محتوى المقال"
+    "articleContent": "محتوى المقال",
+    "completeCourse": "إنهاء الدورة",
+    "courseCompleted": "الدورة مكتملة",
+    "previous": "السابق",
+    "next": "التالي"
   },
   "reviews": {
     "title": "المراجعات والتقييمات",
@@ -706,7 +710,11 @@
     "completedLesson": "مكتمل",
     "articleContent": "محتوى المقال",
     "backToDiscover": "العودة إلى اكتشف",
-    "contentViewerHint": "سيتم عرض المحتوى حسب النوع (ڤيديو، مستند، اختبار، إلخ.)"
+    "contentViewerHint": "سيتم عرض المحتوى حسب النوع (ڤيديو، مستند، اختبار، إلخ.)",
+    "completeCourse": "إنهاء الدورة",
+    "courseCompleted": "الدورة مكتملة",
+    "previous": "السابق",
+    "next": "التالي"
   },
   "notifications": {
     "title": "الإشعارات",

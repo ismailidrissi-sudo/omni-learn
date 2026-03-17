@@ -28,7 +28,7 @@ export function ExternalEmbed({
 
   return (
     <div
-      className={`relative w-full overflow-hidden rounded-lg bg-black ${className}`}
+      className={`relative w-full overflow-hidden rounded-none sm:rounded-lg bg-black ${className}`}
       style={{ aspectRatio: "16/9" }}
     >
       {!loaded && (
