@@ -129,8 +129,19 @@ export class CertificateService {
     });
   }
 
-  /** Get all templates for a tenant */
+  /** Get all templates for a tenant — auto-creates missing templates for active domains */
   async getAllTemplatesForTenant(tenantId: string) {
+    const activeDomains = await this.prisma.domain.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    await Promise.all(
+      activeDomains.map((d) =>
+        this.domainsService.ensureCertificateTemplate(tenantId, d.id, d.color, d.name),
+      ),
+    );
+
     return this.prisma.certificateTemplate.findMany({
       where: { tenantId },
       include: { domain: true },

@@ -241,7 +241,10 @@ export default function AdminCertificatesPage() {
               <Card className="p-12 text-center text-brand-grey">
                 <div className="text-4xl mb-4">📜</div>
                 <p className="font-medium">No certificate templates found</p>
-                <p className="text-sm mt-1">Templates are auto-created when you add learning domains</p>
+                <p className="text-sm mt-1">Add a training domain and a certificate template will be created automatically</p>
+                <Link href="/admin/domains">
+                  <Button variant="outline" size="sm" className="mt-4">Go to Domains</Button>
+                </Link>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">

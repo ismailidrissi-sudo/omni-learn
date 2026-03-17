@@ -784,6 +784,7 @@
     "certLoadFailed": "Failed to load certificate templates",
     "noCertTemplates": "No certificate templates found",
     "certAutoCreated": "Templates are auto-created when you add learning domains",
+    "goToDomains": "Go to Domains",
     "backToTemplates": "Back to all templates",
     "domains": "Domains",
     "learningDomains": "Learning Domains",
@@ -839,6 +840,7 @@
     "contentViewerHint": "Content viewer will render based on type (video player, document viewer, quiz, etc.)",
     "completeCourse": "Complete Course",
     "courseCompleted": "Course Completed",
+    "pathStepsRemaining": "{{completed}} of {{total}} path steps done",
     "previous": "Previous",
     "next": "Next"
   },

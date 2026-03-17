@@ -242,6 +242,9 @@ export default function TenantCertificatesAdminPage() {
                 <div className="text-4xl mb-4">📜</div>
                 <p className="font-medium text-[var(--color-text-primary)]">{t("adminTenant.noCertTemplates")}</p>
                 <p className="text-sm mt-1 text-[var(--color-text-secondary)]">{t("adminTenant.certAutoCreated")}</p>
+                <Link href={`/${slug}/admin/domains`}>
+                  <Button variant="outline" size="sm" className="mt-4">{t("adminTenant.goToDomains")}</Button>
+                </Link>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">

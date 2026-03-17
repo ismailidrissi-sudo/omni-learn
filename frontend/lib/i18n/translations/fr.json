@@ -240,6 +240,7 @@
     "articleContent": "Contenu de l'article",
     "completeCourse": "Terminer le cours",
     "courseCompleted": "Cours terminé",
+    "pathStepsRemaining": "{{completed}} sur {{total}} étapes terminées",
     "previous": "Précédent",
     "next": "Suivant"
   },
@@ -712,6 +713,7 @@
     "certLoadFailed": "Échec du chargement des modèles de certificats",
     "noCertTemplates": "Aucun modèle de certificat trouvé",
     "certAutoCreated": "Les modèles sont créés automatiquement lors de l'ajout de domaines",
+    "goToDomains": "Aller aux domaines",
     "backToTemplates": "Retour aux modèles",
     "domains": "Domaines",
     "learningDomains": "Domaines d'apprentissage",
@@ -771,6 +773,7 @@
     "contentViewerHint": "Le lecteur de contenu s'affichera selon le type (vidéo, document, quiz, etc.)",
     "completeCourse": "Terminer le cours",
     "courseCompleted": "Cours terminé",
+    "pathStepsRemaining": "{{completed}} sur {{total}} étapes terminées",
     "previous": "Précédent",
     "next": "Suivant"
   },

@@ -239,6 +239,7 @@
     "articleContent": "محتوى المقال",
     "completeCourse": "إنهاء الدورة",
     "courseCompleted": "الدورة مكتملة",
+    "pathStepsRemaining": "{{completed}} من {{total}} خطوات مكتملة",
     "previous": "السابق",
     "next": "التالي"
   },
@@ -655,6 +656,7 @@
     "certLoadFailed": "فشل تحميل قوالب الشهادات",
     "noCertTemplates": "لم يتم العثور على قوالب شهادات",
     "certAutoCreated": "يتم إنشاء القوالب تلقائيًا عند إضافة مجالات تعليمية",
+    "goToDomains": "الذهاب إلى المجالات",
     "backToTemplates": "العودة إلى جميع القوالب",
     "domains": "المجالات",
     "learningDomains": "مجالات التعلم",
@@ -714,6 +716,7 @@
     "contentViewerHint": "سيتم عرض المحتوى حسب النوع (ڤيديو، مستند، اختبار، إلخ.)",
     "completeCourse": "إنهاء الدورة",
     "courseCompleted": "الدورة مكتملة",
+    "pathStepsRemaining": "{{completed}} من {{total}} خطوات مكتملة",
     "previous": "السابق",
     "next": "التالي"
   },

@@ -75,6 +75,11 @@ export default function CoursePlayerPage() {
   const [visitedItems, setVisitedItems] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState(false);
   const [courseCompleted, setCourseCompleted] = useState(false);
+  const [pathProgress, setPathProgress] = useState<{
+    pathCompleted: boolean;
+    totalSteps: number;
+    completedSteps: number;
+  } | null>(null);
   const [celebration, setCelebration] = useState<{
     certId: string;
     pathName: string;
@@ -197,8 +202,18 @@ export default function CoursePlayerPage() {
           }),
         },
       );
+
+      if (!res.ok) return;
       const result = await res.json();
       setCourseCompleted(true);
+
+      if (result.totalSteps != null) {
+        setPathProgress({
+          pathCompleted: result.pathCompleted ?? false,
+          totalSteps: result.totalSteps,
+          completedSteps: result.completedSteps ?? 0,
+        });
+      }
 
       if (result.certificate?.id) {
         setCelebration({
@@ -206,13 +221,27 @@ export default function CoursePlayerPage() {
           pathName: enrollCtx.pathName,
           domainName: enrollCtx.domainName,
         });
+      } else if (result.pathCompleted && !result.certificate) {
+        const certRes = await apiFetch(
+          `/learning-paths/enrollment-for-content?userId=${user?.id}&contentId=${courseId}`,
+        );
+        if (certRes.ok) {
+          const data = await certRes.json();
+          if (data?.certificate?.id) {
+            setCelebration({
+              certId: data.certificate.id,
+              pathName: enrollCtx.pathName,
+              domainName: enrollCtx.domainName,
+            });
+          }
+        }
       }
     } catch {
       // allow retry on failure
     } finally {
       setCompleting(false);
     }
-  }, [enrollCtx, completing, courseCompleted]);
+  }, [enrollCtx, completing, courseCompleted, user?.id, courseId]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -407,24 +436,42 @@ export default function CoursePlayerPage() {
                   {completing ? t("common.loading") : t("content.completeCourse")}
                 </Button>
               ) : isLastItem && courseCompleted ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap justify-end">
                   <span className="text-sm font-medium text-green-600 flex items-center gap-1">
                     ✓ {t("content.courseCompleted")}
                   </span>
-                  {enrollCtx?.certificate?.id && (
+                  {pathProgress && !pathProgress.pathCompleted && (
+                    <span className="text-xs text-brand-grey">
+                      {t("content.pathStepsRemaining", {
+                        completed: pathProgress.completedSteps,
+                        total: pathProgress.totalSteps,
+                      })}
+                    </span>
+                  )}
+                  {(enrollCtx?.certificate?.id || celebration) && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setCelebration({
-                          certId: enrollCtx.certificate!.id,
-                          pathName: enrollCtx.pathName,
-                          domainName: enrollCtx.domainName,
-                        })
-                      }
+                      onClick={() => {
+                        const certId = celebration?.certId ?? enrollCtx?.certificate?.id;
+                        if (certId) {
+                          setCelebration({
+                            certId,
+                            pathName: enrollCtx?.pathName ?? "",
+                            domainName: enrollCtx?.domainName ?? "",
+                          });
+                        }
+                      }}
                     >
                       {t("certificate.viewCertificate")}
                     </Button>
+                  )}
+                  {pathProgress && !pathProgress.pathCompleted && (
+                    <Link href="/learn">
+                      <Button variant="outline" size="sm">
+                        {t("content.backToLearn")}
+                      </Button>
+                    </Link>
                   )}
                 </div>
               ) : (

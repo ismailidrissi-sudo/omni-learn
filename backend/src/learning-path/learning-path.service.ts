@@ -92,7 +92,7 @@ export class LearningPathService {
       },
     });
 
-    await this.recalculateProgressPct(enrollmentId);
+    const recalcResult = await this.recalculateProgressPct(enrollmentId);
 
     const enrollment = await this.prisma.pathEnrollment.findUnique({
       where: { id: enrollmentId },
@@ -101,11 +101,20 @@ export class LearningPathService {
       },
     });
 
+    let certificate = enrollment?.certificates?.[0] ?? null;
+
+    if (recalcResult.pathCompleted && !certificate) {
+      certificate = await this.retryIssueCertificate(enrollmentId);
+    }
+
     return {
       ...progress,
       enrollmentStatus: enrollment?.status,
       progressPct: enrollment?.progressPct,
-      certificate: enrollment?.certificates?.[0] ?? null,
+      pathCompleted: recalcResult.pathCompleted,
+      totalSteps: recalcResult.totalSteps,
+      completedSteps: recalcResult.completedSteps,
+      certificate,
     };
   }
 
@@ -132,7 +141,7 @@ export class LearningPathService {
       where: { id: enrollmentId },
       data: {
         progressPct,
-        ...(allCompleted && {
+        ...(allCompleted && !wasAlreadyCompleted && {
           status: EnrollmentStatus.COMPLETED,
           completedAt: new Date(),
         }),
@@ -142,6 +151,8 @@ export class LearningPathService {
     if (allCompleted && !wasAlreadyCompleted) {
       await this.autoIssueCertificate(enrollmentId, enrollment);
     }
+
+    return { pathCompleted: allCompleted, totalSteps, completedSteps };
   }
 
   /** Auto-issue certificate and notify user when a learning path is completed */
@@ -157,16 +168,37 @@ export class LearningPathService {
 
       const cert = await this.certificateService.issueCertificate(enrollmentId);
 
-      await this.notificationService.notifyCertificateIssued({
-        userId: enrollment.userId,
-        tenantId: enrollment.path.tenantId,
-        certificateName: `${enrollment.path.domain?.name ?? ''} — ${enrollment.path.name}`,
-        verifyCode: cert.verifyCode,
-      });
-
       this.logger.log(`Certificate auto-issued for enrollment ${enrollmentId}`);
+
+      try {
+        await this.notificationService.notifyCertificateIssued({
+          userId: enrollment.userId,
+          tenantId: enrollment.path.tenantId,
+          certificateName: `${enrollment.path.domain?.name ?? ''} — ${enrollment.path.name}`,
+          verifyCode: cert.verifyCode,
+        });
+      } catch (notifErr) {
+        this.logger.warn(`Certificate issued but notification failed for enrollment ${enrollmentId}`, notifErr);
+      }
     } catch (err) {
       this.logger.error(`Failed to auto-issue certificate for enrollment ${enrollmentId}`, err);
+    }
+  }
+
+  /** Fallback: try to issue certificate if auto-issue was missed or failed */
+  private async retryIssueCertificate(enrollmentId: string) {
+    try {
+      const existing = await this.prisma.issuedCertificate.findFirst({
+        where: { enrollmentId },
+      });
+      if (existing) return existing;
+
+      const cert = await this.certificateService.issueCertificate(enrollmentId);
+      this.logger.log(`Certificate issued via retry for enrollment ${enrollmentId}`);
+      return cert;
+    } catch (err) {
+      this.logger.error(`Certificate retry also failed for enrollment ${enrollmentId}`, err);
+      return null;
     }
   }
 
