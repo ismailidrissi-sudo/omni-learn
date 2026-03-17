@@ -227,7 +227,7 @@
   ],
   "domains": [
     { "name": "Food Safety", "slug": "food-safety", "icon": "🔬", "color": "#0891b2", "sortOrder": 0 },
-    { "name": "Quality Management", "slug": "quality-management", "icon": "✓", "color": "#059669", "sortOrder": 1 },
+    { "name": "Quality Management", "slug": "quality-management", "icon": "✅", "color": "#059669", "sortOrder": 1 },
     { "name": "Leadership", "slug": "leadership", "icon": "🧠", "color": "#7c3aed", "sortOrder": 2 },
     { "name": "Operational Excellence", "slug": "operational-excellence", "icon": "⚙️", "color": "#ea580c", "sortOrder": 3 },
     { "name": "Digital Marketing", "slug": "digital-marketing", "icon": "📈", "color": "#e11d48", "sortOrder": 4 }
