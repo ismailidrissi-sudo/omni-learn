@@ -67,6 +67,7 @@ function AdminContentPageContent() {
   const [formAssignToAllCompanies, setFormAssignToAllCompanies] = useState(true);
   const [formTenantIds, setFormTenantIds] = useState<string[]>([]);
   const [formUserIds, setFormUserIds] = useState<string[]>([]);
+  const [formIsFoundational, setFormIsFoundational] = useState(true);
 
   // Lookup data
   const [tenants, setTenants] = useState<{ id: string; name: string; slug: string }[]>([]);
@@ -122,6 +123,7 @@ function AdminContentPageContent() {
     setFormAssignToAllCompanies(true);
     setFormTenantIds([]);
     setFormUserIds([]);
+    setFormIsFoundational(true);
     setEditing(null);
   };
 
@@ -148,6 +150,7 @@ function AdminContentPageContent() {
     setFormAssignToAllCompanies(!full.tenantAssignments?.length);
     setFormTenantIds((full.tenantAssignments ?? []).map((a: { tenantId: string }) => a.tenantId));
     setFormUserIds((full.userAssignments ?? []).map((a: { userId: string }) => a.userId));
+    setFormIsFoundational(full.isFoundational ?? false);
     setView("edit");
   };
 
@@ -184,6 +187,7 @@ function AdminContentPageContent() {
       metadata: Object.keys(metadata).length ? metadata : undefined,
       tenantIds,
       userIds,
+      isFoundational: formIsFoundational,
     };
 
     if (editing) {
@@ -207,6 +211,7 @@ function AdminContentPageContent() {
           domainId: formDomainId || undefined,
           tenantIds,
           userIds,
+          isFoundational: formIsFoundational,
           scormMetadata: {},
         }),
       })
@@ -327,6 +332,8 @@ function AdminContentPageContent() {
             onAssignToAllChange={setFormAssignToAllCompanies}
             tenants={tenants}
             users={users}
+            isFoundational={formIsFoundational}
+            onIsFoundationalChange={setFormIsFoundational}
             onCourseCreated={(cid, cTitle) => {
               loadContent();
               setEditing({ id: cid, title: cTitle, type: "COURSE" } as ContentItem);
@@ -450,6 +457,19 @@ function AdminContentPageContent() {
                   ))}
                 </div>
               )}
+            </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formIsFoundational}
+                  onChange={(e) => setFormIsFoundational(e.target.checked)}
+                />
+                <span className="text-sm font-medium">Visible to free-tier users</span>
+              </label>
+              <p className="text-xs text-brand-grey mt-1 ml-6">
+                When enabled, Explorer (free) users can access this content. Disable to restrict to paid tiers only.
+              </p>
             </div>
             <div className="flex gap-2 pt-4">
               {formType === "COURSE" && (

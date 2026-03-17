@@ -39,6 +39,8 @@ interface ContentAddFormProps {
   onCourseCreated?: (courseId: string, courseTitle: string) => void;
   /** When true, hides company assignment UI — content is always public (trainer flow) */
   publicOnly?: boolean;
+  isFoundational?: boolean;
+  onIsFoundationalChange?: (v: boolean) => void;
 }
 
 export function ContentAddForm({
@@ -58,6 +60,8 @@ export function ContentAddForm({
   onDomainChange,
   onCourseCreated,
   publicOnly = false,
+  isFoundational = true,
+  onIsFoundationalChange,
 }: ContentAddFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -103,6 +107,7 @@ export function ContentAddForm({
       durationMinutes: duration ? parseInt(duration, 10) : undefined,
       tenantIds: assignToAllCompanies ? [] : tenantIds,
       userIds,
+      isFoundational,
     };
 
     switch (contentType) {
@@ -189,6 +194,7 @@ export function ContentAddForm({
             durationMinutes: duration ? parseInt(duration, 10) : undefined,
             tenantIds: assignToAllCompanies ? [] : tenantIds,
             userIds,
+            isFoundational,
             scormMetadata: {
               scormPackageUrl: scormUrl || undefined,
               xapiEndpoint: xapiEndpoint || undefined,
@@ -550,6 +556,22 @@ export function ContentAddForm({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {!publicOnly && (
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFoundational}
+              onChange={(e) => onIsFoundationalChange?.(e.target.checked)}
+            />
+            <span className="text-sm font-medium">Visible to free-tier users</span>
+          </label>
+          <p className="text-xs text-brand-grey mt-1 ml-6">
+            When enabled, Explorer (free) users can access this content. Disable to restrict to paid tiers only.
+          </p>
         </div>
       )}
 

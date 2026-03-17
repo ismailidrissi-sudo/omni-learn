@@ -201,7 +201,7 @@ export class ContentService {
     title: string,
     scormMetadata: ScormMetadata,
     durationMinutes?: number,
-    opts?: { description?: string; domainId?: string; tenantIds?: string[]; userIds?: string[] },
+    opts?: { description?: string; domainId?: string; tenantIds?: string[]; userIds?: string[]; isFoundational?: boolean },
   ) {
     return this.create({
       type: 'COURSE',
@@ -212,6 +212,7 @@ export class ContentService {
       metadata: scormMetadata as unknown as Record<string, unknown>,
       tenantIds: opts?.tenantIds,
       userIds: opts?.userIds,
+      isFoundational: opts?.isFoundational,
     });
   }
 }

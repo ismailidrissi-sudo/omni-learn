@@ -44,20 +44,33 @@ export class AccessService {
     };
   }
 
-  /** Build Prisma where clause for content filtering based on tier */
+  /** Build tenant-assignment filter: content with no assignments = public to all */
+  private buildAssignmentFilter(ctx: UserAccessContext) {
+    const noAssignments = { tenantAssignments: { none: {} } };
+    if (ctx.tenantId) {
+      return {
+        OR: [
+          noAssignments,
+          { tenantAssignments: { some: { tenantId: ctx.tenantId } } },
+        ],
+      };
+    }
+    return noAssignments;
+  }
+
+  /** Build Prisma where clause for content filtering based on tier + assignments */
   buildContentWhere(ctx: UserAccessContext) {
-    const base: Record<string, unknown> = {};
+    const tierFilter: Record<string, unknown> = {};
+    const assignmentFilter = this.buildAssignmentFilter(ctx);
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:
-        // Tier 0: Only foundational content
-        base.isFoundational = true;
+        tierFilter.isFoundational = true;
         break;
 
       case SubscriptionPlan.SPECIALIST:
-        // Tier 1: Content in user's chosen sector (platform content only)
         if (ctx.sectorFocus) {
-          base.AND = [
+          tierFilter.AND = [
             { tenantId: null },
             {
               OR: [
@@ -67,32 +80,30 @@ export class AccessService {
             },
           ];
         } else {
-          base.isFoundational = true;
+          tierFilter.isFoundational = true;
         }
         break;
 
       case SubscriptionPlan.VISIONARY:
-        // Tier 2: All platform content (tenantId null = public platform library)
-        base.tenantId = null;
+        tierFilter.tenantId = null;
         break;
 
       case SubscriptionPlan.NEXUS:
-        // Tier 3: Platform content + tenant's private content
         if (ctx.tenantId) {
-          base.OR = [
+          tierFilter.OR = [
             { tenantId: null },
             { tenantId: ctx.tenantId },
           ];
         } else {
-          base.tenantId = null;
+          tierFilter.tenantId = null;
         }
         break;
 
       default:
-        base.isFoundational = true;
+        tierFilter.isFoundational = true;
     }
 
-    return base;
+    return { AND: [tierFilter, assignmentFilter] };
   }
 
   /** Check if user can access a specific content item */
@@ -106,9 +117,15 @@ export class AccessService {
         isFoundational: true,
         sectorTag: true,
         tenantId: true,
+        tenantAssignments: { select: { tenantId: true } },
       },
     });
     if (!content) return false;
+
+    const assignedTenants = content.tenantAssignments.map((a) => a.tenantId);
+    if (assignedTenants.length > 0 && ctx.tenantId && !assignedTenants.includes(ctx.tenantId)) {
+      return false;
+    }
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:

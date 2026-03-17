@@ -88,6 +88,10 @@ export class CreateCourseBodyDto {
   @IsArray()
   @IsString({ each: true })
   userIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isFoundational?: boolean;
 }
 
 export class ValidateUrlDto {

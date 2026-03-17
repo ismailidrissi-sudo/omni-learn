@@ -62,6 +62,7 @@ export class ContentController {
         domainId: body.domainId,
         tenantIds: body.tenantIds,
         userIds: body.userIds,
+        isFoundational: body.isFoundational,
       },
     );
   }
