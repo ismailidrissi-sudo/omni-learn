@@ -91,7 +91,7 @@ export class AuthService {
   }
 
   /** Ensure a user is assigned to a tenant. Finds the first existing tenant or creates a default one. */
-  private async ensureUserHasTenant(user: { id: string; tenantId?: string | null }) {
+  private async ensureUserHasTenant<T extends { id: string; tenantId?: string | null }>(user: T): Promise<T> {
     if (user.tenantId) return user;
     let tenant = await this.prisma.tenant.findFirst({ orderBy: { createdAt: 'asc' } });
     if (!tenant) {
@@ -99,10 +99,11 @@ export class AuthService {
         data: { name: 'OmniLearn', slug: 'omnilearn' },
       });
     }
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: { tenantId: tenant.id },
     });
+    return updated as unknown as T;
   }
 
   /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor if approved */
@@ -151,17 +152,17 @@ export class AuthService {
       } else if (!user.isAdmin || !user.emailVerified) {
         user = await this.prisma.user.update({ where: { id: user.id }, data: adminData });
       }
-      user = await this.ensureUserHasTenant(user);
-      const roles = this.getRolesForUser(user);
+      const resolved = await this.ensureUserHasTenant(user!);
+      const roles = this.getRolesForUser(resolved);
       const accessToken = this.jwtService.sign({
-        sub: user.id,
-        email: user.email,
-        preferred_username: user.email,
+        sub: resolved.id,
+        email: resolved.email,
+        preferred_username: resolved.email,
         realm_access: { roles },
       });
       return {
         accessToken,
-        user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+        user: { id: resolved.id, email: resolved.email, name: resolved.name, profileComplete: resolved.profileComplete, needsProfileCompletion: !resolved.profileComplete },
       };
     }
 
@@ -295,17 +296,17 @@ export class AuthService {
         data: adminData,
       });
     }
-    user = await this.ensureUserHasTenant(user);
-    const roles = this.getRolesForUser(user);
+    const resolved = await this.ensureUserHasTenant(user!);
+    const roles = this.getRolesForUser(resolved);
     const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
+      sub: resolved.id,
+      email: resolved.email,
+      preferred_username: resolved.email,
       realm_access: { roles },
     });
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+      user: { id: resolved.id, email: resolved.email, name: resolved.name, profileComplete: resolved.profileComplete, needsProfileCompletion: !resolved.profileComplete },
     };
   }
 
