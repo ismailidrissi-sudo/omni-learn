@@ -122,24 +122,35 @@ export default function CoursePlayerPage() {
 
   useEffect(() => {
     if (!user?.id || !courseId) return;
+
+    const applyEnrollment = (data: EnrollmentContext | null) => {
+      if (!data) return;
+      setEnrollCtx(data);
+      if (data.stepStatus === "COMPLETED") {
+        setCourseCompleted(true);
+        if (data.certificate?.id) {
+          setCelebration({
+            certId: data.certificate.id,
+            pathName: data.pathName,
+            domainName: data.domainName,
+          });
+        }
+      }
+    };
+
     apiFetch(`/learning-paths/enrollment-for-content?userId=${user.id}&contentId=${courseId}`)
-      .then((r) => {
-        if (!r.ok) return null;
-        return r.json();
-      })
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data) {
-          setEnrollCtx(data);
-          if (data.stepStatus === "COMPLETED") {
-            setCourseCompleted(true);
-            if (data.certificate?.id) {
-              setCelebration({
-                certId: data.certificate.id,
-                pathName: data.pathName,
-                domainName: data.domainName,
-              });
-            }
-          }
+          applyEnrollment(data);
+        } else {
+          return apiFetch("/learning-paths/auto-enroll-for-content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id, contentId: courseId }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then(applyEnrollment);
         }
       })
       .catch(() => {});

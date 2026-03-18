@@ -235,6 +235,28 @@ export class LearningPathService {
     };
   }
 
+  /** Find or auto-enroll a user for a content item that belongs to a learning path */
+  async findOrAutoEnrollForContent(userId: string, contentItemId: string) {
+    const existing = await this.findEnrollmentForContent(userId, contentItemId);
+    if (existing) return existing;
+
+    const step = await this.prisma.learningPathStep.findFirst({
+      where: { contentItemId },
+      include: { path: true },
+      orderBy: { path: { createdAt: 'desc' } },
+    });
+    if (!step || !step.path.isPublished) return null;
+
+    const alreadyEnrolled = await this.prisma.pathEnrollment.findUnique({
+      where: { userId_pathId: { userId, pathId: step.pathId } },
+    });
+    if (!alreadyEnrolled) {
+      await this.enrollUser(userId, step.pathId);
+    }
+
+    return this.findEnrollmentForContent(userId, contentItemId);
+  }
+
   /** List published learning paths (optionally by domain) */
   async listPaths(tenantId: string, domainId?: string) {
     return this.prisma.learningPath.findMany({
