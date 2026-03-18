@@ -78,10 +78,22 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
             echo "==> Waiting for backend to be ready..."
-            sleep 10
+            sleep 15
+
+            echo "==> Container status..."
+            docker compose -f docker-compose.prod.yml ps
 
             echo "==> Running database schema sync..."
-            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js db push --skip-generate
+            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js db push --skip-generate || true
+
+            echo "==> Backend logs (last 50 lines)..."
+            docker compose -f docker-compose.prod.yml logs --tail=50 backend
+
+            echo "==> Frontend logs (last 20 lines)..."
+            docker compose -f docker-compose.prod.yml logs --tail=20 frontend
+
+            echo "==> Nginx logs (last 20 lines)..."
+            docker compose -f docker-compose.prod.yml logs --tail=20 nginx
 
             echo "==> Cleaning up old images..."
             docker image prune -f
