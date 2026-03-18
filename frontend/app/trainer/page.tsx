@@ -115,6 +115,7 @@ export default function TrainerPage() {
   const navLinks = (
     <nav className="flex items-center gap-4">
       <Link href="/trainer"><Button variant="primary" size="sm">{t("nav.trainer")}</Button></Link>
+      <Link href="/trainer/profile"><Button variant="ghost" size="sm">My Profile</Button></Link>
       <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
       <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
       <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>

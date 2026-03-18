@@ -151,6 +151,7 @@ model User {
   userTags                 UserTag[]
   seatAssignments          SeatAssignment[]
   contentUserAssignments   ContentUserAssignment[]
+  trainerProfile           TrainerProfile?
 }
 
 // ── TENANTS (rich company profile) ──
@@ -943,4 +944,57 @@ model Notification {
   @@index([userId, isRead])
   @@index([tenantId])
   @@index([createdAt])
+}
+
+// ── TRAINER PUBLIC PROFILES ──
+
+enum TrainerProfileStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+model TrainerProfile {
+  id               String               @id @default(uuid())
+  userId           String               @unique
+  status           TrainerProfileStatus  @default(DRAFT)
+
+  headline         String?              @db.VarChar(200)
+  bio              String?              @db.Text
+  photoUrl         String?
+  bannerUrl        String?
+  resumeUrl        String?
+
+  specializations  Json?                @default("[]")
+  certifications   Json?                @default("[]")
+  distinctions     Json?                @default("[]")
+  languages        Json?                @default("[]")
+  socialLinks      Json?                @default("{}")
+  education        Json?                @default("[]")
+  experience       Json?                @default("[]")
+
+  websiteUrl       String?
+  location         String?
+  timezone         String?
+  yearsOfExperience Int?
+  hourlyRate       Float?
+  currency         String?              @default("USD")
+  availableForHire Boolean              @default(false)
+  contactEmail     String?
+
+  totalStudents    Int                  @default(0)
+  totalCourses     Int                  @default(0)
+  avgRating        Float?
+
+  slug             String               @unique
+  featuredVideoUrl String?
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([slug])
+  @@map("trainer_profiles")
 }

@@ -19,6 +19,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
 import { SitePagesModule } from './site-pages/site-pages.module';
 import { ReferralModule } from './referral/referral.module';
 import { NotificationModule } from './notification/notification.module';
+import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { NotificationModule } from './notification/notification.module';
     SitePagesModule,
     ReferralModule,
     NotificationModule,
+    TrainerProfileModule,
   ],
 })
 export class AppModule {}

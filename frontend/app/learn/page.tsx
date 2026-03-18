@@ -172,6 +172,9 @@ export default function LearnPage() {
             <Link href="/admin/paths"><Button variant="outline" size="sm">{t("nav.admin")}</Button></Link>
           </div>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
+            <Link href="/profile" className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-green to-brand-green-light flex items-center justify-center text-white text-xs font-bold hover:opacity-90 transition-opacity" title="My Profile">
+              {(user?.name ?? "").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+            </Link>
             <NavToggles />
           </div>
         </nav>

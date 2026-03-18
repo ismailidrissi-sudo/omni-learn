@@ -71,6 +71,7 @@ model User {
   position              Position?              @relation(fields: [positionId], references: [id])
   tenant                Tenant?                @relation(fields: [tenantId], references: [id])
   contentUserAssignments ContentUserAssignment[]
+  trainerProfile         TrainerProfile?
 }
 
 // ── TENANTS (rich company profile) ──
@@ -535,4 +536,50 @@ model ScimProvisioningLog {
 
   @@index([operation])
   @@index([resourceType])
+}
+
+// ── TRAINER PUBLIC PROFILES ──
+
+model TrainerProfile {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  status           String  @default("DRAFT") // DRAFT, PUBLISHED, SUSPENDED
+
+  headline         String?
+  bio              String?
+  photoUrl         String?
+  bannerUrl        String?
+  resumeUrl        String?
+
+  specializations  String? @default("[]")
+  certifications   String? @default("[]")
+  distinctions     String? @default("[]")
+  languages        String? @default("[]")
+  socialLinks      String? @default("{}")
+  education        String? @default("[]")
+  experience       String? @default("[]")
+
+  websiteUrl       String?
+  location         String?
+  timezone         String?
+  yearsOfExperience Int?
+  hourlyRate       Float?
+  currency         String? @default("USD")
+  availableForHire Boolean @default(false)
+  contactEmail     String?
+
+  totalStudents    Int     @default(0)
+  totalCourses     Int     @default(0)
+  avgRating        Float?
+
+  slug             String  @unique
+  featuredVideoUrl String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([slug])
 }

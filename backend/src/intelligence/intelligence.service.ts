@@ -36,7 +36,58 @@ export class IntelligenceService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /** AI content recommendations for a user — tries LightFM first, falls back to embedding-based */
+  /** Build a personalized query string from user profile and learning history */
+  private async buildUserProfileQuery(userId: string): Promise<string> {
+    const parts: string[] = [];
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        department: true,
+        position: true,
+        tenant: { include: { industry: true } },
+      },
+    });
+
+    if (user) {
+      if (user.department?.name) parts.push(user.department.name);
+      if (user.position?.name) parts.push(user.position.name);
+      if (user.tenant?.industry?.name) parts.push(user.tenant.industry.name);
+      if (user.sectorFocus) parts.push(user.sectorFocus);
+    }
+
+    const enrollments = await this.prisma.pathEnrollment.findMany({
+      where: { userId },
+      include: { path: { include: { domain: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    });
+
+    const domainNames = new Set<string>();
+    for (const e of enrollments) {
+      if (e.path.domain?.name) domainNames.add(e.path.domain.name);
+      parts.push(e.path.name);
+    }
+    for (const d of domainNames) parts.push(d);
+
+    const recentEvents = await this.prisma.analyticsEvent.findMany({
+      where: { userId, contentId: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { contentId: true },
+    });
+    if (recentEvents.length > 0) {
+      const recentContent = await this.prisma.contentItem.findMany({
+        where: { id: { in: recentEvents.map((e) => e.contentId!).filter(Boolean) } },
+        select: { title: true },
+      });
+      for (const c of recentContent) parts.push(c.title);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : 'learning course training';
+  }
+
+  /** AI content recommendations for a user — tries LightFM first, falls back to personalized embeddings */
   async getContentRecommendations(
     userId: string,
     query?: string,
@@ -49,21 +100,23 @@ export class IntelligenceService {
         const url = `${lightfmUrl}/recommend/${encodeURIComponent(userId)}?limit=${limit}&exclude=${excludeIds.join(',')}`;
         const res = await fetch(url);
         if (res.ok) {
-          const data = (await res.json()) as { recommendations?: Array<{ contentId: string; score: number }> };
+          const data = (await res.json()) as {
+            recommendations?: Array<{ contentId: string; score: number }>;
+            source?: string;
+          };
           const ids = (data.recommendations || []).map((r) => r.contentId);
           if (ids.length > 0) {
             const items = await this.prisma.contentItem.findMany({
               where: { id: { in: ids } },
-              include: { pathSteps: { include: { path: true } } },
+              include: { pathSteps: { include: { path: true } }, domain: true },
             });
             const order = new Map(ids.map((id, i) => [id, i]));
-            const scored = items
+            return items
               .sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
               .map((item) => {
                 const rec = data.recommendations?.find((r) => r.contentId === item.id);
-                return { ...item, score: rec?.score ?? 0 };
+                return { ...item, score: rec?.score ?? 0, source: data.source ?? 'lightfm' };
               });
-            return scored;
           }
         }
       } catch {
@@ -71,27 +124,43 @@ export class IntelligenceService {
       }
     }
 
-    const searchText = query ?? '';
-    const embedding = await this.embedding.embed(searchText || 'learning course');
+    const searchText = query || (userId !== 'anonymous' ? await this.buildUserProfileQuery(userId) : '');
+    const embeddingVec = await this.embedding.embed(searchText || 'learning course training');
+
+    const enrolledContentIds = new Set<string>();
+    if (userId !== 'anonymous') {
+      const enrollments = await this.prisma.pathEnrollment.findMany({
+        where: { userId },
+        include: { path: { include: { steps: true } } },
+      });
+      for (const e of enrollments) {
+        for (const step of e.path.steps) {
+          enrolledContentIds.add(step.contentItemId);
+        }
+      }
+    }
 
     const items = await this.prisma.contentItem.findMany({
-      where: { id: { notIn: excludeIds } },
-      include: { pathSteps: { include: { path: true } } },
+      where: { id: { notIn: [...excludeIds, ...enrolledContentIds] } },
+      include: { pathSteps: { include: { path: true } }, domain: true },
     });
 
     const scored = items
       .map((item) => {
         const emb = parseEmbedding((item as { embeddingJson?: string | null }).embeddingJson ?? null);
-        const sim = emb ? cosineSimilarity(embedding, emb) : 0.5;
+        const sim = emb ? cosineSimilarity(embeddingVec, emb) : 0.5;
         const titleMatch = searchText
-          ? (item.title.toLowerCase().includes(searchText.toLowerCase()) ? 0.3 : 0)
+          ? searchText.toLowerCase().split(/\s+/).reduce(
+              (s, w) => s + (item.title.toLowerCase().includes(w) ? 0.1 : 0),
+              0,
+            )
           : 0;
-        return { item, score: sim + titleMatch };
+        return { item, score: Math.min(sim + titleMatch, 1) };
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
 
-    return scored.map((s) => ({ ...s.item, score: s.score }));
+    return scored.map((s) => ({ ...s.item, score: s.score, source: 'embedding' }));
   }
 
   /** Semantic search over content */
@@ -119,11 +188,79 @@ export class IntelligenceService {
     return scored.map((s) => ({ ...s.item, relevance: s.score }));
   }
 
-  /** Smart path suggestions for a user */
+  /** Trending content based on real engagement signals */
+  async getTrendingContent(limit = 10) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [recentEvents, recentLikes, recentReviews] = await Promise.all([
+      this.prisma.analyticsEvent.groupBy({
+        by: ['contentId'],
+        where: { contentId: { not: null }, createdAt: { gte: since } },
+        _count: { contentId: true },
+        orderBy: { _count: { contentId: 'desc' } },
+        take: limit * 3,
+      }),
+      this.prisma.microLearningLike.groupBy({
+        by: ['contentId'],
+        where: { createdAt: { gte: since } },
+        _count: { contentId: true },
+        orderBy: { _count: { contentId: 'desc' } },
+        take: limit * 3,
+      }),
+      this.prisma.courseReview.groupBy({
+        by: ['contentId'],
+        where: { createdAt: { gte: since } },
+        _avg: { rating: true },
+        _count: { contentId: true },
+        orderBy: { _count: { contentId: 'desc' } },
+        take: limit * 3,
+      }),
+    ]);
+
+    const trendScores = new Map<string, number>();
+    for (const e of recentEvents) {
+      if (e.contentId) trendScores.set(e.contentId, (trendScores.get(e.contentId) ?? 0) + e._count.contentId * 1);
+    }
+    for (const l of recentLikes) {
+      trendScores.set(l.contentId, (trendScores.get(l.contentId) ?? 0) + l._count.contentId * 2);
+    }
+    for (const r of recentReviews) {
+      const ratingBoost = (r._avg.rating ?? 3) / 5;
+      trendScores.set(r.contentId, (trendScores.get(r.contentId) ?? 0) + r._count.contentId * 3 * ratingBoost);
+    }
+
+    const sorted = [...trendScores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit);
+    const topIds = sorted.map(([id]) => id);
+
+    if (topIds.length === 0) {
+      return this.prisma.contentItem.findMany({
+        take: limit,
+        include: { domain: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const items = await this.prisma.contentItem.findMany({
+      where: { id: { in: topIds } },
+      include: { domain: true },
+    });
+
+    const order = new Map(topIds.map((id, i) => [id, i]));
+    return items
+      .sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99))
+      .map((item) => ({
+        ...item,
+        trendScore: trendScores.get(item.id) ?? 0,
+      }));
+  }
+
+  /** Smart path suggestions using user profile, history, and popularity */
   async getPathSuggestions(userId: string, limit = 5) {
     const enrollments = await this.prisma.pathEnrollment.findMany({
       where: { userId },
-      include: { path: { include: { steps: true } } },
+      include: { path: { include: { steps: true, domain: true } } },
     });
 
     const completedDomains = new Set(
@@ -131,10 +268,30 @@ export class IntelligenceService {
         .filter((e) => e.status === 'COMPLETED')
         .map((e) => e.path.domainId),
     );
+    const activeDomains = new Set(
+      enrollments
+        .filter((e) => e.status === 'ACTIVE')
+        .map((e) => e.path.domainId),
+    );
+
+    let userIndustryCode: string | null = null;
+    let userSector: string | null = null;
+    if (userId !== 'anonymous') {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { tenant: { include: { industry: true } } },
+      });
+      userIndustryCode = user?.tenant?.industry?.code ?? null;
+      userSector = user?.sectorFocus ?? null;
+    }
 
     const allPaths = await this.prisma.learningPath.findMany({
       where: { isPublished: true },
-      include: { steps: true, domain: true, _count: { select: { enrollments: true } } },
+      include: {
+        steps: { include: { contentItem: { select: { sectorTag: true } } } },
+        domain: true,
+        _count: { select: { enrollments: true } },
+      },
     });
 
     const enrolledIds = new Set(enrollments.map((e) => e.pathId));
@@ -142,9 +299,22 @@ export class IntelligenceService {
 
     const scored = candidates.map((path) => {
       let score = 0;
-      if (completedDomains.has(path.domainId)) score += 0.5;
-      score += Math.min(path._count.enrollments * 0.01, 0.3);
-      score += Math.random() * 0.2;
+
+      if (completedDomains.has(path.domainId)) score += 0.4;
+      if (activeDomains.has(path.domainId)) score += 0.2;
+
+      const pathSectors = path.steps
+        .map((s) => s.contentItem.sectorTag)
+        .filter(Boolean);
+      if (userSector && pathSectors.some((s) => s === userSector)) score += 0.3;
+      if (userIndustryCode && pathSectors.some((s) => s?.toLowerCase().includes(userIndustryCode!.toLowerCase()))) score += 0.2;
+
+      const popularity = Math.min(path._count.enrollments * 0.02, 0.3);
+      score += popularity;
+
+      if (path.difficulty === 'beginner' && enrollments.length === 0) score += 0.15;
+      if (path.difficulty === 'advanced' && completedDomains.size > 2) score += 0.15;
+
       return { path, score };
     });
 

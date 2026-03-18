@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Headers, UseGuards, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { IntelligenceService } from './intelligence.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
@@ -22,6 +22,12 @@ export class IntelligenceController {
       query,
       limit ? +limit : 10,
     );
+  }
+
+  @Get('trending')
+  @UseGuards(OptionalJwtGuard)
+  getTrending(@Query('limit') limit?: string) {
+    return this.intelligence.getTrendingContent(limit ? +limit : 10);
   }
 
   @Get('search')
@@ -64,9 +70,11 @@ export class IntelligenceController {
   }
 
   @Get('lightfm/interactions')
-  @UseGuards(AuthGuard('jwt'), RbacGuard)
-  @Roles(RbacRole.SUPER_ADMIN)
-  getLightFmInteractions() {
+  getLightFmInteractions(@Headers('x-internal-key') internalKey?: string) {
+    const expected = process.env.INTERNAL_SERVICE_KEY;
+    if (!expected || internalKey !== expected) {
+      throw new ForbiddenException('Invalid or missing internal service key');
+    }
     return this.intelligence.getLightFmInteractions();
   }
 }

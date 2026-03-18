@@ -32,12 +32,13 @@ export default function TenantPathsAdminPage() {
   const academyName = branding?.appName || tenant?.name || "Academy";
 
   useEffect(() => {
-    apiFetch("/learning-paths")
+    if (!tenant?.id) return;
+    apiFetch(`/learning-paths?tenantId=${tenant.id}&includeDraft=true`)
       .then((r) => r.json())
       .then((data) => setPaths(Array.isArray(data) ? data : []))
       .catch(() => [])
       .finally(() => setLoading(false));
-  }, []);
+  }, [tenant?.id]);
 
   if (isLoading) {
     return (

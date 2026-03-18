@@ -44,6 +44,15 @@ export class ProfileController {
     return this.profile.getUserProfile(userId);
   }
 
+  /** Get full user profile with enrollments, certificates, gamification */
+  @Get('full')
+  @UseGuards(AuthGuard('jwt'))
+  async getFullProfile(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.getFullUserProfile(userId);
+  }
+
   /** Verify email with token (public) */
   @Get('verify-email')
   async verifyEmail(@Query('token') token: string) {

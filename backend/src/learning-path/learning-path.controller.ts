@@ -57,8 +57,12 @@ export class LearningPathController {
 
   @Get()
   @UseGuards(OptionalJwtGuard)
-  async listPaths(@Query('tenantId') tenantId: string, @Query('domainId') domainId?: string) {
-    return this.crudService.listPaths(tenantId, domainId);
+  async listPaths(
+    @Query('tenantId') tenantId: string,
+    @Query('domainId') domainId?: string,
+    @Query('includeDraft') includeDraft?: string,
+  ) {
+    return this.crudService.listPaths(tenantId, domainId, includeDraft === 'true');
   }
 
   @Get(':id')

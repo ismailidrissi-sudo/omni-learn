@@ -45,6 +45,24 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-https://omnilearn.space}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      LIGHTFM_SERVICE_URL: http://recommendations:5000
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+    networks:
+      - omnilearn-net
+
+  recommendations:
+    build:
+      context: ./recommendations
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      OMNILEARN_API_URL: http://backend:4000
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      MODEL_PATH: /app/data/model.pkl
+    volumes:
+      - recommendations_data:/app/data
     networks:
       - omnilearn-net
 
@@ -87,6 +105,7 @@ services:
 
 volumes:
   postgres_data:
+  recommendations_data:
 
 networks:
   omnilearn-net:

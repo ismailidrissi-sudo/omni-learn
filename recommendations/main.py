@@ -22,6 +22,7 @@ app = FastAPI(title="OmniLearn Recommendations")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_URL = os.getenv("OMNILEARN_API_URL", "http://localhost:4000")
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
 MODEL_PATH = Path(os.getenv("MODEL_PATH", "./data/model.pkl"))
 DATA_PATH = Path(os.getenv("DATA_PATH", "./data"))
 MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -42,9 +43,11 @@ def fetch_interactions_and_features():
     item_meta = {}  # content_id -> {type, domainId, sectorTag}
 
     try:
+        headers = {}
+        if INTERNAL_SERVICE_KEY:
+            headers["x-internal-key"] = INTERNAL_SERVICE_KEY
         with httpx.Client(timeout=30) as client:
-            # Analytics events (content views, enrollments, completions)
-            r = client.get(f"{API_URL}/intelligence/lightfm/interactions")
+            r = client.get(f"{API_URL}/intelligence/lightfm/interactions", headers=headers)
             if r.status_code == 200:
                 data = r.json()
                 raw = data.get("interactions", [])

@@ -89,6 +89,142 @@ export class ProfileService {
     };
   }
 
+  async getFullUserProfile(userId: string) {
+    const [user, enrollments, points, badges, streak, trainerProfile] =
+      await Promise.all([
+        this.prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+          include: {
+            department: true,
+            position: true,
+            tenant: { include: { industry: true, branding: true } },
+            trainerProfile: true,
+          },
+        }),
+        this.prisma.pathEnrollment.findMany({
+          where: { userId },
+          include: {
+            path: { include: { domain: true, steps: true } },
+            certificates: {
+              include: {
+                template: { include: { domain: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.userPoints
+          .findUnique({ where: { userId } })
+          .then((p) => p?.points ?? 0),
+        this.prisma.userBadge.findMany({
+          where: { userId },
+          include: { badge: true },
+          orderBy: { earnedAt: 'desc' },
+        }),
+        this.prisma.userStreak.findUnique({ where: { userId } }),
+        this.prisma.trainerProfile.findUnique({ where: { userId } }),
+      ]);
+
+    const completedEnrollments = enrollments.filter(
+      (e) => e.status === 'COMPLETED',
+    );
+    const activeEnrollments = enrollments.filter(
+      (e) => e.status === 'ACTIVE',
+    );
+    const allCertificates = enrollments.flatMap((e) =>
+      e.certificates.map((c) => ({
+        id: c.id,
+        verifyCode: c.verifyCode,
+        grade: c.grade,
+        issuedAt: c.issuedAt,
+        pdfUrl: c.pdfUrl,
+        domainName: c.template?.domain?.name ?? null,
+        templateName: c.template?.templateName ?? null,
+        pathName: e.path?.name ?? null,
+      })),
+    );
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        planId: user.planId,
+        billingCycle: user.billingCycle,
+        sectorFocus: user.sectorFocus,
+        linkedinProfileUrl: user.linkedinProfileUrl,
+        emailVerified: user.emailVerified,
+        profileComplete: user.profileComplete,
+        isAdmin: user.isAdmin,
+        trainerApprovedAt: user.trainerApprovedAt,
+        createdAt: user.createdAt,
+      },
+      department: user.department,
+      position: user.position,
+      company: user.tenant
+        ? {
+            id: user.tenant.id,
+            name: user.tenant.name,
+            slug: user.tenant.slug,
+            logoUrl: user.tenant.logoUrl,
+            industry: user.tenant.industry,
+            linkedinProfileUrl: user.tenant.linkedinProfileUrl,
+          }
+        : null,
+      completedCourses: completedEnrollments.map((e) => ({
+        id: e.id,
+        pathId: e.pathId,
+        pathName: e.path?.name,
+        domainName: e.path?.domain?.name ?? null,
+        domainColor: e.path?.domain?.color ?? null,
+        stepCount: e.path?.steps?.length ?? 0,
+        progressPct: e.progressPct,
+        completedAt: e.completedAt,
+      })),
+      activeCourses: activeEnrollments.map((e) => ({
+        id: e.id,
+        pathId: e.pathId,
+        pathName: e.path?.name,
+        domainName: e.path?.domain?.name ?? null,
+        domainColor: e.path?.domain?.color ?? null,
+        stepCount: e.path?.steps?.length ?? 0,
+        progressPct: e.progressPct,
+      })),
+      certificates: allCertificates,
+      gamification: {
+        points,
+        badges: badges.map((b) => ({
+          id: b.badge.id,
+          name: b.badge.name,
+          icon: b.badge.icon,
+          description: b.badge.description,
+          earnedAt: b.earnedAt,
+        })),
+        streak: {
+          currentStreak: streak?.currentStreak ?? 0,
+          longestStreak: streak?.longestStreak ?? 0,
+          lastActivityAt: streak?.lastActivityAt ?? null,
+        },
+      },
+      trainerProfile: trainerProfile
+        ? {
+            headline: trainerProfile.headline,
+            bio: trainerProfile.bio,
+            specializations: trainerProfile.specializations,
+            certifications: trainerProfile.certifications,
+            education: trainerProfile.education,
+            experience: trainerProfile.experience,
+            languages: trainerProfile.languages,
+            totalStudents: trainerProfile.totalStudents,
+            totalCourses: trainerProfile.totalCourses,
+            avgRating: trainerProfile.avgRating,
+            slug: trainerProfile.slug,
+            status: trainerProfile.status,
+          }
+        : null,
+    };
+  }
+
   async verifyEmail(token: string) {
     const user = await this.prisma.user.findFirst({
       where: {
