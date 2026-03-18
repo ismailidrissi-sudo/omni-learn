@@ -182,6 +182,7 @@ export class CourseEnrollmentService {
         await this.notificationService.notifyCertificateIssued({
           userId: enrollment.userId,
           certificateName: `${enrollment.course.domain?.name ?? ''} — ${enrollment.course.title}`,
+          verifyCode: cert.verifyCode,
         });
       } catch (notifErr) {
         this.logger.warn(`Certificate issued but notification failed for course enrollment ${enrollmentId}`, notifErr);
