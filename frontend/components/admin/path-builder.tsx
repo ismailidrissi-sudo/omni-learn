@@ -35,6 +35,7 @@ interface PathBuilderProps {
     name: string;
     domainId: string;
     description?: string;
+    isPublished?: boolean;
     steps?: Array<{
       id: string;
       contentItemId: string;
@@ -70,6 +71,7 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
       order: s.stepOrder,
     }));
   });
+  const [isPublished, setIsPublished] = useState(editingPath?.isPublished ?? false);
   const [saving, setSaving] = useState(false);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [contentSearch, setContentSearch] = useState("");
@@ -145,6 +147,7 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             domainId: pathDomainId,
             slug,
             description: pathDescription,
+            isPublished,
           }),
         });
         if (!res.ok) throw new Error("Failed to update path");
@@ -158,6 +161,7 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             name: pathName.trim(),
             slug,
             description: pathDescription,
+            isPublished,
           }),
         });
         if (!res.ok) throw new Error("Failed to create path");
@@ -165,16 +169,17 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
         pathId = created.id;
       }
 
-      for (let i = 0; i < steps.length; i++) {
-        await apiFetch(`/learning-paths/${pathId}/steps`, {
-          method: "POST",
-          body: JSON.stringify({
-            contentItemId: steps[i].contentItemId,
+      const stepsRes = await apiFetch(`/learning-paths/${pathId}/steps`, {
+        method: "PUT",
+        body: JSON.stringify({
+          steps: steps.map((s, i) => ({
+            contentItemId: s.contentItemId,
             stepOrder: i + 1,
-            isRequired: steps[i].required,
-          }),
-        });
-      }
+            isRequired: s.required,
+          })),
+        }),
+      });
+      if (!stepsRes.ok) throw new Error("Failed to save steps");
 
       onSave(pathId);
     } catch (err) {
@@ -218,6 +223,17 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             placeholder={t("pathBuilder.description")}
             className="mt-3"
           />
+          <label className="flex items-center gap-2 mt-4 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="h-4 w-4 rounded border-brand-grey-light text-brand-purple focus:ring-brand-purple accent-[var(--color-brand-purple,#7c3aed)]"
+            />
+            <span className="text-sm font-medium text-brand-grey-dark">
+              {t("pathBuilder.publish") ?? "Publish path"}
+            </span>
+          </label>
         </Card>
 
         <Card className="p-4">

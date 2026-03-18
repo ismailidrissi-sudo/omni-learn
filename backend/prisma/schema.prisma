@@ -288,6 +288,7 @@ model ContentItem {
   tenant                 Tenant?                  @relation(fields: [tenantId], references: [id])
   pathSteps              LearningPathStep[]
   courseSections         CourseSection[]  // For type=COURSE: Udemy-style curriculum
+  courseEnrollments      CourseEnrollment[]
   tenantAssignments      ContentTenantAssignment[] // When empty = all companies
   userAssignments        ContentUserAssignment[]   // When empty = all users
 
@@ -362,7 +363,8 @@ model CourseSectionItem {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  section CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section  CourseSection              @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  progress CourseSectionItemProgress[]
 
   @@index([sectionId])
 }
@@ -371,7 +373,7 @@ model CourseSectionItem {
 
 model PathEnrollment {
   id         String           @id @default(uuid())
-  userId     String           // Keycloak sub or internal user ID
+  userId     String
   pathId     String
   status     EnrollmentStatus @default(ACTIVE)
   progressPct Int             @default(0)
@@ -408,6 +410,45 @@ model PathStepProgress {
   @@index([stepId])
 }
 
+model CourseEnrollment {
+  id          String           @id @default(uuid())
+  userId      String
+  courseId     String           // ContentItem.id where type=COURSE
+  status      EnrollmentStatus @default(ACTIVE)
+  progressPct Int              @default(0)
+  deadline    DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  course       ContentItem                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  itemProgress CourseSectionItemProgress[]
+  certificates IssuedCertificate[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model CourseSectionItemProgress {
+  id            String             @id @default(uuid())
+  enrollmentId  String
+  sectionItemId String
+  status        StepProgressStatus @default(NOT_STARTED)
+  timeSpent     Int?               // seconds
+  score         Int?
+  completedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  enrollment  CourseEnrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  sectionItem CourseSectionItem @relation(fields: [sectionItemId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, sectionItemId])
+  @@index([enrollmentId])
+  @@index([sectionItemId])
+}
+
 // ── CERTIFICATES ──
 
 model CertificateTemplate {
@@ -431,18 +472,21 @@ model CertificateTemplate {
 }
 
 model IssuedCertificate {
-  id           String          @id @default(uuid())
-  templateId   String
-  enrollmentId String
-  verifyCode   String          @unique
-  pdfUrl       String?
-  grade        CertificateGrade?
-  issuedAt     DateTime        @default(now())
+  id                   String          @id @default(uuid())
+  templateId           String
+  enrollmentId         String?         // PathEnrollment FK (null when course cert)
+  courseEnrollmentId   String?         // CourseEnrollment FK (null when path cert)
+  verifyCode           String          @unique
+  pdfUrl               String?
+  grade                CertificateGrade?
+  issuedAt             DateTime        @default(now())
 
-  template   CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  enrollment PathEnrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  template         CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  enrollment       PathEnrollment?     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  courseEnrollment CourseEnrollment?   @relation(fields: [courseEnrollmentId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId])
+  @@index([courseEnrollmentId])
   @@index([verifyCode])
 }
 

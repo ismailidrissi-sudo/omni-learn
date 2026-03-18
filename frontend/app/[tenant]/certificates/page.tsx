@@ -35,7 +35,16 @@ interface CertRecord {
       domain?: { name: string; icon?: string; color?: string };
       _count?: { steps: number };
     };
-  };
+  } | null;
+  courseEnrollment?: {
+    id: string;
+    completedAt?: string;
+    course?: {
+      title: string;
+      domain?: { name: string; icon?: string; color?: string };
+      _count?: { courseSections: number };
+    };
+  } | null;
 }
 
 function parseJson<T>(val: unknown, fallback: T): T {
@@ -89,11 +98,18 @@ export default function UserCertificatesPage() {
       const elementsConfig = parseJson(detail.template?.elementsConfig, {});
       const signatories = parseJson<Array<{ name: string; title: string }>>(detail.template?.signatories, []);
 
+      const isCourseCert = detail.certType === 'course';
       const certData: CertificateData = {
         userName: detail.user?.name ?? user?.name ?? "Learner",
-        pathName: detail.enrollment?.path?.name ?? "Learning Path",
-        domainName: detail.enrollment?.path?.domain?.name ?? "Domain",
-        domainIcon: detail.enrollment?.path?.domain?.icon,
+        pathName: isCourseCert
+          ? (detail.courseEnrollment?.course?.title ?? "Course")
+          : (detail.enrollment?.path?.name ?? "Learning Path"),
+        domainName: isCourseCert
+          ? (detail.courseEnrollment?.course?.domain?.name ?? "Domain")
+          : (detail.enrollment?.path?.domain?.name ?? "Domain"),
+        domainIcon: isCourseCert
+          ? detail.courseEnrollment?.course?.domain?.icon
+          : detail.enrollment?.path?.domain?.icon,
         verifyCode: detail.verifyCode,
         grade: detail.grade,
         issuedAt: detail.issuedAt,
@@ -102,6 +118,7 @@ export default function UserCertificatesPage() {
         elementsConfig,
         signatories,
         tenantName: academyName,
+        certType: isCourseCert ? 'course' : 'path',
       };
 
       downloadCertificatePdf(certData);
@@ -171,8 +188,16 @@ export default function UserCertificatesPage() {
                 cert.template?.themeConfig,
                 { primary_color: "#059669", secondary_color: "#10b981" },
               );
-              const domainName = cert.enrollment?.path?.domain?.name ?? cert.template?.domain?.name ?? "";
-              const pathName = cert.enrollment?.path?.name ?? "";
+              const isCourseCert = !!cert.courseEnrollment;
+              const domainName = isCourseCert
+                ? (cert.courseEnrollment?.course?.domain?.name ?? cert.template?.domain?.name ?? "")
+                : (cert.enrollment?.path?.domain?.name ?? cert.template?.domain?.name ?? "");
+              const certTitle = isCourseCert
+                ? (cert.courseEnrollment?.course?.title ?? "")
+                : (cert.enrollment?.path?.name ?? "");
+              const itemCount = isCourseCert
+                ? cert.courseEnrollment?.course?._count?.courseSections
+                : cert.enrollment?.path?._count?.steps;
               const isDownloading = downloadingId === cert.id;
 
               return (
@@ -190,7 +215,7 @@ export default function UserCertificatesPage() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-[var(--color-text-primary)] truncate">
-                          {pathName}
+                          {certTitle}
                         </h3>
                         <p className="text-xs text-[var(--color-text-secondary)]">
                           {domainName}
@@ -199,15 +224,18 @@ export default function UserCertificatesPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-3">
+                      {isCourseCert && (
+                        <Badge variant="pulsar">{t("certificate.course")}</Badge>
+                      )}
                       {cert.grade && (
                         <Badge color={theme.accent_color}>{cert.grade}</Badge>
                       )}
                       <Badge variant="stardust">
                         {new Date(cert.issuedAt).toLocaleDateString()}
                       </Badge>
-                      {cert.enrollment?.path?._count?.steps && (
+                      {!!itemCount && (
                         <Badge variant="pulsar">
-                          {cert.enrollment.path._count.steps} {t("certificate.steps")}
+                          {itemCount} {isCourseCert ? t("certificate.sections") : t("certificate.steps")}
                         </Badge>
                       )}
                     </div>

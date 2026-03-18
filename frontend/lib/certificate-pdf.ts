@@ -38,6 +38,7 @@ export interface CertificateData {
   elementsConfig: Partial<ElementsConfig> | ElementsConfig;
   signatories: Signatory[];
   tenantName?: string;
+  certType?: 'path' | 'course';
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -174,13 +175,16 @@ export function generateCertificatePdf(data: CertificateData): jsPDF {
   y += 10;
 
   // --- "has successfully completed" ---
+  const completionLabel = data.certType === 'course'
+    ? "has successfully completed the course"
+    : "has successfully completed the learning path";
   doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
   doc.setFont("helvetica", "normal");
-  doc.text("has successfully completed the learning path", W / 2, y, { align: "center" });
+  doc.text(completionLabel, W / 2, y, { align: "center" });
   y += 10;
 
-  // --- Path Name ---
+  // --- Path/Course Name ---
   doc.setFontSize(18);
   doc.setTextColor(...primary);
   doc.setFont("helvetica", "bold");

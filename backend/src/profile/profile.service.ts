@@ -90,7 +90,7 @@ export class ProfileService {
   }
 
   async getFullUserProfile(userId: string) {
-    const [user, enrollments, points, badges, streak, trainerProfile] =
+    const [user, enrollments, courseEnrollments, points, badges, streak, trainerProfile] =
       await Promise.all([
         this.prisma.user.findUniqueOrThrow({
           where: { id: userId },
@@ -105,6 +105,18 @@ export class ProfileService {
           where: { userId },
           include: {
             path: { include: { domain: true, steps: true } },
+            certificates: {
+              include: {
+                template: { include: { domain: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.courseEnrollment.findMany({
+          where: { userId },
+          include: {
+            course: { include: { domain: true } },
             certificates: {
               include: {
                 template: { include: { domain: true } },
@@ -131,7 +143,7 @@ export class ProfileService {
     const activeEnrollments = enrollments.filter(
       (e) => e.status === 'ACTIVE',
     );
-    const allCertificates = enrollments.flatMap((e) =>
+    const pathCertificates = enrollments.flatMap((e) =>
       e.certificates.map((c) => ({
         id: c.id,
         verifyCode: c.verifyCode,
@@ -141,8 +153,34 @@ export class ProfileService {
         domainName: c.template?.domain?.name ?? null,
         templateName: c.template?.templateName ?? null,
         pathName: e.path?.name ?? null,
+        courseName: null as string | null,
+        certType: 'path' as const,
       })),
     );
+
+    const completedCourseEnrollments = courseEnrollments.filter(
+      (e) => e.status === 'COMPLETED',
+    );
+    const activeCourseEnrollments = courseEnrollments.filter(
+      (e) => e.status === 'ACTIVE',
+    );
+    const courseCertificates = courseEnrollments.flatMap((e) =>
+      e.certificates.map((c) => ({
+        id: c.id,
+        verifyCode: c.verifyCode,
+        grade: c.grade,
+        issuedAt: c.issuedAt,
+        pdfUrl: c.pdfUrl,
+        domainName: c.template?.domain?.name ?? null,
+        templateName: c.template?.templateName ?? null,
+        pathName: null as string | null,
+        courseName: e.course?.title ?? null,
+        certType: 'course' as const,
+      })),
+    );
+
+    const allCertificates = [...pathCertificates, ...courseCertificates]
+      .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
 
     return {
       user: {
@@ -171,7 +209,7 @@ export class ProfileService {
             linkedinProfileUrl: user.tenant.linkedinProfileUrl,
           }
         : null,
-      completedCourses: completedEnrollments.map((e) => ({
+      completedPaths: completedEnrollments.map((e) => ({
         id: e.id,
         pathId: e.pathId,
         pathName: e.path?.name,
@@ -181,13 +219,30 @@ export class ProfileService {
         progressPct: e.progressPct,
         completedAt: e.completedAt,
       })),
-      activeCourses: activeEnrollments.map((e) => ({
+      activePaths: activeEnrollments.map((e) => ({
         id: e.id,
         pathId: e.pathId,
         pathName: e.path?.name,
         domainName: e.path?.domain?.name ?? null,
         domainColor: e.path?.domain?.color ?? null,
         stepCount: e.path?.steps?.length ?? 0,
+        progressPct: e.progressPct,
+      })),
+      completedCourses: completedCourseEnrollments.map((e) => ({
+        id: e.id,
+        courseId: e.courseId,
+        courseName: e.course?.title,
+        domainName: e.course?.domain?.name ?? null,
+        domainColor: e.course?.domain?.color ?? null,
+        progressPct: e.progressPct,
+        completedAt: e.completedAt,
+      })),
+      activeCourses: activeCourseEnrollments.map((e) => ({
+        id: e.id,
+        courseId: e.courseId,
+        courseName: e.course?.title,
+        domainName: e.course?.domain?.name ?? null,
+        domainColor: e.course?.domain?.color ?? null,
         progressPct: e.progressPct,
       })),
       certificates: allCertificates,

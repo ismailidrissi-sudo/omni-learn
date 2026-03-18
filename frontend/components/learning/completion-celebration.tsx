@@ -40,11 +40,18 @@ export function CompletionCelebration({
           ? JSON.parse(detail.template.signatories)
           : detail.template?.signatories ?? [];
 
+        const isCourseCert = detail.certType === 'course';
         setCertData({
           userName: detail.user?.name ?? "Learner",
-          pathName: detail.enrollment?.path?.name ?? pathName,
-          domainName: detail.enrollment?.path?.domain?.name ?? domainName,
-          domainIcon: detail.enrollment?.path?.domain?.icon,
+          pathName: isCourseCert
+            ? (detail.courseEnrollment?.course?.title ?? pathName)
+            : (detail.enrollment?.path?.name ?? pathName),
+          domainName: isCourseCert
+            ? (detail.courseEnrollment?.course?.domain?.name ?? domainName)
+            : (detail.enrollment?.path?.domain?.name ?? domainName),
+          domainIcon: isCourseCert
+            ? detail.courseEnrollment?.course?.domain?.icon
+            : detail.enrollment?.path?.domain?.icon,
           verifyCode: detail.verifyCode,
           grade: detail.grade,
           issuedAt: detail.issuedAt,
@@ -53,6 +60,7 @@ export function CompletionCelebration({
           elementsConfig,
           signatories,
           tenantName: detail.template?.domain?.name,
+          certType: isCourseCert ? 'course' : 'path',
         });
       })
       .catch(() => setCertData(null))

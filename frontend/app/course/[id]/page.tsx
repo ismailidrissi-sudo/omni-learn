@@ -47,6 +47,17 @@ type EnrollmentContext = {
   domainName: string;
   progressPct: number;
   certificate: { id: string; verifyCode: string } | null;
+  enrollmentType: 'path' | 'course';
+};
+
+type CourseEnrollmentContext = {
+  enrollmentId: string;
+  enrollmentType: 'course';
+  courseTitle: string;
+  domainName: string;
+  progressPct: number;
+  status: string;
+  certificate: { id: string; verifyCode: string } | null;
 };
 
 const ITEM_ICONS: Record<string, string> = {
@@ -123,9 +134,9 @@ export default function CoursePlayerPage() {
   useEffect(() => {
     if (!user?.id || !courseId) return;
 
-    const applyEnrollment = (data: EnrollmentContext | null) => {
-      if (!data) return;
-      setEnrollCtx(data);
+    const applyPathEnrollment = (data: EnrollmentContext | null) => {
+      if (!data) return false;
+      setEnrollCtx({ ...data, enrollmentType: 'path' });
       if (data.stepStatus === "COMPLETED") {
         setCourseCompleted(true);
         if (data.certificate?.id) {
@@ -136,24 +147,77 @@ export default function CoursePlayerPage() {
           });
         }
       }
+      return true;
     };
 
-    apiFetch(`/learning-paths/enrollment-for-content?userId=${user.id}&contentId=${courseId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          applyEnrollment(data);
-        } else {
-          return apiFetch("/learning-paths/auto-enroll-for-content", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user.id, contentId: courseId }),
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then(applyEnrollment);
+    const applyCourseEnrollment = (data: CourseEnrollmentContext | null) => {
+      if (!data) return false;
+      setEnrollCtx({
+        enrollmentId: data.enrollmentId,
+        stepId: '',
+        stepStatus: data.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
+        pathName: data.courseTitle,
+        domainName: data.domainName,
+        progressPct: data.progressPct,
+        certificate: data.certificate,
+        enrollmentType: 'course',
+      });
+      if (data.status === 'COMPLETED') {
+        setCourseCompleted(true);
+        if (data.certificate?.id) {
+          setCelebration({
+            certId: data.certificate.id,
+            pathName: data.courseTitle,
+            domainName: data.domainName,
+          });
         }
-      })
-      .catch(() => {});
+      }
+      return true;
+    };
+
+    const tryPathEnrollment = async (): Promise<boolean> => {
+      try {
+        const r = await apiFetch(`/learning-paths/enrollment-for-content?userId=${user.id}&contentId=${courseId}`);
+        const data = r.ok ? await r.json() : null;
+        if (data) return applyPathEnrollment(data);
+
+        const autoR = await apiFetch("/learning-paths/auto-enroll-for-content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, contentId: courseId }),
+        });
+        const autoData = autoR.ok ? await autoR.json() : null;
+        if (autoData) return applyPathEnrollment(autoData);
+      } catch {}
+      return false;
+    };
+
+    const tryCourseEnrollment = async (): Promise<boolean> => {
+      try {
+        const r = await apiFetch(`/course-enrollments/for-course?userId=${user.id}&courseId=${courseId}`);
+        const data = r.ok ? await r.json() : null;
+        if (data) return applyCourseEnrollment(data);
+
+        const enrollR = await apiFetch(`/course-enrollments/${courseId}/enroll`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        if (enrollR.ok) {
+          const freshR = await apiFetch(`/course-enrollments/for-course?userId=${user.id}&courseId=${courseId}`);
+          const freshData = freshR.ok ? await freshR.json() : null;
+          if (freshData) return applyCourseEnrollment(freshData);
+        }
+      } catch {}
+      return false;
+    };
+
+    (async () => {
+      const pathFound = await tryPathEnrollment();
+      if (!pathFound) {
+        await tryCourseEnrollment();
+      }
+    })();
   }, [user?.id, courseId]);
 
   const allItems = useMemo(
@@ -202,45 +266,84 @@ export default function CoursePlayerPage() {
     setCompleting(true);
     try {
       const timeSpentMinutes = Math.round((Date.now() - startTime.current) / 60000);
-      const res = await apiFetch(
-        `/learning-paths/enrollments/${enrollCtx.enrollmentId}/steps/${enrollCtx.stepId}/progress`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "COMPLETED",
-            timeSpent: timeSpentMinutes,
-          }),
-        },
-      );
 
-      if (!res.ok) return;
-      const result = await res.json();
-      setCourseCompleted(true);
-
-      if (result.totalSteps != null) {
-        setPathProgress({
-          pathCompleted: result.pathCompleted ?? false,
-          totalSteps: result.totalSteps,
-          completedSteps: result.completedSteps ?? 0,
-        });
-      }
-
-      if (result.certificate?.id) {
-        setCelebration({
-          certId: result.certificate.id,
-          pathName: enrollCtx.pathName,
-          domainName: enrollCtx.domainName,
-        });
-      } else if (result.pathCompleted && !result.certificate) {
-        const certRes = await apiFetch(
-          `/learning-paths/enrollment-for-content?userId=${user?.id}&contentId=${courseId}`,
+      if (enrollCtx.enrollmentType === 'path') {
+        const res = await apiFetch(
+          `/learning-paths/enrollments/${enrollCtx.enrollmentId}/steps/${enrollCtx.stepId}/progress`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "COMPLETED",
+              timeSpent: timeSpentMinutes,
+            }),
+          },
         );
-        if (certRes.ok) {
-          const data = await certRes.json();
-          if (data?.certificate?.id) {
+
+        if (!res.ok) return;
+        const result = await res.json();
+        setCourseCompleted(true);
+
+        if (result.totalSteps != null) {
+          setPathProgress({
+            pathCompleted: result.pathCompleted ?? false,
+            totalSteps: result.totalSteps,
+            completedSteps: result.completedSteps ?? 0,
+          });
+        }
+
+        if (result.certificate?.id) {
+          setCelebration({
+            certId: result.certificate.id,
+            pathName: enrollCtx.pathName,
+            domainName: enrollCtx.domainName,
+          });
+        } else if (result.pathCompleted && !result.certificate) {
+          const certRes = await apiFetch(
+            `/learning-paths/enrollment-for-content?userId=${user?.id}&contentId=${courseId}`,
+          );
+          if (certRes.ok) {
+            const data = await certRes.json();
+            if (data?.certificate?.id) {
+              setCelebration({
+                certId: data.certificate.id,
+                pathName: enrollCtx.pathName,
+                domainName: enrollCtx.domainName,
+              });
+            }
+          }
+        }
+      } else {
+        // Course enrollment: mark all section items as completed
+        const enrollRes = await apiFetch(`/course-enrollments/${courseId}/enrollment/${user?.id}`);
+        if (!enrollRes.ok) return;
+        const enrollData = await enrollRes.json();
+        const itemProgressList = enrollData?.itemProgress ?? [];
+
+        for (const ip of itemProgressList) {
+          if (ip.status !== 'COMPLETED') {
+            await apiFetch(
+              `/course-enrollments/enrollments/${enrollCtx.enrollmentId}/items/${ip.sectionItemId}/progress`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  status: "COMPLETED",
+                  timeSpent: Math.round(timeSpentMinutes / (itemProgressList.length || 1)),
+                }),
+              },
+            );
+          }
+        }
+
+        setCourseCompleted(true);
+
+        const freshRes = await apiFetch(`/course-enrollments/for-course?userId=${user?.id}&courseId=${courseId}`);
+        if (freshRes.ok) {
+          const fresh = await freshRes.json();
+          if (fresh?.certificate?.id) {
             setCelebration({
-              certId: data.certificate.id,
+              certId: fresh.certificate.id,
               pathName: enrollCtx.pathName,
               domainName: enrollCtx.domainName,
             });

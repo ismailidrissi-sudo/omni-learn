@@ -32,6 +32,13 @@ type PathItem = {
   domainId?: string;
   _count?: { steps: number; enrollments: number };
   isPublished: boolean;
+  steps?: Array<{
+    id: string;
+    contentItemId: string;
+    contentItem?: { id: string; title: string; type: string; durationMinutes?: number };
+    stepOrder: number;
+    isRequired: boolean;
+  }>;
 };
 
 export default function AdminPathsPage() {
@@ -91,8 +98,18 @@ export default function AdminPathsPage() {
     setView("builder");
   };
 
-  const handleEditPath = (path: PathItem) => {
-    setEditingPath(path);
+  const handleEditPath = async (path: PathItem) => {
+    try {
+      const res = await apiFetch(`/learning-paths/${path.id}`);
+      if (res.ok) {
+        const fullPath = await res.json();
+        setEditingPath({ ...path, ...fullPath });
+      } else {
+        setEditingPath(path);
+      }
+    } catch {
+      setEditingPath(path);
+    }
     setView("builder");
   };
 
@@ -202,6 +219,8 @@ export default function AdminPathsPage() {
               name: editingPath.name,
               domainId: editingPath.domainId ?? editingPath.domain?.id ?? "",
               description: editingPath.description,
+              isPublished: editingPath.isPublished,
+              steps: editingPath.steps,
             } : null}
           />
         )}

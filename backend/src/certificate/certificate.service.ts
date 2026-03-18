@@ -54,30 +54,91 @@ export class CertificateService {
     });
   }
 
+  /** Issue certificate when course enrollment is completed */
+  async issueCourseEnrollmentCertificate(courseEnrollmentId: string, grade?: string) {
+    const enrollment = await this.prisma.courseEnrollment.findUniqueOrThrow({
+      where: { id: courseEnrollmentId },
+      include: { course: { include: { domain: true } } },
+    });
+    if (enrollment.status !== EnrollmentStatus.COMPLETED) {
+      throw new Error('Course enrollment must be completed to issue certificate');
+    }
+
+    if (!enrollment.course.domainId || !enrollment.course.domain) {
+      throw new Error('Course must belong to a domain to issue certificate');
+    }
+
+    const tenantId = enrollment.course.tenantId;
+    if (!tenantId) {
+      throw new Error('Course must belong to a tenant to issue certificate');
+    }
+
+    const template = await this.domainsService.ensureCertificateTemplate(
+      tenantId,
+      enrollment.course.domainId,
+      enrollment.course.domain.color,
+      enrollment.course.domain.name,
+    );
+    const verifyCode = `CC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+    return this.prisma.issuedCertificate.create({
+      data: {
+        templateId: template.id,
+        courseEnrollmentId,
+        verifyCode,
+        grade: (grade as 'PASS' | 'MERIT' | 'DISTINCTION') ?? undefined,
+      },
+    });
+  }
+
   /** Verify certificate by code */
   async verifyCertificate(verifyCode: string) {
     return this.prisma.issuedCertificate.findUnique({
       where: { verifyCode },
       include: {
         enrollment: { include: { path: { include: { domain: true } } } },
+        courseEnrollment: { include: { course: { include: { domain: true } } } },
         template: { include: { domain: true } },
       },
     });
   }
 
-  /** Get user's certificates with full details */
+  /** Get user's certificates with full details (path + course) */
   async getUserCertificates(userId: string) {
-    const enrollments = await this.prisma.pathEnrollment.findMany({
-      where: { userId, status: EnrollmentStatus.COMPLETED },
-      include: { path: { include: { domain: true } } },
-    });
+    const [pathEnrollments, courseEnrollments] = await Promise.all([
+      this.prisma.pathEnrollment.findMany({
+        where: { userId, status: EnrollmentStatus.COMPLETED },
+      }),
+      this.prisma.courseEnrollment.findMany({
+        where: { userId, status: EnrollmentStatus.COMPLETED },
+      }),
+    ]);
+
+    const pathIds = pathEnrollments.map((e) => e.id);
+    const courseIds = courseEnrollments.map((e) => e.id);
+
     return this.prisma.issuedCertificate.findMany({
-      where: { enrollmentId: { in: enrollments.map((e) => e.id) } },
+      where: {
+        OR: [
+          ...(pathIds.length > 0 ? [{ enrollmentId: { in: pathIds } }] : []),
+          ...(courseIds.length > 0 ? [{ courseEnrollmentId: { in: courseIds } }] : []),
+        ],
+      },
       include: {
         template: { include: { domain: true } },
         enrollment: {
           include: {
             path: { include: { domain: true, _count: { select: { steps: true } } } },
+          },
+        },
+        courseEnrollment: {
+          include: {
+            course: {
+              include: {
+                domain: true,
+                _count: { select: { courseSections: true } },
+              },
+            },
           },
         },
       },
@@ -101,23 +162,49 @@ export class CertificateService {
             },
           },
         },
+        courseEnrollment: {
+          include: {
+            course: {
+              include: {
+                domain: true,
+                courseSections: {
+                  include: { items: { select: { id: true } } },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: cert.enrollment.userId },
-      select: { id: true, name: true, email: true },
-    });
+    const userId = cert.enrollment?.userId ?? cert.courseEnrollment?.userId;
+    const user = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, email: true },
+        })
+      : null;
 
-    const totalHours = await this.prisma.pathStepProgress.aggregate({
-      where: { enrollmentId: cert.enrollmentId },
-      _sum: { timeSpent: true },
-    });
+    let totalLearningMinutes = 0;
+    if (cert.enrollmentId) {
+      const totalHours = await this.prisma.pathStepProgress.aggregate({
+        where: { enrollmentId: cert.enrollmentId },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = totalHours._sum.timeSpent ?? 0;
+    } else if (cert.courseEnrollmentId) {
+      const totalHours = await this.prisma.courseSectionItemProgress.aggregate({
+        where: { enrollmentId: cert.courseEnrollmentId },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = totalHours._sum.timeSpent ?? 0;
+    }
 
     return {
       ...cert,
       user,
-      totalLearningMinutes: totalHours._sum.timeSpent ?? 0,
+      totalLearningMinutes,
+      certType: cert.enrollmentId ? 'path' : 'course',
     };
   }
 

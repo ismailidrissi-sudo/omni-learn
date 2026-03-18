@@ -99,6 +99,16 @@ export class LearningPathController {
     return this.crudService.addStep({ ...body, pathId });
   }
 
+  @Put(':pathId/steps')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
+  async replaceSteps(
+    @Param('pathId') pathId: string,
+    @Body() body: { steps: Omit<CreateStepDto, 'pathId'>[] },
+  ) {
+    return this.crudService.replaceSteps(pathId, body.steps);
+  }
+
   @Put('steps/:stepId')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)

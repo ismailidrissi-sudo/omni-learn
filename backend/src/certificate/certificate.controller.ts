@@ -47,6 +47,12 @@ export class CertificateController {
     return this.certificateService.issueCertificate(body.enrollmentId, body.grade);
   }
 
+  @Post('issue-course')
+  @UseGuards(AuthGuard('jwt'))
+  async issueCourse(@Body() body: { courseEnrollmentId: string; grade?: string }) {
+    return this.certificateService.issueCourseEnrollmentCertificate(body.courseEnrollmentId, body.grade);
+  }
+
   @Get('verify/:code')
   async verify(@Param('code') code: string) {
     return this.certificateService.verifyCertificate(code);

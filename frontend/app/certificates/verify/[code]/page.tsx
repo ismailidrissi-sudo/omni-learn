@@ -18,7 +18,8 @@ export default function VerifyCertificatePage() {
     verifyCode: string;
     grade?: string;
     issuedAt: string;
-    enrollment?: { path?: { name: string; domain?: { name: string } | string } };
+    enrollment?: { path?: { name: string; domain?: { name: string } | string } } | null;
+    courseEnrollment?: { course?: { title: string; domain?: { name: string } | string } } | null;
     template?: { templateName: string };
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +49,9 @@ export default function VerifyCertificatePage() {
             <>
               <div className="text-4xl mb-4">🎓</div>
               <h1 className="text-xl font-bold text-brand-grey-dark mb-2">{t("certificate.verified")}</h1>
-              <p className="text-brand-grey-dark font-medium">{cert.enrollment?.path?.name ?? t("certificate.learningPath")}</p>
+              <p className="text-brand-grey-dark font-medium">
+                {cert.courseEnrollment?.course?.title ?? cert.enrollment?.path?.name ?? t("certificate.learningPath")}
+              </p>
               <p className="text-brand-grey text-sm mt-2">{cert.template?.templateName}</p>
               {cert.grade && <p className="text-brand-purple font-semibold mt-2">{t("certificate.grade")}: {cert.grade}</p>}
               <p className="text-brand-grey text-xs mt-4">{t("certificate.issued")} {new Date(cert.issuedAt).toLocaleDateString()}</p>

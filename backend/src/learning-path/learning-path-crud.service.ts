@@ -117,4 +117,26 @@ export class LearningPathCrudService {
   async removeStep(stepId: string) {
     return this.prisma.learningPathStep.delete({ where: { id: stepId } });
   }
+
+  async replaceSteps(pathId: string, steps: Omit<CreateStepDto, 'pathId'>[]) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.learningPathStep.deleteMany({ where: { pathId } });
+      if (steps.length === 0) return [];
+      return Promise.all(
+        steps.map((step) =>
+          tx.learningPathStep.create({
+            data: {
+              pathId,
+              contentItemId: step.contentItemId,
+              stepOrder: step.stepOrder,
+              isRequired: step.isRequired ?? true,
+              unlockAfterId: step.unlockAfterId,
+              timeGateHours: step.timeGateHours,
+            },
+            include: { contentItem: true },
+          }),
+        ),
+      );
+    });
+  }
 }

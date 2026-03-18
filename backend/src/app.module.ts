@@ -20,6 +20,7 @@ import { SitePagesModule } from './site-pages/site-pages.module';
 import { ReferralModule } from './referral/referral.module';
 import { NotificationModule } from './notification/notification.module';
 import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
+import { CourseEnrollmentModule } from './course-enrollment/course-enrollment.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
     DomainsModule,
     ContentModule,
     LearningPathModule,
+    CourseEnrollmentModule,
     CertificateModule,
     GamificationModule,
     ForumModule,
