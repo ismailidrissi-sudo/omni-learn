@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NavToggles } from "@/components/ui/nav-toggles";
 import { ErrorBanner } from "@/components/ui/error-banner";

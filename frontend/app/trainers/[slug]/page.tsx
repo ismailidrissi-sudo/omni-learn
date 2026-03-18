@@ -98,7 +98,7 @@ export default function PublicTrainerProfilePage() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
           <h1 className="text-xl font-semibold text-brand-grey-dark mb-2">Profile not found</h1>
-          <p className="text-brand-grey text-sm mb-4">This trainer profile doesn't exist or hasn't been published yet.</p>
+          <p className="text-brand-grey text-sm mb-4">This trainer profile doesn&apos;t exist or hasn&apos;t been published yet.</p>
           <Link href="/trainers"><Button>Browse Trainers</Button></Link>
         </Card>
       </div>
