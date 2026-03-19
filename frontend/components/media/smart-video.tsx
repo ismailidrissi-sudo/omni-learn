@@ -68,13 +68,11 @@ export function SmartVideo({
   const [resolvedPoster, setResolvedPoster] = useState<string | undefined>(poster);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState('');
-  const [useEmbedFallback, setUseEmbedFallback] = useState(false);
 
   const attemptResolve = useCallback(() => {
     if (!detected.requiresResolution) return;
     setResolving(true);
     setResolveError('');
-    setUseEmbedFallback(false);
     apiFetch('/video/resolve', {
       method: 'POST',
       body: JSON.stringify({ url: src }),
@@ -117,7 +115,7 @@ export function SmartVideo({
       );
     }
 
-    if (resolveError && useEmbedFallback && detected.videoId) {
+    if (resolveError && detected.videoId) {
       return (
         <div>
           <div
@@ -125,7 +123,7 @@ export function SmartVideo({
             style={{ aspectRatio: '16/9' }}
           >
             <iframe
-              src={`https://www.youtube-nocookie.com/embed/${detected.videoId}?rel=0&modestbranding=1`}
+              src={`https://www.youtube-nocookie.com/embed/${detected.videoId}?rel=0&modestbranding=1&autoplay=1`}
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -140,30 +138,13 @@ export function SmartVideo({
     if (resolveError) {
       return (
         <div
-          className={`overflow-hidden rounded-none sm:rounded-lg bg-gray-900 flex flex-col items-center justify-center ${className}`}
+          className={`overflow-hidden rounded-none sm:rounded-lg bg-gray-900 flex items-center justify-center ${className}`}
           style={{ aspectRatio: '16/9' }}
         >
           <div className="text-center p-6">
-            <p className="text-white/80 text-sm">{resolveError}</p>
-            <p className="text-white/40 text-xs mt-2 mb-4">
+            <p className="text-white/40 text-sm">
               This video could not be loaded. It may be private, restricted, or unavailable.
             </p>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={attemptResolve}
-                className="px-4 py-2 text-xs font-medium rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                Retry
-              </button>
-              {detected.videoId && (
-                <button
-                  onClick={() => setUseEmbedFallback(true)}
-                  className="px-4 py-2 text-xs font-medium rounded-md bg-red-600/80 hover:bg-red-600 text-white transition-colors"
-                >
-                  Watch on YouTube Player
-                </button>
-              )}
-            </div>
           </div>
         </div>
       );
