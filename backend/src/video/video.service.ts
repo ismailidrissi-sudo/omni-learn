@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
+import { CourseEnrollmentService } from '../course-enrollment/course-enrollment.service';
 import { firstValueFrom } from 'rxjs';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 
@@ -13,6 +14,7 @@ export class VideoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly http: HttpService,
+    private readonly courseEnrollmentService: CourseEnrollmentService,
   ) {
     this.proxyUrl = process.env.VIDEO_PROXY_SERVICE_URL || 'http://localhost:5001';
     this.internalKey = process.env.INTERNAL_SERVICE_KEY || '';
@@ -214,6 +216,7 @@ export class VideoService {
   /**
    * When a video is completed, also mark the corresponding
    * CourseSectionItemProgress as COMPLETED if an enrollment exists.
+   * Delegates to CourseEnrollmentService so certificate auto-issuance is triggered.
    */
   async syncCompletionToCourseProgress(userId: string, contentId: string) {
     try {
@@ -229,39 +232,16 @@ export class VideoService {
       for (const enrollment of enrollments) {
         for (const ip of enrollment.itemProgress) {
           if (ip.status !== 'COMPLETED') {
-            await this.prisma.courseSectionItemProgress.update({
-              where: { id: ip.id },
-              data: {
-                status: 'COMPLETED',
-                completedAt: new Date(),
-              },
-            });
+            await this.courseEnrollmentService.updateItemProgress(
+              enrollment.id,
+              ip.sectionItemId,
+              { status: 'COMPLETED', completedAt: new Date() },
+            );
           }
         }
-
-        await this.recalculateCourseProgress(enrollment.id);
       }
     } catch (err) {
       this.logger.warn(`Failed to sync completion for ${contentId}: ${err}`);
     }
-  }
-
-  private async recalculateCourseProgress(enrollmentId: string) {
-    const items = await this.prisma.courseSectionItemProgress.findMany({
-      where: { enrollmentId },
-    });
-
-    if (items.length === 0) return;
-
-    const completed = items.filter((i) => i.status === 'COMPLETED').length;
-    const pct = Math.round((completed / items.length) * 100);
-
-    await this.prisma.courseEnrollment.update({
-      where: { id: enrollmentId },
-      data: {
-        progressPct: pct,
-        ...(pct >= 100 ? { status: 'COMPLETED', completedAt: new Date() } : {}),
-      },
-    });
   }
 }
