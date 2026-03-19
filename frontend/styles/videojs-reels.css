@@ -1,0 +1,69 @@
+/*
+ * OmniLearn.space Reels/Microlearning Video.js Theme
+ * Vertical TikTok-style player, no controls.
+ * omnilearn.space | Afflatus Consulting Group
+ */
+
+.vjs-reels-player {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.vjs-reels-player video {
+  object-fit: cover;
+}
+
+/* Remove ALL Video.js chrome in reels mode */
+.vjs-reels-player .vjs-control-bar,
+.vjs-reels-player .vjs-big-play-button,
+.vjs-reels-player .vjs-loading-spinner,
+.vjs-reels-player .vjs-text-track-display {
+  display: none !important;
+}
+
+/* ---- ANIMATIONS ---- */
+
+@keyframes omni-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes omni-bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes omni-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-omni-fade-in {
+  animation: omni-fade-in 0.2s ease-out;
+}
+
+.animate-omni-bounce-in {
+  animation: omni-bounce-in 0.4s ease-out;
+}
+
+.animate-omni-slide-up {
+  animation: omni-slide-up 0.3s ease-out;
+}

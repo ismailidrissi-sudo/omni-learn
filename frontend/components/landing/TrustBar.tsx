@@ -95,14 +95,14 @@ export function TrustBar() {
           {[...items, ...items].map((item, i) => (
             <div
               key={`${item.id}-${i}`}
-              className="flex items-center justify-center min-w-[140px] h-12 flex-shrink-0"
+              className="flex items-center justify-center min-w-[180px] h-20 flex-shrink-0"
             >
               {item.logoUrl ? (
                 <img
                   src={item.logoUrl}
                   alt={item.name}
                   title={item.name}
-                  className="h-9 w-auto max-w-[130px] object-contain object-center opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                  className="h-16 w-auto max-w-[170px] object-contain object-center transition-all duration-300 mix-blend-multiply dark:mix-blend-normal hover:scale-105"
                   loading="lazy"
                 />
               ) : (

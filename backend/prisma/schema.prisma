@@ -169,6 +169,7 @@ model User {
   seatAssignments          SeatAssignment[]
   contentUserAssignments   ContentUserAssignment[]
   trainerProfile           TrainerProfile?
+  videoWatchProgress       VideoWatchProgress[]
 }
 
 // ── TENANTS (rich company profile) ──
@@ -298,6 +299,10 @@ model ContentItem {
   sectorTag      String?     // Biotech, Food Safety, AI, etc. — for Specialist tier filtering
   tenantId       String?     // For Nexus: private enterprise content
   isFoundational Boolean    @default(false)  // Tagged for Explorer (Free) tier
+
+  videoIsMicrolearning Boolean  @default(false)
+  videoDurationSeconds Int?     // Precise duration in seconds for video content
+
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -377,6 +382,13 @@ model CourseSectionItem {
   durationMinutes Int?         // For VIDEO
   contentUrl    String?       // Video URL, document URL, etc.
   metadata      Json?         @default("{}")  // Quiz questions, article content, etc.
+
+  videoSourceType      String?   // 'youtube' | 'upload' | 'direct' | 'vimeo'
+  videoOriginalUrl     String?   // Original URL before resolution
+  videoStreamId        String?   // Resolved video stream ID for proxy
+  videoDurationSeconds Int?      // Precise duration in seconds
+  videoIsMicrolearning Boolean   @default(false)
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -832,6 +844,35 @@ model MicroLearningComment {
 
   @@index([contentId])
   @@index([userId])
+}
+
+// ── VIDEO WATCH PROGRESS (granular per-video tracking) ──
+
+model VideoWatchProgress {
+  id                      String    @id @default(uuid())
+  userId                  String
+  contentId               String
+  watchedSeconds          Float     @default(0)
+  totalDurationSeconds    Float     @default(0)
+  furthestPositionSeconds Float     @default(0)
+  watchPercentage         Float     @default(0)
+  isCompleted             Boolean   @default(false)
+  completedAt             DateTime?
+  completionThreshold     Float     @default(0.90)
+  playCount               Int       @default(0)
+  pauseCount              Int       @default(0)
+  seekCount               Int       @default(0)
+  replaySegments          Json      @default("[]")
+  lastPositionSeconds     Float     @default(0)
+  lastWatchedAt           DateTime  @default(now())
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@index([userId])
+  @@index([userId, isCompleted])
 }
 
 // ── SITE PAGES (admin-editable static pages: about, terms, privacy, etc.) ──

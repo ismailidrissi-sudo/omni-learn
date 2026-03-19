@@ -46,7 +46,39 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       LIGHTFM_SERVICE_URL: http://recommendations:5000
+      VIDEO_PROXY_SERVICE_URL: http://video-proxy:5001
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+    networks:
+      - omnilearn-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - omnilearn-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  video-proxy:
+    build:
+      context: ./video-proxy
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      YTDLP_MAX_QUALITY: ${YTDLP_MAX_QUALITY:-720p}
+      YTDLP_COOKIES_PATH: ${YTDLP_COOKIES_PATH:-}
+      VIDEO_CACHE_TTL_HOURS: "5"
+      PORT: "5001"
     networks:
       - omnilearn-net
 
@@ -105,6 +137,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   recommendations_data:
 
 networks:

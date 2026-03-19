@@ -1,15 +1,16 @@
 export type VideoProvider =
-  | "youtube"
-  | "vimeo"
-  | "dailymotion"
-  | "wistia"
-  | "direct";
+  | 'youtube'
+  | 'vimeo'
+  | 'dailymotion'
+  | 'wistia'
+  | 'direct';
 
 export interface VideoProviderResult {
   provider: VideoProvider;
   embedUrl: string;
   videoId: string;
   thumbnailUrl?: string;
+  requiresResolution: boolean;
 }
 
 const YOUTUBE_PATTERNS = [
@@ -32,7 +33,7 @@ const WISTIA_PATTERNS = [
 ];
 
 export function detectProvider(url: string): VideoProviderResult {
-  if (!url) return { provider: "direct", embedUrl: url, videoId: "" };
+  if (!url) return { provider: 'direct', embedUrl: url, videoId: '', requiresResolution: false };
 
   const trimmed = url.trim();
 
@@ -41,10 +42,11 @@ export function detectProvider(url: string): VideoProviderResult {
     if (match?.[1]) {
       const videoId = match[1];
       return {
-        provider: "youtube",
+        provider: 'youtube',
         videoId,
-        embedUrl: `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1&modestbranding=1`,
+        embedUrl: trimmed,
         thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+        requiresResolution: true,
       };
     }
   }
@@ -54,9 +56,10 @@ export function detectProvider(url: string): VideoProviderResult {
     if (match?.[1]) {
       const videoId = match[1];
       return {
-        provider: "vimeo",
+        provider: 'vimeo',
         videoId,
         embedUrl: `https://player.vimeo.com/video/${videoId}`,
+        requiresResolution: false,
       };
     }
   }
@@ -66,10 +69,11 @@ export function detectProvider(url: string): VideoProviderResult {
     if (match?.[1]) {
       const videoId = match[1];
       return {
-        provider: "dailymotion",
+        provider: 'dailymotion',
         videoId,
         embedUrl: `https://www.dailymotion.com/embed/video/${videoId}`,
         thumbnailUrl: `https://www.dailymotion.com/thumbnail/video/${videoId}`,
+        requiresResolution: false,
       };
     }
   }
@@ -79,27 +83,28 @@ export function detectProvider(url: string): VideoProviderResult {
     if (match?.[1]) {
       const videoId = match[1];
       return {
-        provider: "wistia",
+        provider: 'wistia',
         videoId,
         embedUrl: `https://fast.wistia.net/embed/iframe/${videoId}`,
+        requiresResolution: false,
       };
     }
   }
 
-  return { provider: "direct", embedUrl: trimmed, videoId: "" };
+  return { provider: 'direct', embedUrl: trimmed, videoId: '', requiresResolution: false };
 }
 
 export function isExternalProvider(provider: VideoProvider): boolean {
-  return provider !== "direct";
+  return provider !== 'direct' && provider !== 'youtube';
 }
 
 export function getProviderLabel(provider: VideoProvider): string {
   const labels: Record<VideoProvider, string> = {
-    youtube: "YouTube",
-    vimeo: "Vimeo",
-    dailymotion: "Dailymotion",
-    wistia: "Wistia",
-    direct: "Direct URL",
+    youtube: 'YouTube',
+    vimeo: 'Vimeo',
+    dailymotion: 'Dailymotion',
+    wistia: 'Wistia',
+    direct: 'Direct URL',
   };
   return labels[provider];
 }

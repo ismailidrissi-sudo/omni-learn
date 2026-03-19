@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:video-proxy": "cd video-proxy && uvicorn main:app --host 0.0.0.0 --port 5001 --reload",
     "lint": "npm run lint -w frontend",
     "dev:frontend": "npm run dev -w frontend",
     "dev:backend": "npm run start:dev -w backend",

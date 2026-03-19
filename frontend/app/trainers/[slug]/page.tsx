@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { SmartVideo } from "@/components/media/smart-video";
 import { apiFetch } from "@/lib/api";
 
 interface ContentItem {
@@ -199,14 +200,7 @@ export default function PublicTrainerProfilePage() {
             {profile.featuredVideoUrl && (
               <Card className="p-6">
                 <h2 className="text-lg font-semibold text-brand-grey-dark mb-3">Featured Video</h2>
-                <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                  <iframe
-                    src={toEmbedUrl(profile.featuredVideoUrl)}
-                    className="w-full h-full"
-                    allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  />
-                </div>
+                <SmartVideo src={profile.featuredVideoUrl} title="Featured Video" />
               </Card>
             )}
 
@@ -406,19 +400,3 @@ export default function PublicTrainerProfilePage() {
   );
 }
 
-function toEmbedUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com") || u.hostname.includes("youtu.be")) {
-      const videoId = u.hostname.includes("youtu.be")
-        ? u.pathname.slice(1)
-        : u.searchParams.get("v");
-      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-    }
-    if (u.hostname.includes("vimeo.com")) {
-      const id = u.pathname.split("/").pop();
-      if (id) return `https://player.vimeo.com/video/${id}`;
-    }
-  } catch {}
-  return url;
-}

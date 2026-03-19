@@ -11,6 +11,7 @@ export interface VideoProviderResult {
   videoId: string;
   thumbnailUrl?: string;
   valid: boolean;
+  requiresResolution: boolean;
 }
 
 const YOUTUBE_PATTERNS = [
@@ -34,7 +35,7 @@ const WISTIA_PATTERNS = [
 
 export function detectProvider(url: string): VideoProviderResult {
   if (!url || !url.trim()) {
-    return { provider: 'direct', embedUrl: '', videoId: '', valid: false };
+    return { provider: 'direct', embedUrl: '', videoId: '', valid: false, requiresResolution: false };
   }
 
   const trimmed = url.trim();
@@ -42,7 +43,7 @@ export function detectProvider(url: string): VideoProviderResult {
   try {
     new URL(trimmed);
   } catch {
-    return { provider: 'direct', embedUrl: trimmed, videoId: '', valid: false };
+    return { provider: 'direct', embedUrl: trimmed, videoId: '', valid: false, requiresResolution: false };
   }
 
   for (const pattern of YOUTUBE_PATTERNS) {
@@ -52,9 +53,10 @@ export function detectProvider(url: string): VideoProviderResult {
       return {
         provider: 'youtube',
         videoId,
-        embedUrl: `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1&modestbranding=1`,
+        embedUrl: trimmed,
         thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
         valid: true,
+        requiresResolution: true,
       };
     }
   }
@@ -68,6 +70,7 @@ export function detectProvider(url: string): VideoProviderResult {
         videoId,
         embedUrl: `https://player.vimeo.com/video/${videoId}`,
         valid: true,
+        requiresResolution: false,
       };
     }
   }
@@ -82,6 +85,7 @@ export function detectProvider(url: string): VideoProviderResult {
         embedUrl: `https://www.dailymotion.com/embed/video/${videoId}`,
         thumbnailUrl: `https://www.dailymotion.com/thumbnail/video/${videoId}`,
         valid: true,
+        requiresResolution: false,
       };
     }
   }
@@ -95,9 +99,10 @@ export function detectProvider(url: string): VideoProviderResult {
         videoId,
         embedUrl: `https://fast.wistia.net/embed/iframe/${videoId}`,
         valid: true,
+        requiresResolution: false,
       };
     }
   }
 
-  return { provider: 'direct', embedUrl: trimmed, videoId: '', valid: true };
+  return { provider: 'direct', embedUrl: trimmed, videoId: '', valid: true, requiresResolution: false };
 }

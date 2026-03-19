@@ -393,7 +393,14 @@ export default function CoursePlayerPage() {
     switch (activeItem.itemType) {
       case "VIDEO":
         return url ? (
-          <SmartVideo src={url} title={activeItem.title} onEnded={handleContentCompleted} />
+          <SmartVideo
+            src={url}
+            title={activeItem.title}
+            contentId={activeItem.id}
+            userId={user?.id}
+            onEnded={handleContentCompleted}
+            onComplete={() => {}}
+          />
         ) : (
           <EmptyState label="No video URL set" />
         );

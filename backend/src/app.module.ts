@@ -21,6 +21,7 @@ import { ReferralModule } from './referral/referral.module';
 import { NotificationModule } from './notification/notification.module';
 import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
 import { CourseEnrollmentModule } from './course-enrollment/course-enrollment.module';
+import { VideoModule } from './video/video.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { CourseEnrollmentModule } from './course-enrollment/course-enrollment.mo
     ReferralModule,
     NotificationModule,
     TrainerProfileModule,
+    VideoModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,131 @@
+/*
+ * OmniLearn.space Video.js Theme
+ * Zero YouTube branding. Clean, modern LMS aesthetic.
+ * omnilearn.space | Afflatus Consulting Group
+ */
+
+:root {
+  --omni-primary: #6366f1;
+  --omni-primary-hover: #818cf8;
+  --omni-bg-dark: #0f172a;
+  --omni-text: #f8fafc;
+  --omni-progress-bg: rgba(255, 255, 255, 0.15);
+  --omni-progress-played: var(--omni-primary);
+  --omni-progress-buffered: rgba(255, 255, 255, 0.3);
+}
+
+.vjs-omnilearn {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--omni-bg-dark);
+}
+
+.vjs-omnilearn .vjs-control-bar {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  height: 48px;
+  padding: 0 8px;
+}
+
+/* ---- PROGRESS BAR ---- */
+
+.vjs-omnilearn .vjs-progress-control {
+  position: absolute;
+  top: -14px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 14px;
+}
+
+.vjs-omnilearn .vjs-progress-holder {
+  margin: 0;
+  height: 4px;
+  transition: height 0.15s ease;
+}
+
+.vjs-omnilearn .vjs-progress-control:hover .vjs-progress-holder {
+  height: 8px;
+}
+
+.vjs-omnilearn .vjs-play-progress {
+  background: var(--omni-progress-played);
+}
+
+.vjs-omnilearn .vjs-play-progress::before {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  background: var(--omni-primary);
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.vjs-omnilearn .vjs-progress-control:hover .vjs-play-progress::before {
+  opacity: 1;
+}
+
+.vjs-omnilearn .vjs-load-progress {
+  background: var(--omni-progress-buffered);
+}
+
+/* ---- BIG PLAY BUTTON ---- */
+
+.vjs-omnilearn .vjs-big-play-button {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: var(--omni-primary);
+  line-height: 72px;
+  font-size: 2rem;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.vjs-omnilearn .vjs-big-play-button:hover {
+  background: var(--omni-primary-hover);
+  transform: scale(1.1);
+}
+
+/* ---- CONTROL BUTTONS ---- */
+
+.vjs-omnilearn .vjs-control {
+  color: var(--omni-text);
+  width: 40px;
+}
+
+.vjs-omnilearn .vjs-play-control {
+  width: 44px;
+}
+
+.vjs-omnilearn .vjs-volume-panel {
+  width: 100px;
+}
+
+/* ---- TIME DISPLAY ---- */
+
+.vjs-omnilearn .vjs-time-control {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  min-width: auto;
+  padding: 0 4px;
+}
+
+/* ---- SEEKING DISABLED MODE ---- */
+
+.vjs-omnilearn.vjs-seeking-disabled .vjs-progress-control {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.vjs-omnilearn.vjs-seeking-disabled .vjs-play-progress::before {
+  display: none;
+}

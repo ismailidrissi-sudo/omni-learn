@@ -14,6 +14,7 @@ import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
 import { track } from "@/lib/analytics";
 import { NavToggles } from "@/components/ui/nav-toggles";
+import { useUser } from "@/lib/use-user";
 
 import { apiFetch } from "@/lib/api";
 
@@ -36,6 +37,7 @@ type CurriculumSection = {
 export default function ContentPage() {
   const params = useParams();
   const { t } = useI18n();
+  const { user } = useUser();
   const id = params?.id as string;
   const [content, setContent] = useState<ContentItem | null>(null);
   const [curriculum, setCurriculum] = useState<CurriculumSection[]>([]);
@@ -85,7 +87,12 @@ export default function ContentPage() {
         return (
           <div className="space-y-6">
             {firstVideoItem?.contentUrl && (
-              <SmartVideo src={firstVideoItem.contentUrl} title={firstVideoItem.title} />
+              <SmartVideo
+                src={firstVideoItem.contentUrl}
+                title={firstVideoItem.title}
+                contentId={firstVideoItem.id}
+                userId={user?.id}
+              />
             )}
 
             <Link
@@ -138,6 +145,8 @@ export default function ContentPage() {
               hlsUrl={vid?.hlsUrl || vid?.videoUrl}
               poster={vid?.thumbnailUrl}
               title={content.title}
+              contentId={content.id}
+              userId={user?.id}
               adsEnabled={content.adsEnabled ?? false}
             />
           );
@@ -150,7 +159,14 @@ export default function ContentPage() {
         const videoUrl = pod?.videoUrl || "";
         if (videoUrl) {
           return (
-            <SmartVideo src={videoUrl} hlsUrl={videoUrl} poster={pod?.thumbnailUrl} title={content.title} />
+            <SmartVideo
+              src={videoUrl}
+              hlsUrl={videoUrl}
+              poster={pod?.thumbnailUrl}
+              title={content.title}
+              contentId={content.id}
+              userId={user?.id}
+            />
           );
         }
         if (audioUrl) {

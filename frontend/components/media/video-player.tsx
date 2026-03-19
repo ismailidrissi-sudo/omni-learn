@@ -1,11 +1,12 @@
-"use client";
-
-import { useEffect, useRef } from "react";
+'use client';
 
 /**
- * Video Player — HLS.js for adaptive streaming
- * omnilearn.space | Phase 2
+ * VideoPlayer — Thin wrapper around OmniLearnPlayer for backwards compatibility.
+ * All video playback now uses Video.js via OmniLearnPlayer.
+ * omnilearn.space | Afflatus Consulting Group
  */
+
+import OmniLearnPlayer from '@/components/video/OmniLearnPlayer';
 
 interface VideoPlayerProps {
   src: string;
@@ -20,46 +21,20 @@ export function VideoPlayer({
   src,
   hlsUrl,
   poster,
-  className = "",
+  className = '',
   onTimeUpdate,
   onEnded,
 }: VideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const isHls = hlsUrl || src.endsWith(".m3u8");
-    const url = hlsUrl || src;
-
-    if (isHls && typeof window !== "undefined") {
-      import("hls.js").then(({ default: Hls }) => {
-        if (Hls.isSupported()) {
-          const hls = new Hls();
-          hls.loadSource(url);
-          hls.attachMedia(video);
-          return () => hls.destroy();
-        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = url;
-        }
-      });
-    } else {
-      video.src = url;
-    }
-  }, [src, hlsUrl]);
-
   return (
-    <div className={`overflow-hidden rounded-none sm:rounded-lg bg-black ${className}`}>
-      <video
-        ref={videoRef}
-        className="w-full aspect-video"
-        controls
-        playsInline
-        poster={poster}
-        onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
-        onEnded={() => onEnded?.()}
-      />
-    </div>
+    <OmniLearnPlayer
+      streamEndpoint={hlsUrl || src}
+      contentId=""
+      poster={poster}
+      className={className}
+      onEnded={onEnded}
+      onProgressUpdate={
+        onTimeUpdate ? (p) => onTimeUpdate(p.lastPosition) : undefined
+      }
+    />
   );
 }
