@@ -110,6 +110,7 @@ export default function AdminCertificatesPage() {
   const [editElements, setEditElements] = useState<ElementsConfig>(DEFAULT_ELEMENTS);
   const [editSignatories, setEditSignatories] = useState<Signatory[]>([]);
   const [saving, setSaving] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const tenantId = user?.tenantId;
 
@@ -206,6 +207,7 @@ export default function AdminCertificatesPage() {
           <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
           <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
           <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
+          <Link href="/admin/settings/email"><Button variant="ghost" size="sm">Email</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
             <NavToggles />
           </div>
@@ -227,6 +229,35 @@ export default function AdminCertificatesPage() {
                   Customize certificate designs for each learning domain
                 </p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={backfilling}
+                onClick={async () => {
+                  setBackfilling(true);
+                  setError("");
+                  setSuccess("");
+                  try {
+                    const res = await apiFetch("/certificates/backfill", { method: "POST" });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setError(data?.message || "Backfill failed");
+                    } else {
+                      setSuccess(
+                        data.issued > 0
+                          ? `Issued ${data.issued} missing certificate${data.issued > 1 ? "s" : ""}${data.skipped > 0 ? ` (${data.skipped} skipped)` : ""}`
+                          : "All completed enrollments already have certificates"
+                      );
+                    }
+                  } catch {
+                    setError("Failed to run certificate backfill");
+                  } finally {
+                    setBackfilling(false);
+                  }
+                }}
+              >
+                {backfilling ? "Issuing..." : "Issue Missing Certificates"}
+              </Button>
             </div>
 
             {loading ? (
