@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
@@ -11,6 +11,8 @@ import { EnrollmentStatus } from '../constants/db.constant';
 
 @Injectable()
 export class CertificateService {
+  private readonly logger = new Logger(CertificateService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainsService: DomainsService,
@@ -266,5 +268,48 @@ export class CertificateService {
       },
       include: { domain: true },
     });
+  }
+
+  /** Issue missing certificates for all completed enrollments (admin, on-demand only) */
+  async backfillMissingCertificates() {
+    let issued = 0;
+    const errors: string[] = [];
+
+    const completedPathEnrollments = await this.prisma.pathEnrollment.findMany({
+      where: {
+        status: EnrollmentStatus.COMPLETED,
+        certificates: { none: {} },
+      },
+      select: { id: true },
+    });
+
+    for (const { id } of completedPathEnrollments) {
+      try {
+        await this.issueCertificate(id);
+        issued++;
+      } catch (err) {
+        errors.push(`path:${id}: ${err}`);
+      }
+    }
+
+    const completedCourseEnrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        status: EnrollmentStatus.COMPLETED,
+        certificates: { none: {} },
+      },
+      select: { id: true },
+    });
+
+    for (const { id } of completedCourseEnrollments) {
+      try {
+        await this.issueCourseEnrollmentCertificate(id);
+        issued++;
+      } catch (err) {
+        errors.push(`course:${id}: ${err}`);
+      }
+    }
+
+    this.logger.log(`Certificate backfill: ${issued} issued, ${errors.length} skipped`);
+    return { issued, skipped: errors.length, errors };
   }
 }
