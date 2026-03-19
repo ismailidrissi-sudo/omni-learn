@@ -6,7 +6,12 @@
  * omnilearn.space | Afflatus Consulting Group
  */
 
-import OmniLearnPlayer from '@/components/video/OmniLearnPlayer';
+import dynamic from 'next/dynamic';
+
+const OmniLearnPlayer = dynamic(
+  () => import('@/components/video/OmniLearnPlayer'),
+  { ssr: false },
+);
 
 interface VideoPlayerProps {
   src: string;

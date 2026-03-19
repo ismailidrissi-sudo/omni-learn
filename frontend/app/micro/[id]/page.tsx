@@ -6,9 +6,13 @@ import Link from 'next/link';
 import { useUser } from '@/lib/use-user';
 import { apiFetch } from '@/lib/api';
 import { toast } from '@/lib/use-toast';
-import MicrolearningReels, {
-  type MicrolearningItem,
-} from '@/components/video/MicrolearningReels';
+import dynamic from 'next/dynamic';
+import type { MicrolearningItem } from '@/components/video/MicrolearningReels';
+
+const MicrolearningReels = dynamic(
+  () => import('@/components/video/MicrolearningReels'),
+  { ssr: false },
+);
 
 type MicroItem = {
   id: string;

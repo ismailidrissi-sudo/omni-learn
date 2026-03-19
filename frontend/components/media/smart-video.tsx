@@ -1,10 +1,16 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { detectProvider, isExternalProvider } from '@/lib/video-provider';
 import { useI18n } from '@/lib/i18n/context';
 import { apiFetch } from '@/lib/api';
-import OmniLearnPlayer, { type WatchProgress } from '@/components/video/OmniLearnPlayer';
+import type { WatchProgress } from '@/components/video/OmniLearnPlayer';
+
+const OmniLearnPlayer = dynamic(
+  () => import('@/components/video/OmniLearnPlayer'),
+  { ssr: false },
+);
 
 interface SmartVideoProps {
   src: string;
