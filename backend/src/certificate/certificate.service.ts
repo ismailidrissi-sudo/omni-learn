@@ -19,7 +19,11 @@ export class CertificateService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    setTimeout(() => this.backfillMissingCertificates(), 5000);
+    setTimeout(() => {
+      this.backfillMissingCertificates().catch((err) =>
+        this.logger.error('Certificate backfill failed on startup', err),
+      );
+    }, 10000);
   }
 
   /**
@@ -29,40 +33,44 @@ export class CertificateService implements OnModuleInit {
   async backfillMissingCertificates() {
     let issued = 0;
 
-    const completedPathEnrollments = await this.prisma.pathEnrollment.findMany({
-      where: {
-        status: EnrollmentStatus.COMPLETED,
-        certificates: { none: {} },
-      },
-      include: { path: { include: { domain: true } } },
-    });
+    try {
+      const completedPathEnrollments = await this.prisma.pathEnrollment.findMany({
+        where: {
+          status: EnrollmentStatus.COMPLETED,
+          certificates: { none: {} },
+        },
+        include: { path: { include: { domain: true } } },
+      });
 
-    for (const enrollment of completedPathEnrollments) {
-      try {
-        await this.issueCertificate(enrollment.id);
-        issued++;
-        this.logger.log(`Backfilled path certificate for enrollment ${enrollment.id}`);
-      } catch (err) {
-        this.logger.warn(`Backfill skipped path enrollment ${enrollment.id}: ${err}`);
+      for (const enrollment of completedPathEnrollments) {
+        try {
+          await this.issueCertificate(enrollment.id);
+          issued++;
+          this.logger.log(`Backfilled path certificate for enrollment ${enrollment.id}`);
+        } catch (err) {
+          this.logger.warn(`Backfill skipped path enrollment ${enrollment.id}: ${err}`);
+        }
       }
-    }
 
-    const completedCourseEnrollments = await this.prisma.courseEnrollment.findMany({
-      where: {
-        status: EnrollmentStatus.COMPLETED,
-        certificates: { none: {} },
-      },
-      include: { course: { include: { domain: true } } },
-    });
+      const completedCourseEnrollments = await this.prisma.courseEnrollment.findMany({
+        where: {
+          status: EnrollmentStatus.COMPLETED,
+          certificates: { none: {} },
+        },
+        include: { course: { include: { domain: true } } },
+      });
 
-    for (const enrollment of completedCourseEnrollments) {
-      try {
-        await this.issueCourseEnrollmentCertificate(enrollment.id);
-        issued++;
-        this.logger.log(`Backfilled course certificate for enrollment ${enrollment.id}`);
-      } catch (err) {
-        this.logger.warn(`Backfill skipped course enrollment ${enrollment.id}: ${err}`);
+      for (const enrollment of completedCourseEnrollments) {
+        try {
+          await this.issueCourseEnrollmentCertificate(enrollment.id);
+          issued++;
+          this.logger.log(`Backfilled course certificate for enrollment ${enrollment.id}`);
+        } catch (err) {
+          this.logger.warn(`Backfill skipped course enrollment ${enrollment.id}: ${err}`);
+        }
       }
+    } catch (err) {
+      this.logger.error('Certificate backfill query failed', err);
     }
 
     this.logger.log(`Certificate backfill complete: ${issued} certificates issued`);
