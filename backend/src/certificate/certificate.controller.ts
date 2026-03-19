@@ -53,6 +53,12 @@ export class CertificateController {
     return this.certificateService.issueCourseEnrollmentCertificate(body.courseEnrollmentId, body.grade);
   }
 
+  @Post('backfill')
+  @UseGuards(AuthGuard('jwt'))
+  async backfillMissing() {
+    return this.certificateService.backfillMissingCertificates();
+  }
+
   @Get('verify/:code')
   async verify(@Param('code') code: string) {
     return this.certificateService.verifyCertificate(code);

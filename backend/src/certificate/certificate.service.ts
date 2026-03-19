@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
@@ -10,11 +10,64 @@ import { EnrollmentStatus } from '../constants/db.constant';
  */
 
 @Injectable()
-export class CertificateService {
+export class CertificateService implements OnModuleInit {
+  private readonly logger = new Logger(CertificateService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainsService: DomainsService,
   ) {}
+
+  async onModuleInit() {
+    setTimeout(() => this.backfillMissingCertificates(), 5000);
+  }
+
+  /**
+   * Find all completed path + course enrollments that have no certificate
+   * and issue one for each. Runs on startup and can be triggered via API.
+   */
+  async backfillMissingCertificates() {
+    let issued = 0;
+
+    const completedPathEnrollments = await this.prisma.pathEnrollment.findMany({
+      where: {
+        status: EnrollmentStatus.COMPLETED,
+        certificates: { none: {} },
+      },
+      include: { path: { include: { domain: true } } },
+    });
+
+    for (const enrollment of completedPathEnrollments) {
+      try {
+        await this.issueCertificate(enrollment.id);
+        issued++;
+        this.logger.log(`Backfilled path certificate for enrollment ${enrollment.id}`);
+      } catch (err) {
+        this.logger.warn(`Backfill skipped path enrollment ${enrollment.id}: ${err}`);
+      }
+    }
+
+    const completedCourseEnrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        status: EnrollmentStatus.COMPLETED,
+        certificates: { none: {} },
+      },
+      include: { course: { include: { domain: true } } },
+    });
+
+    for (const enrollment of completedCourseEnrollments) {
+      try {
+        await this.issueCourseEnrollmentCertificate(enrollment.id);
+        issued++;
+        this.logger.log(`Backfilled course certificate for enrollment ${enrollment.id}`);
+      } catch (err) {
+        this.logger.warn(`Backfill skipped course enrollment ${enrollment.id}: ${err}`);
+      }
+    }
+
+    this.logger.log(`Certificate backfill complete: ${issued} certificates issued`);
+    return { issued };
+  }
 
   /** Get or create domain-themed certificate template (template derived from Domain entity) */
   async getOrCreateTemplate(tenantId: string, domainId: string) {
