@@ -37,6 +37,7 @@ interface PathBuilderProps {
     name: string;
     domainId: string;
     description?: string;
+    isPublished?: boolean;
     steps?: Array<{
       id: string;
       contentItemId: string;
