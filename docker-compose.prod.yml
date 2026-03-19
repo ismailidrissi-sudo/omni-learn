@@ -77,8 +77,11 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
       YTDLP_MAX_QUALITY: ${YTDLP_MAX_QUALITY:-720p}
       YTDLP_COOKIES_PATH: ${YTDLP_COOKIES_PATH:-}
+      YTDLP_BROWSER_COOKIES: ${YTDLP_BROWSER_COOKIES:-}
       VIDEO_CACHE_TTL_HOURS: "5"
       PORT: "5001"
+    volumes:
+      - ./video-proxy/cookies:/app/cookies:ro
     networks:
       - omnilearn-net
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { detectProvider, isExternalProvider } from '@/lib/video-provider';
 import { useI18n } from '@/lib/i18n/context';
@@ -68,34 +68,39 @@ export function SmartVideo({
   const [resolvedPoster, setResolvedPoster] = useState<string | undefined>(poster);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState('');
+  const [useEmbedFallback, setUseEmbedFallback] = useState(false);
+
+  const attemptResolve = useCallback(() => {
+    if (!detected.requiresResolution) return;
+    setResolving(true);
+    setResolveError('');
+    setUseEmbedFallback(false);
+    apiFetch('/video/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ url: src }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to resolve video');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setResolvedEndpoint(data.streamEndpoint);
+        if (data.thumbnail && !poster) {
+          setResolvedPoster(`/video/thumbnail/${data.videoId}`);
+        }
+      })
+      .catch((err) => {
+        setResolveError(err.message || 'Video unavailable');
+      })
+      .finally(() => setResolving(false));
+  }, [src, detected.requiresResolution, poster]);
 
   useEffect(() => {
-    if (detected.requiresResolution) {
-      setResolving(true);
-      setResolveError('');
-      apiFetch('/video/resolve', {
-        method: 'POST',
-        body: JSON.stringify({ url: src }),
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.message || 'Failed to resolve video');
-          }
-          return res.json();
-        })
-        .then((data) => {
-          setResolvedEndpoint(data.streamEndpoint);
-          if (data.thumbnail && !poster) {
-            setResolvedPoster(`/video/thumbnail/${data.videoId}`);
-          }
-        })
-        .catch((err) => {
-          setResolveError(err.message || 'Video unavailable');
-        })
-        .finally(() => setResolving(false));
-    }
-  }, [src, detected.requiresResolution, poster]);
+    attemptResolve();
+  }, [attemptResolve]);
 
   if (detected.requiresResolution) {
     if (resolving) {
@@ -112,17 +117,53 @@ export function SmartVideo({
       );
     }
 
+    if (resolveError && useEmbedFallback && detected.videoId) {
+      return (
+        <div>
+          <div
+            className={`overflow-hidden rounded-none sm:rounded-lg ${className}`}
+            style={{ aspectRatio: '16/9' }}
+          >
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${detected.videoId}?rel=0&modestbranding=1`}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={_title || 'Video'}
+            />
+          </div>
+          {adsEnabled && <AdBanner />}
+        </div>
+      );
+    }
+
     if (resolveError) {
       return (
         <div
-          className={`overflow-hidden rounded-none sm:rounded-lg bg-gray-900 flex items-center justify-center ${className}`}
+          className={`overflow-hidden rounded-none sm:rounded-lg bg-gray-900 flex flex-col items-center justify-center ${className}`}
           style={{ aspectRatio: '16/9' }}
         >
           <div className="text-center p-6">
             <p className="text-white/80 text-sm">{resolveError}</p>
-            <p className="text-white/40 text-xs mt-2">
+            <p className="text-white/40 text-xs mt-2 mb-4">
               This video could not be loaded. It may be private, restricted, or unavailable.
             </p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={attemptResolve}
+                className="px-4 py-2 text-xs font-medium rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                Retry
+              </button>
+              {detected.videoId && (
+                <button
+                  onClick={() => setUseEmbedFallback(true)}
+                  className="px-4 py-2 text-xs font-medium rounded-md bg-red-600/80 hover:bg-red-600 text-white transition-colors"
+                >
+                  Watch on YouTube Player
+                </button>
+              )}
+            </div>
           </div>
         </div>
       );
