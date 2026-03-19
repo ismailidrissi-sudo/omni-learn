@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
 
 const footerLinks = [
   { href: "#story", labelKey: "landing.footer.story", isHash: true },
@@ -27,8 +28,14 @@ const linkClass =
 
 export function LandingFooter() {
   const { t } = useI18n();
+  const { user } = useUser();
   const pathname = usePathname();
   const isHome = pathname === "/";
+
+  const authHiddenHrefs = ["/signin", "/signup"];
+  const visibleLinks = user
+    ? footerLinks.filter((link) => !authHiddenHrefs.includes(link.href))
+    : footerLinks;
 
   return (
     <footer className="border-t border-[#D4B896]/30 dark:border-[#D4B896]/10 px-4 py-12 md:px-8">
@@ -40,7 +47,7 @@ export function LandingFooter() {
             </Link>
           </div>
           <div className="flex flex-wrap justify-center gap-6 md:gap-8">
-            {footerLinks.map((link) => {
+            {visibleLinks.map((link) => {
               const href = link.isHash && !isHome ? `/${link.href}` : link.href;
               if (link.isHash && isHome) {
                 return (

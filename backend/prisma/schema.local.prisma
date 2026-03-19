@@ -64,6 +64,10 @@ model User {
   isAdmin            Boolean   @default(false)
   trainerRequested   Boolean   @default(false)
   trainerApprovedAt  DateTime?
+  userType           String?              // TRAINEE | TRAINER | COMPANY_ADMIN
+  orgApprovalStatus  String    @default("NONE") // NONE | PENDING | APPROVED | REJECTED
+  companyAdminRequested  Boolean @default(false)
+  companyAdminApprovedAt DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

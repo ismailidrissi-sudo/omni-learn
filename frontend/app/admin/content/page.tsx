@@ -254,6 +254,7 @@ function AdminContentPageContent() {
       <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
       <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
       <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
+      <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
       <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
         <NavToggles />
       </div>

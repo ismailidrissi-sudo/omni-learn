@@ -10,6 +10,27 @@ import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
+type PathEnrollment = {
+  id: string;
+  pathId: string;
+  pathName: string;
+  domainName?: string | null;
+  domainColor?: string | null;
+  stepCount: number;
+  progressPct: number;
+  completedAt?: string | null;
+};
+
+type CourseEnrollmentProfile = {
+  id: string;
+  courseId: string;
+  courseName: string;
+  domainName?: string | null;
+  domainColor?: string | null;
+  progressPct: number;
+  completedAt?: string | null;
+};
+
 type ProfileData = {
   user: {
     id: string;
@@ -35,25 +56,10 @@ type ProfileData = {
     linkedinProfileUrl?: string | null;
     industry?: { id: string; name: string; code: string } | null;
   } | null;
-  completedCourses: {
-    id: string;
-    pathId: string;
-    pathName: string;
-    domainName?: string | null;
-    domainColor?: string | null;
-    stepCount: number;
-    progressPct: number;
-    completedAt?: string | null;
-  }[];
-  activeCourses: {
-    id: string;
-    pathId: string;
-    pathName: string;
-    domainName?: string | null;
-    domainColor?: string | null;
-    stepCount: number;
-    progressPct: number;
-  }[];
+  completedPaths: PathEnrollment[];
+  activePaths: PathEnrollment[];
+  completedCourses: CourseEnrollmentProfile[];
+  activeCourses: CourseEnrollmentProfile[];
   certificates: {
     id: string;
     verifyCode: string;
@@ -63,6 +69,8 @@ type ProfileData = {
     domainName?: string | null;
     templateName?: string | null;
     pathName?: string | null;
+    courseName?: string | null;
+    certType?: "path" | "course";
   }[];
   gamification: {
     points: number;
@@ -214,8 +222,12 @@ export default function ProfilePage() {
 
   const plan = PLAN_LABELS[p?.user?.planId ?? user.planId] ?? PLAN_LABELS.EXPLORER;
   const memberSince = formatDate(p?.user?.createdAt);
-  const totalCompleted = p?.completedCourses?.length ?? 0;
-  const totalActive = p?.activeCourses?.length ?? 0;
+  const totalCompletedPaths = p?.completedPaths?.length ?? 0;
+  const totalActivePaths = p?.activePaths?.length ?? 0;
+  const totalCompletedCourses = p?.completedCourses?.length ?? 0;
+  const totalActiveCourses = p?.activeCourses?.length ?? 0;
+  const totalCompleted = totalCompletedPaths + totalCompletedCourses;
+  const totalActive = totalActivePaths + totalActiveCourses;
   const totalCerts = p?.certificates?.length ?? 0;
 
   const TABS = [
@@ -556,31 +568,58 @@ export default function ProfilePage() {
 
             {activeTab === "courses" && (
               <div className="space-y-6">
-                {/* Active Courses */}
+                {/* In Progress */}
                 <SectionCard title="In Progress" icon="📖" count={totalActive}>
                   {totalActive > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {p?.activeCourses?.map((course) => (
-                        <div key={course.id} className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
-                          {course.domainName && (
-                            <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
-                              {course.domainName}
-                            </span>
-                          )}
-                          <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-2 line-clamp-2">
-                            {course.pathName}
-                          </p>
-                          <div className="flex items-center justify-between text-[11px] text-[var(--color-text-secondary)] mb-2">
-                            <span>{course.stepCount} steps</span>
-                            <span className="font-semibold text-brand-green">{course.progressPct}%</span>
+                      {p?.activePaths?.map((item) => (
+                        <Link key={`path-${item.id}`} href={`/learn?path=${item.pathId}`} className="block">
+                          <div className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-xs">🛤️</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Path</span>
+                            </div>
+                            {item.domainName && (
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
+                                {item.domainName}
+                              </span>
+                            )}
+                            <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-2 line-clamp-2">
+                              {item.pathName}
+                            </p>
+                            <div className="flex items-center justify-between text-[11px] text-[var(--color-text-secondary)] mb-2">
+                              <span>{item.stepCount} steps</span>
+                              <span className="font-semibold text-brand-green">{item.progressPct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-brand-green/10 rounded-full overflow-hidden">
+                              <div className="h-full bg-brand-green rounded-full transition-all" style={{ width: `${item.progressPct}%` }} />
+                            </div>
                           </div>
-                          <div className="h-1.5 bg-brand-green/10 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-brand-green rounded-full transition-all"
-                              style={{ width: `${course.progressPct}%` }}
-                            />
+                        </Link>
+                      ))}
+                      {p?.activeCourses?.map((item) => (
+                        <Link key={`course-${item.id}`} href={`/course/${item.courseId}`} className="block">
+                          <div className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-xs">📚</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Course</span>
+                            </div>
+                            {item.domainName && (
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
+                                {item.domainName}
+                              </span>
+                            )}
+                            <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-2 line-clamp-2">
+                              {item.courseName}
+                            </p>
+                            <div className="flex items-center justify-between text-[11px] text-[var(--color-text-secondary)] mb-2">
+                              <span className="font-semibold text-brand-green">{item.progressPct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-brand-green/10 rounded-full overflow-hidden">
+                              <div className="h-full bg-brand-green rounded-full transition-all" style={{ width: `${item.progressPct}%` }} />
+                            </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   ) : (
@@ -588,24 +627,52 @@ export default function ProfilePage() {
                   )}
                 </SectionCard>
 
-                {/* Completed Courses */}
+                {/* Completed */}
                 <SectionCard title="Completed" icon="✅" count={totalCompleted}>
                   {totalCompleted > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {p?.completedCourses?.map((course) => (
-                        <div key={course.id} className="p-4 rounded-xl border border-brand-green/20 bg-brand-green/5">
-                          {course.domainName && (
+                      {p?.completedPaths?.map((item) => (
+                        <div key={`path-${item.id}`} className="p-4 rounded-xl border border-brand-green/20 bg-brand-green/5">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs">🛤️</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Path</span>
+                          </div>
+                          {item.domainName && (
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
-                              {course.domainName}
+                              {item.domainName}
                             </span>
                           )}
                           <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-2 line-clamp-2">
-                            {course.pathName}
+                            {item.pathName}
                           </p>
                           <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                            <span>{course.stepCount} steps</span>
+                            <span>{item.stepCount} steps</span>
                             <span className="text-brand-green font-medium">
-                              Completed {formatDate(course.completedAt)}
+                              Completed {formatDate(item.completedAt)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-brand-green/20 rounded-full overflow-hidden mt-2">
+                            <div className="h-full bg-brand-green rounded-full w-full" />
+                          </div>
+                        </div>
+                      ))}
+                      {p?.completedCourses?.map((item) => (
+                        <div key={`course-${item.id}`} className="p-4 rounded-xl border border-brand-green/20 bg-brand-green/5">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs">📚</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Course</span>
+                          </div>
+                          {item.domainName && (
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
+                              {item.domainName}
+                            </span>
+                          )}
+                          <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-2 line-clamp-2">
+                            {item.courseName}
+                          </p>
+                          <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                            <span className="text-brand-green font-medium">
+                              Completed {formatDate(item.completedAt)}
                             </span>
                           </div>
                           <div className="h-1.5 bg-brand-green/20 rounded-full overflow-hidden mt-2">
@@ -649,8 +716,13 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <p className="font-semibold text-[var(--color-text-primary)] mb-1">
-                          {cert.templateName ?? cert.pathName ?? "Certificate"}
+                          {cert.templateName ?? cert.pathName ?? cert.courseName ?? "Certificate"}
                         </p>
+                        {cert.certType && (
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                            {cert.certType === "path" ? "🛤️ Path" : "📚 Course"} Certificate
+                          </span>
+                        )}
                         {cert.domainName && (
                           <p className="text-xs text-brand-green font-medium mb-2">{cert.domainName}</p>
                         )}
@@ -678,7 +750,7 @@ export default function ProfilePage() {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState icon="🎓" message="No certificates issued yet. Complete learning paths to earn certificates." />
+                  <EmptyState icon="🎓" message="No certificates issued yet. Complete learning paths or courses to earn certificates." />
                 )}
               </SectionCard>
             )}

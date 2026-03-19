@@ -20,6 +20,9 @@ interface ContentCardProps {
   description?: string | null;
   durationMinutes?: number | null;
   href?: string;
+  enrolled?: boolean;
+  progressPct?: number;
+  onEnroll?: () => void;
 }
 
 export function ContentCard({
@@ -29,9 +32,13 @@ export function ContentCard({
   description,
   durationMinutes,
   href,
+  enrolled,
+  progressPct,
+  onEnroll,
 }: ContentCardProps) {
   const meta = TYPE_META[type] ?? { icon: "📎", label: type, color: "#C4A574" };
-  const link = href ?? `/content/${id}`;
+  const isCourse = type === "COURSE";
+  const link = href ?? (isCourse && enrolled ? `/course/${id}` : `/content/${id}`);
 
   return (
     <Link
@@ -39,12 +46,20 @@ export function ContentCard({
       className="group flex flex-col min-w-[220px] max-w-[260px] rounded-xl border border-[var(--color-bg-secondary)] bg-[var(--color-bg-primary)] hover:shadow-lg hover:border-brand-green/40 transition-all duration-200 overflow-hidden"
     >
       <div
-        className="h-28 flex items-center justify-center text-4xl"
+        className="h-28 flex items-center justify-center text-4xl relative"
         style={{ background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}08)` }}
       >
         <span className="group-hover:scale-110 transition-transform duration-200">
           {meta.icon}
         </span>
+        {isCourse && !enrolled && onEnroll && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEnroll(); }}
+            className="absolute top-2 right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-brand-green text-white shadow-md hover:bg-brand-green/90 transition-colors"
+          >
+            Enroll
+          </button>
+        )}
       </div>
       <div className="p-4 flex flex-col flex-1">
         <span
@@ -68,6 +83,35 @@ export function ContentCard({
             </span>
           )}
         </div>
+
+        {isCourse && enrolled && progressPct != null && (
+          <div className="mt-2">
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-[var(--color-text-secondary)]">Progress</span>
+              <span className="font-semibold text-brand-green">{progressPct}%</span>
+            </div>
+            <div className="h-1.5 bg-brand-green/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-green rounded-full transition-all duration-300"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {isCourse && (
+          <div className="mt-2">
+            {enrolled ? (
+              <span className="text-xs font-semibold text-brand-green">
+                Continue Learning →
+              </span>
+            ) : !onEnroll ? (
+              <span className="text-xs font-semibold text-brand-green">
+                View Course →
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
     </Link>
   );

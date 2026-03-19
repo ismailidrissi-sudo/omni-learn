@@ -11,6 +11,7 @@ import { useUser } from "@/lib/use-user";
 const adminSections = [
   { href: "branding", icon: "🎨", titleKey: "adminTenant.brandingStudio", descKey: "adminTenant.brandingStudioDesc" },
   { href: "users", icon: "👥", titleKey: "adminTenant.userManagement", descKey: "adminTenant.userManagementDesc" },
+  { href: "affiliations", icon: "🤝", titleKey: "adminTenant.affiliationRequests", descKey: "adminTenant.affiliationRequestsDesc" },
   { href: "groups", icon: "🏢", titleKey: "adminTenant.groupsDepartments", descKey: "adminTenant.groupsDepartmentsDesc" },
   { href: "compliance", icon: "📋", titleKey: "adminTenant.complianceTraining", descKey: "adminTenant.complianceTrainingDesc" },
   { href: "team", icon: "📊", titleKey: "adminTenant.managerDashboard", descKey: "adminTenant.managerDashboardDesc" },

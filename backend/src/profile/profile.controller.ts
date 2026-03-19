@@ -14,7 +14,7 @@ import { RbacRole } from '../constants/rbac.constant';
 export class ProfileController {
   constructor(private readonly profile: ProfileService) {}
 
-  /** Complete user profile (company, sector, department, position, LinkedIn) — requires auth */
+  /** Complete user profile (company, sector, department, position, LinkedIn, userType) — requires auth */
   @Post('complete')
   @UseGuards(AuthGuard('jwt'))
   async completeProfile(
@@ -28,6 +28,7 @@ export class ProfileController {
       positionId?: string;
       linkedinProfileUrl?: string;
       sectorFocus?: string;
+      userType?: string;
     },
   ) {
     const userId = req.user?.sub;
@@ -113,5 +114,54 @@ export class ProfileController {
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
   async rejectTrainer(@Param('userId') userId: string) {
     return this.profile.rejectTrainer(userId);
+  }
+
+  /** List pending org affiliation requests for a tenant (company admin / super admin) */
+  @Get('org-affiliation-requests')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async getPendingOrgAffiliations(@Query('tenantId') tenantId: string) {
+    if (!tenantId) throw new BadRequestException('tenantId query parameter is required');
+    return this.profile.getPendingOrgAffiliations(tenantId);
+  }
+
+  /** Approve a user's organization affiliation (company admin / super admin) */
+  @Patch('users/:userId/org-approve')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async approveOrgAffiliation(@Param('userId') userId: string) {
+    return this.profile.approveOrgAffiliation(userId);
+  }
+
+  /** Reject a user's organization affiliation (company admin / super admin) */
+  @Patch('users/:userId/org-reject')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async rejectOrgAffiliation(@Param('userId') userId: string) {
+    return this.profile.rejectOrgAffiliation(userId);
+  }
+
+  /** List pending company admin requests (platform admin only) */
+  @Get('company-admin-requests')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async getPendingCompanyAdminRequests() {
+    return this.profile.getPendingCompanyAdminRequests();
+  }
+
+  /** Approve a user as company admin (platform admin only) */
+  @Patch('users/:userId/company-admin-approve')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async approveCompanyAdmin(@Param('userId') userId: string) {
+    return this.profile.approveCompanyAdmin(userId);
+  }
+
+  /** Reject company admin request (platform admin only) */
+  @Patch('users/:userId/company-admin-reject')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async rejectCompanyAdmin(@Param('userId') userId: string) {
+    return this.profile.rejectCompanyAdmin(userId);
   }
 }

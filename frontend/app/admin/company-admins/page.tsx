@@ -10,11 +10,17 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 
-type PendingTrainer = { id: string; email: string; name: string; createdAt: string };
+type PendingAdmin = {
+  id: string;
+  email: string;
+  name: string;
+  tenantId: string | null;
+  createdAt: string;
+};
 
-export default function AdminTrainersPage() {
+export default function AdminCompanyAdminsPage() {
   const { t } = useI18n();
-  const [pending, setPending] = useState<PendingTrainer[]>([]);
+  const [pending, setPending] = useState<PendingAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
@@ -22,10 +28,10 @@ export default function AdminTrainersPage() {
   const load = () => {
     setLoading(true);
     setError("");
-    apiFetch("/profile/trainer-requests")
+    apiFetch("/profile/company-admin-requests")
       .then((r) => r.json())
       .then(setPending)
-      .catch(() => setError("Failed to load trainer requests."))
+      .catch(() => setError("Failed to load company admin requests."))
       .finally(() => setLoading(false));
   };
 
@@ -35,7 +41,7 @@ export default function AdminTrainersPage() {
 
   const approve = (userId: string) => {
     setActingId(userId);
-    apiFetch(`/profile/users/${userId}/trainer-approve`, { method: "PATCH" })
+    apiFetch(`/profile/users/${userId}/company-admin-approve`, { method: "PATCH" })
       .then(() => load())
       .catch(() => setError("Failed to approve."))
       .finally(() => setActingId(null));
@@ -43,7 +49,7 @@ export default function AdminTrainersPage() {
 
   const reject = (userId: string) => {
     setActingId(userId);
-    apiFetch(`/profile/users/${userId}/trainer-reject`, { method: "PATCH" })
+    apiFetch(`/profile/users/${userId}/company-admin-reject`, { method: "PATCH" })
       .then(() => load())
       .catch(() => setError("Failed to reject."))
       .finally(() => setActingId(null));
@@ -76,8 +82,8 @@ export default function AdminTrainersPage() {
           <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
           <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
           <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
-          <Link href="/admin/trainers"><Button variant="primary" size="sm">Trainer requests</Button></Link>
-          <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
+          <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
+          <Link href="/admin/company-admins"><Button variant="primary" size="sm">Company Admin requests</Button></Link>
           <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
             <NavToggles />
           </div>
@@ -85,9 +91,9 @@ export default function AdminTrainersPage() {
       </header>
 
       <main className="max-w-3xl mx-auto p-6">
-        <h1 className="text-2xl font-bold text-brand-grey-dark mb-2">Trainer requests</h1>
+        <h1 className="text-2xl font-bold text-brand-grey-dark mb-2">Company Admin requests</h1>
         <p className="text-brand-grey text-sm mb-6">
-          Users who requested access to create content. Approve to grant trainer (instructor) access.
+          Users who requested company admin access. Approve to grant them organization management rights.
         </p>
 
         {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
@@ -98,7 +104,7 @@ export default function AdminTrainersPage() {
           </CardHeader>
           <CardContent>
             {pending.length === 0 ? (
-              <p className="text-brand-grey text-sm">No pending trainer requests.</p>
+              <p className="text-brand-grey text-sm">No pending company admin requests.</p>
             ) : (
               <ul className="space-y-4">
                 {pending.map((u) => (
@@ -107,7 +113,7 @@ export default function AdminTrainersPage() {
                     className="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-brand-grey-light/50 last:border-0"
                   >
                     <div>
-                      <p className="font-medium text-brand-grey-dark">{u.name || "—"}</p>
+                      <p className="font-medium text-brand-grey-dark">{u.name || "\u2014"}</p>
                       <p className="text-sm text-brand-grey">{u.email}</p>
                       <p className="text-xs text-brand-grey mt-1">
                         Requested {new Date(u.createdAt).toLocaleDateString()}

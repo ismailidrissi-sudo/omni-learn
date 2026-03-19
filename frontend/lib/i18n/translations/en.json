@@ -51,7 +51,9 @@
       "pricing": "Pricing",
       "signIn": "Sign In",
       "signUp": "Sign Up",
-      "bookDemo": "Join the Space"
+      "bookDemo": "Join the Space",
+      "signOut": "Sign Out",
+      "myLearning": "My Learning"
     },
     "hero": {
       "headline1": "The Platform That",
@@ -639,6 +641,8 @@
     "brandingStudioDesc": "Customize logo, colors, and appearance",
     "userManagement": "User Management",
     "userManagementDesc": "Manage learners, roles, and bulk import",
+    "affiliationRequests": "Affiliation Requests",
+    "affiliationRequestsDesc": "Review and approve users requesting to join your organization",
     "groups": "Groups",
     "groupsDepartments": "Groups & Departments",
     "groupsDepartmentsDesc": "Organize users into teams and cohorts",

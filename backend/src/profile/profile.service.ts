@@ -22,12 +22,19 @@ export class ProfileService {
       positionId?: string;
       linkedinProfileUrl?: string;
       sectorFocus?: string;
+      userType?: string;
     },
   ) {
-    let tenantId = data.tenantId;
+    const userType = data.userType as 'TRAINEE' | 'TRAINER' | 'COMPANY_ADMIN' | undefined;
 
-    // If company name provided and no tenant, create or find tenant
-    if (data.companyName && !tenantId) {
+    if (userType === 'TRAINEE' && data.companyName && !data.tenantId) {
+      throw new BadRequestException('Trainees cannot create new organizations. Please select an existing one or leave it empty.');
+    }
+
+    let tenantId = data.tenantId;
+    let createdNewOrg = false;
+
+    if (data.companyName && !tenantId && (userType === 'TRAINER' || userType === 'COMPANY_ADMIN')) {
       const slug = data.companyName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -51,7 +58,13 @@ export class ProfileService {
           },
         });
         tenantId = created.id;
+        createdNewOrg = true;
       }
+    }
+
+    let orgApprovalStatus: string = 'NONE';
+    if (tenantId) {
+      orgApprovalStatus = createdNewOrg ? 'APPROVED' : 'PENDING';
     }
 
     const linkedinUrl = data.linkedinProfileUrl?.trim();
@@ -59,16 +72,27 @@ export class ProfileService {
       throw new BadRequestException('Invalid LinkedIn profile URL');
     }
 
+    const updateData: Record<string, unknown> = {
+      tenantId: tenantId ?? undefined,
+      departmentId: data.departmentId ?? undefined,
+      positionId: data.positionId ?? undefined,
+      linkedinProfileUrl: linkedinUrl || undefined,
+      sectorFocus: data.sectorFocus ?? undefined,
+      profileComplete: true,
+      userType: userType ?? undefined,
+      orgApprovalStatus,
+    };
+
+    if (userType === 'TRAINER') {
+      updateData.trainerRequested = true;
+    }
+    if (userType === 'COMPANY_ADMIN') {
+      updateData.companyAdminRequested = true;
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        tenantId: tenantId ?? undefined,
-        departmentId: data.departmentId ?? undefined,
-        positionId: data.positionId ?? undefined,
-        linkedinProfileUrl: linkedinUrl || undefined,
-        sectorFocus: data.sectorFocus ?? undefined,
-        profileComplete: true,
-      },
+      data: updateData,
     });
 
     return { user, message: 'Profile completed' };
@@ -195,6 +219,10 @@ export class ProfileService {
         profileComplete: user.profileComplete,
         isAdmin: user.isAdmin,
         trainerApprovedAt: user.trainerApprovedAt,
+        userType: user.userType,
+        orgApprovalStatus: user.orgApprovalStatus,
+        companyAdminRequested: user.companyAdminRequested,
+        companyAdminApprovedAt: user.companyAdminApprovedAt,
         createdAt: user.createdAt,
       },
       department: user.department,
@@ -396,5 +424,76 @@ export class ProfileService {
       data: { trainerRequested: false, trainerApprovedAt: null },
     });
     return { success: true, message: 'Trainer request rejected' };
+  }
+
+  /** List users pending org affiliation approval for a given tenant (company admin) */
+  async getPendingOrgAffiliations(tenantId: string) {
+    return this.prisma.user.findMany({
+      where: { tenantId, orgApprovalStatus: 'PENDING' },
+      select: { id: true, email: true, name: true, userType: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** Approve a user's organization affiliation (company admin) */
+  async approveOrgAffiliation(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.orgApprovalStatus !== 'PENDING') {
+      throw new BadRequestException('No pending affiliation request for this user');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { orgApprovalStatus: 'APPROVED' },
+    });
+    return { success: true, message: 'Organization affiliation approved' };
+  }
+
+  /** Reject a user's organization affiliation — clears tenantId (company admin) */
+  async rejectOrgAffiliation(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.orgApprovalStatus !== 'PENDING') {
+      throw new BadRequestException('No pending affiliation request for this user');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { orgApprovalStatus: 'REJECTED', tenantId: null },
+    });
+    return { success: true, message: 'Organization affiliation rejected' };
+  }
+
+  /** List users who requested company admin role and are pending platform admin approval */
+  async getPendingCompanyAdminRequests() {
+    return this.prisma.user.findMany({
+      where: { companyAdminRequested: true, companyAdminApprovedAt: null },
+      select: { id: true, email: true, name: true, tenantId: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** Approve a user as company admin — grants COMPANY_ADMIN role (platform admin only) */
+  async approveCompanyAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (!user.companyAdminRequested) {
+      throw new BadRequestException('User has not requested company admin access');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { companyAdminApprovedAt: new Date() },
+    });
+    return { success: true, message: 'Company admin approved' };
+  }
+
+  /** Reject company admin request (platform admin only) */
+  async rejectCompanyAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { companyAdminRequested: false, companyAdminApprovedAt: null },
+    });
+    return { success: true, message: 'Company admin request rejected' };
   }
 }

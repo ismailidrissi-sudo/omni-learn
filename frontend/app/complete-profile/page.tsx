@@ -30,6 +30,7 @@ export default function CompleteProfilePage() {
   const [options, setOptions] = useState<Options | null>(null);
   const [step, setStep] = useState(0);
 
+  const [userType, setUserType] = useState<"TRAINEE" | "TRAINER" | "COMPANY_ADMIN" | "">("");
   const [tenantId, setTenantId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
@@ -90,6 +91,7 @@ export default function CompleteProfilePage() {
           positionId: positionId || undefined,
           linkedinProfileUrl: linkedinProfileUrl || undefined,
           sectorFocus: sectorFocus || undefined,
+          userType: userType || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -107,8 +109,10 @@ export default function CompleteProfilePage() {
 
   if (!mounted || !token) return null;
 
+  const canCreateOrg = userType === "TRAINER" || userType === "COMPANY_ADMIN";
+
   const canAdvance = (s: number) => {
-    if (s === 0) return !!(tenantId || companyName) && !!industryId;
+    if (s === 0) return !!userType && !!industryId;
     if (s === 1) return !!departmentId && !!positionId;
     return true;
   };
@@ -198,7 +202,40 @@ export default function CompleteProfilePage() {
                 >
                   <div>
                     <label className={labelCls}>
-                      Your organization <span className="text-[#059669]">*</span>
+                      I am a <span className="text-[#059669]">*</span>
+                    </label>
+                    <select
+                      value={userType}
+                      onChange={(e) => {
+                        const val = e.target.value as typeof userType;
+                        setUserType(val);
+                        if (val === "TRAINEE") {
+                          setCompanyName("");
+                          setCompanyLogoUrl("");
+                        }
+                      }}
+                      className={selectCls}
+                    >
+                      <option value="">Select your role</option>
+                      <option value="TRAINEE">Trainee</option>
+                      <option value="TRAINER">Trainer</option>
+                      <option value="COMPANY_ADMIN">Company Admin</option>
+                    </select>
+                    {userType === "TRAINER" && (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Trainer access requires platform admin approval
+                      </p>
+                    )}
+                    {userType === "COMPANY_ADMIN" && (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Company admin access requires platform admin approval
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>
+                      Your organization
                     </label>
                     <select
                       value={tenantId}
@@ -209,7 +246,9 @@ export default function CompleteProfilePage() {
                       className={selectCls}
                     >
                       <option value="">
-                        Select existing company or enter new below
+                        {canCreateOrg
+                          ? "Select existing company or enter new below"
+                          : "Select an organization (optional)"}
                       </option>
                       {options?.tenants?.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -217,14 +256,18 @@ export default function CompleteProfilePage() {
                         </option>
                       ))}
                     </select>
+                    {tenantId && userType && (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Your affiliation will be reviewed by the company admin
+                      </p>
+                    )}
                   </div>
 
-                  {!tenantId && (
+                  {!tenantId && canCreateOrg && (
                     <>
                       <div>
                         <label className={labelCls}>
-                          Company name (if new){" "}
-                          <span className="text-[#059669]">*</span>
+                          Company name (if new)
                         </label>
                         <input
                           type="text"
@@ -421,7 +464,7 @@ export default function CompleteProfilePage() {
                     if (!canAdvance(step)) {
                       setError(
                         step === 0
-                          ? "Please select or enter your company and industry."
+                          ? "Please select your role and industry."
                           : "Please select your department and position."
                       );
                       return;

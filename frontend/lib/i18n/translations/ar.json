@@ -50,7 +50,9 @@
       "pricing": "التسعير",
       "signIn": "تسجيل الدخول",
       "signUp": "إنشاء حساب",
-      "bookDemo": "انضم إلى المساحة"
+      "bookDemo": "انضم إلى المساحة",
+      "signOut": "تسجيل الخروج",
+      "myLearning": "تعلّمي"
     },
     "hero": {
       "headline1": "كل مهارة.",
@@ -509,6 +511,8 @@
     "brandingStudioDesc": "تخصيص الشعار والألوان والمظهر",
     "userManagement": "إدارة المستخدمين",
     "userManagementDesc": "إدارة المتعلمين والأدوار والاستيراد الجماعي",
+    "affiliationRequests": "طلبات الانتساب",
+    "affiliationRequestsDesc": "مراجعة والموافقة على المستخدمين الذين يرغبون في الانضمام إلى مؤسستك",
     "groupsDepartments": "المجموعات والأقسام",
     "groupsDepartmentsDesc": "تنظيم المستخدمين في فرق ودفعات",
     "complianceTraining": "الامتثال والتدريب",

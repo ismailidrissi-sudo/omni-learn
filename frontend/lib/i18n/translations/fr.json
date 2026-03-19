@@ -51,7 +51,9 @@
       "pricing": "Tarifs",
       "signIn": "Connexion",
       "signUp": "Inscription",
-      "bookDemo": "Rejoignez l'espace"
+      "bookDemo": "Rejoignez l'espace",
+      "signOut": "Se déconnecter",
+      "myLearning": "Mon apprentissage"
     },
     "hero": {
       "headline1": "Chaque compétence.",
@@ -587,6 +589,8 @@
     "brandingStudioDesc": "Personnaliser le logo, les couleurs et l'apparence",
     "userManagement": "Gestion des utilisateurs",
     "userManagementDesc": "Gérer les apprenants, les rôles et l'import en masse",
+    "affiliationRequests": "Demandes d'affiliation",
+    "affiliationRequestsDesc": "Examiner et approuver les utilisateurs souhaitant rejoindre votre organisation",
     "groupsDepartments": "Groupes et départements",
     "groupsDepartmentsDesc": "Organiser les utilisateurs en équipes et cohortes",
     "complianceTraining": "Conformité et formation",

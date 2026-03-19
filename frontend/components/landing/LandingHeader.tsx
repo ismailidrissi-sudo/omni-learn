@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
+import { clearAuth } from "@/lib/api";
 
 const navLinks = [
   { href: "#story", labelKey: "landing.nav.story" },
@@ -18,9 +21,18 @@ const navLinks = [
 
 export function LandingHeader() {
   const { t } = useI18n();
+  const { user } = useUser();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
+
+  const handleSignOut = () => {
+    clearAuth();
+    closeMenu();
+    router.push("/");
+    router.refresh();
+  };
 
   return (
     <motion.header
@@ -88,20 +100,41 @@ export function LandingHeader() {
                 >
                   {t("nav.trainer")}
                 </Link>
-                <Link
-                  href="/signin"
-                  className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors"
-                  onClick={closeMenu}
-                >
-                  {t("landing.nav.signIn")}
-                </Link>
-                <Link
-                  href="/signup"
-                  className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors"
-                  onClick={closeMenu}
-                >
-                  {t("landing.nav.signUp")}
-                </Link>
+                {user ? (
+                  <>
+                    <Link
+                      href="/learn"
+                      className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors"
+                      onClick={closeMenu}
+                    >
+                      {t("landing.nav.myLearning")}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors text-left"
+                    >
+                      {t("landing.nav.signOut")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/signin"
+                      className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors"
+                      onClick={closeMenu}
+                    >
+                      {t("landing.nav.signIn")}
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors"
+                      onClick={closeMenu}
+                    >
+                      {t("landing.nav.signUp")}
+                    </Link>
+                  </>
+                )}
                 <div className="h-px bg-[#D4B896]/30 my-2" />
                 <div className="py-3 px-3 rounded-lg text-sm font-medium text-[#F5F5DC] hover:bg-[#F5F5DC]/10 transition-colors [&_button]:w-full [&_button]:text-left [&_button]:text-inherit [&_button]:font-medium [&_button]:py-0 [&_button]:min-h-0 [&_button]:justify-start [&_button]:rounded-lg [&_button]:hover:bg-transparent">
                   <LanguageToggle />
@@ -110,14 +143,14 @@ export function LandingHeader() {
                   <ThemeToggle />
                 </div>
                 <Link
-                  href="/signup"
+                  href={user ? "/learn" : "/signup"}
                   className="mt-2 inline-flex h-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90"
                   style={{
                     background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
                   }}
                   onClick={closeMenu}
                 >
-                  {t("landing.nav.bookDemo")}
+                  {user ? t("landing.nav.myLearning") : t("landing.nav.bookDemo")}
                 </Link>
               </nav>
             </motion.div>

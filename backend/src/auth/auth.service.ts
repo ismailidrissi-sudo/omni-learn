@@ -106,8 +106,8 @@ export class AuthService {
     return updated as unknown as T;
   }
 
-  /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor if approved */
-  private getRolesForUser(user: { isAdmin?: boolean; trainerApprovedAt?: Date | null }): string[] {
+  /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor/company_admin if approved */
+  private getRolesForUser(user: { isAdmin?: boolean; trainerApprovedAt?: Date | null; companyAdminApprovedAt?: Date | null }): string[] {
     if (user?.isAdmin) {
       return [
         'super_admin',
@@ -122,6 +122,9 @@ export class AuthService {
     const roles = ['learner_basic'];
     if (user?.trainerApprovedAt) {
       roles.push('instructor');
+    }
+    if (user?.companyAdminApprovedAt) {
+      roles.push('company_admin');
     }
     return roles;
   }

@@ -41,6 +41,12 @@ type Enrollment = {
   stepProgress: { stepId: string; status: string }[];
 };
 
+type CourseEnrollment = {
+  id: string;
+  courseId: string;
+  progressPct: number;
+};
+
 const CONTENT_CATEGORIES = [
   { type: "COURSE", icon: "📚", labelKey: "learn.courses" },
   { type: "MICRO_LEARNING", icon: "⚡", labelKey: "learn.microlearnings" },
@@ -63,6 +69,7 @@ export default function TenantLearnPage() {
   const [paths, setPaths] = useState<Path[]>([]);
   const [contentByType, setContentByType] = useState<Record<string, ContentItem[]>>({});
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [courseEnrollments, setCourseEnrollments] = useState<CourseEnrollment[]>([]);
   const [points, setPoints] = useState(0);
   const [badges, setBadges] = useState<{ id: string; name: string; icon: string; earnedAt: string }[]>([]);
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
@@ -82,9 +89,10 @@ export default function TenantLearnPage() {
     if (!userId) return;
 
     try {
-      const [pathsRes, contentRes] = await Promise.all([
+      const [pathsRes, contentRes, courseEnrollRes] = await Promise.all([
         apiFetch("/learning-paths").then((r) => r.json()).catch(() => []),
         apiFetch("/content").then((r) => r.json()).catch(() => []),
+        apiFetch(`/course-enrollments/user/${userId}`).then((r) => r.json()).catch(() => []),
       ]);
 
       const pathsList: Path[] = Array.isArray(pathsRes) ? pathsRes : [];
@@ -97,6 +105,15 @@ export default function TenantLearnPage() {
         grouped[item.type].push(item);
       }
       setContentByType(grouped);
+
+      const ceList = Array.isArray(courseEnrollRes) ? courseEnrollRes : [];
+      setCourseEnrollments(
+        ceList.map((e: { id: string; courseId: string; progressPct: number }) => ({
+          id: e.id,
+          courseId: e.courseId,
+          progressPct: e.progressPct ?? 0,
+        })),
+      );
     } catch {
       // errors handled per-call
     } finally {
@@ -123,6 +140,18 @@ export default function TenantLearnPage() {
     await apiFetch(`/learning-paths/${pathId}/enroll`, { method: "POST", body: JSON.stringify({ userId }) });
     const e = await apiFetch(`/learning-paths/${pathId}/enrollment/${userId}`).then((r) => r.json());
     setEnrollments((prev) => [...prev, { id: e.id, pathId, progressPct: e.progressPct ?? 0, stepProgress: e.stepProgress ?? [] }]);
+  };
+
+  const enrollCourse = async (courseId: string) => {
+    if (!userId) return;
+    const res = await apiFetch(`/course-enrollments/${courseId}/enroll`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const e = await res.json();
+    setCourseEnrollments((prev) => [...prev, { id: e.id, courseId, progressPct: 0 }]);
+    track("COURSE_ENROLLMENT", { userId, courseId });
   };
 
   if (tenantLoading || userLoading) {
@@ -219,16 +248,24 @@ export default function TenantLearnPage() {
                   count={items.length}
                   isEmpty={items.length === 0}
                 >
-                  {items.map((item) => (
-                    <ContentCard
-                      key={item.id}
-                      id={item.id}
-                      title={item.title}
-                      type={item.type}
-                      description={item.description}
-                      durationMinutes={item.durationMinutes}
-                    />
-                  ))}
+                  {items.map((item) => {
+                    const ce = item.type === "COURSE"
+                      ? courseEnrollments.find((e) => e.courseId === item.id)
+                      : undefined;
+                    return (
+                      <ContentCard
+                        key={item.id}
+                        id={item.id}
+                        title={item.title}
+                        type={item.type}
+                        description={item.description}
+                        durationMinutes={item.durationMinutes}
+                        enrolled={!!ce}
+                        progressPct={ce?.progressPct}
+                        onEnroll={item.type === "COURSE" ? () => enrollCourse(item.id) : undefined}
+                      />
+                    );
+                  })}
                 </ContentSection>
               );
             })}
