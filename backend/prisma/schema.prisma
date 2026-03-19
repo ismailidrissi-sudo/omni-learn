@@ -248,6 +248,10 @@ model LearningPath {
   description String?
   isPublished Boolean  @default(false)
   settings    Json?    @default("{}")
+
+  availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
+  availableInEnterprise Boolean   @default(false) // Available in company white-label academies
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -299,6 +303,9 @@ model ContentItem {
   sectorTag      String?     // Biotech, Food Safety, AI, etc. — for Specialist tier filtering
   tenantId       String?     // For Nexus: private enterprise content
   isFoundational Boolean    @default(false)  // Tagged for Explorer (Free) tier
+
+  availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
+  availableInEnterprise Boolean   @default(false) // Available in company white-label academies
 
   videoIsMicrolearning Boolean  @default(false)
   videoDurationSeconds Int?     // Precise duration in seconds for video content
@@ -1099,4 +1106,109 @@ model TrainerProfile {
   @@index([status])
   @@index([slug])
   @@map("trainer_profiles")
+}
+
+// ── EMAIL SYSTEM ──
+
+enum EmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SCHEDULED
+  CANCELLED
+}
+
+enum EmailPriorityLevel {
+  CRITICAL // 0 — password resets, 2FA (bypasses daily limit)
+  HIGH     // 1 — welcome, enrollment confirmation
+  NORMAL   // 2 — notifications, reminders
+  LOW      // 3 — marketing, digests
+}
+
+enum OverflowStrategy {
+  SCHEDULE_NEXT_DAY
+  DROP
+  QUEUE_HOLD
+}
+
+model EmailConfig {
+  id                  String           @id @default(uuid())
+  provider            String           @default("resend") @db.VarChar(20)
+  apiKey              String           @db.Text
+  apiKeyLastFour      String?          @db.VarChar(5)
+  defaultFromName     String           @default("OmniLearn") @db.VarChar(100)
+  defaultFromEmail    String           @default("noreply@omnilearn.space") @db.VarChar(255)
+  defaultReplyTo      String?          @db.VarChar(255)
+  dailySendLimit      Int              @default(100)
+  rateLimitPerSecond  Int              @default(10)
+  overflowStrategy    OverflowStrategy @default(SCHEDULE_NEXT_DAY)
+  overflowSendHour    Int              @default(6)
+  isActive            Boolean          @default(true)
+  lastVerifiedAt      DateTime?
+  updatedBy           String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@map("email_config")
+}
+
+model EmailQueue {
+  id            String             @id @default(uuid())
+  toEmail       String             @db.VarChar(255)
+  toName        String?            @db.VarChar(255)
+  fromEmail     String?            @db.VarChar(255)
+  fromName      String?            @db.VarChar(100)
+  replyTo       String?            @db.VarChar(255)
+  subject       String             @db.VarChar(500)
+  htmlBody      String             @db.Text
+  textBody      String?            @db.Text
+  emailType     String             @db.VarChar(50)
+  priority      EmailPriorityLevel @default(NORMAL)
+  status        EmailStatus        @default(PENDING)
+  scheduledFor  DateTime?
+  dayBucket     DateTime           @default(now()) @db.Date
+  resendId      String?            @db.VarChar(100)
+  sentAt        DateTime?
+  attempts      Int                @default(0)
+  maxAttempts   Int                @default(3)
+  lastError     String?            @db.Text
+  nextRetryAt   DateTime?
+  triggeredBy   String?            @db.VarChar(100)
+  userId        String?
+  metadata      Json               @default("{}")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, priority, createdAt])
+  @@index([scheduledFor])
+  @@index([dayBucket, status])
+  @@index([nextRetryAt])
+  @@map("email_queue")
+}
+
+model EmailDailyStats {
+  dayBucket              DateTime @id @db.Date
+  sentCount              Int      @default(0)
+  failedCount            Int      @default(0)
+  scheduledOverflowCount Int      @default(0)
+  updatedAt              DateTime @updatedAt
+
+  @@map("email_daily_stats")
+}
+
+model EmailTemplate {
+  id              String   @id @default(uuid())
+  slug            String   @unique @db.VarChar(100)
+  name            String   @db.VarChar(200)
+  subjectTemplate String   @db.VarChar(500)
+  htmlTemplate    String   @db.Text
+  textTemplate    String?  @db.Text
+  variables       Json     @default("[]")
+  isActive        Boolean  @default(true)
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("email_templates")
 }

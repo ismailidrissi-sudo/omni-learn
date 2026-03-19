@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
@@ -8,7 +8,8 @@ import { TenantLogo } from "@/components/ui/tenant-logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
@@ -137,16 +138,20 @@ export default function UserCertificatesPage() {
     );
   }
 
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}/learn`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-          <span className="text-sm text-[var(--color-text-secondary)]">/ {t("certificate.myCertificates")}</span>
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-[var(--color-bg-secondary)]"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        contextSlot={
+          <span className="shrink-0 text-sm text-[var(--color-text-secondary)]">/ {t("certificate.myCertificates")}</span>
+        }
+        items={tenantNav}
+      />
 
       <main className="max-w-4xl mx-auto p-6">
         <div className="mb-8">

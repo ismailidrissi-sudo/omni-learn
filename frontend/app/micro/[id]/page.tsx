@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/use-user';
 import { apiFetch } from '@/lib/api';
+import { detectProvider } from '@/lib/video-provider';
 import { toast } from '@/lib/use-toast';
 import dynamic from 'next/dynamic';
 import type { MicrolearningItem } from '@/components/video/MicrolearningReels';
@@ -25,6 +26,8 @@ type MicroItem = {
   likeCount?: number;
   commentCount?: number;
   likedByMe?: boolean;
+  /** Set after feed load when URL needs server-side resolution (e.g. YouTube). */
+  resolvedStreamUrl?: string;
 };
 
 function parseMetadata(
@@ -45,6 +48,23 @@ function getVideoUrl(item: MicroItem): string {
   return hlsUrl || videoUrl || item.mediaId || '';
 }
 
+async function resolveStreamIfNeeded(raw: string): Promise<string> {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  if (!detectProvider(trimmed).requiresResolution) return trimmed;
+  try {
+    const res = await apiFetch('/video/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ url: trimmed }),
+    });
+    if (!res.ok) return trimmed;
+    const data = (await res.json()) as { streamEndpoint?: string };
+    return data.streamEndpoint?.trim() || trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 export default function MicroPlayerPage() {
   const params = useParams();
   const router = useRouter();
@@ -63,11 +83,18 @@ export default function MicroPlayerPage() {
     const targetId = initialIdRef.current;
     apiFetch(`/microlearning/feed?userId=${userId}&limit=50&offset=0`)
       .then((r) => r.json())
-      .then((data: MicroItem[]) => {
+      .then(async (data: MicroItem[]) => {
         const arr = Array.isArray(data) ? data : [];
         if (arr.length > 0) {
-          setItems(arr);
-          const idx = arr.findIndex((c) => c.id === targetId);
+          const withStreams = await Promise.all(
+            arr.map(async (c) => {
+              const raw = getVideoUrl(c);
+              const resolved = await resolveStreamIfNeeded(raw);
+              return { ...c, resolvedStreamUrl: resolved };
+            }),
+          );
+          setItems(withStreams);
+          const idx = withStreams.findIndex((c) => c.id === targetId);
           setInitialIndex(idx >= 0 ? idx : 0);
         } else {
           setItems([]);
@@ -80,7 +107,7 @@ export default function MicroPlayerPage() {
   const reelsItems: MicrolearningItem[] = items.map((item) => ({
     id: item.id,
     contentId: item.id,
-    streamEndpoint: getVideoUrl(item),
+    streamEndpoint: item.resolvedStreamUrl ?? getVideoUrl(item),
     title: item.title,
     description: item.description || '',
     authorName: '',

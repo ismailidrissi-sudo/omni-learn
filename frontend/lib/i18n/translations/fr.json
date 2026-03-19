@@ -263,6 +263,8 @@
     "steps": "étapes",
     "published": "Publié",
     "draft": "Brouillon",
+    "publish": "Publier",
+    "unpublish": "Dépublier",
     "companyAdmin": "Admin entreprise et branding",
     "tenants": "Tenants",
     "branding": "Image de marque",

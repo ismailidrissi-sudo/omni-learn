@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { nexusCompanyNavItems } from "@/lib/nav/burger-nav";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
@@ -20,6 +21,7 @@ type EmployeeProgress = {
 export default function NexusAdminPage() {
   const { t } = useI18n();
   const { user, loading: userLoading } = useUser();
+  const nexusNav = useMemo(() => nexusCompanyNavItems(t), [t]);
   const [employees, setEmployees] = useState<EmployeeProgress[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
 
@@ -60,34 +62,7 @@ export default function NexusAdminPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/learn">
-            <Button variant="ghost" size="sm">
-              {t("nav.myProgress")}
-            </Button>
-          </Link>
-          <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-          <Link href="/admin/nexus">
-            <Button variant="primary" size="sm">
-              My Company
-            </Button>
-          </Link>
-          <Link href="/admin/company">
-            <Button variant="ghost" size="sm">
-              {t("nav.company")}
-            </Button>
-          </Link>
-          <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
-          <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={nexusNav} />
 
       <main className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-brand-grey-dark mb-2">

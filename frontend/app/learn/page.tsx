@@ -12,7 +12,8 @@ import { ContentSection } from "@/components/learning/content-section";
 import { PathCard } from "@/components/learning/path-card";
 import { track } from "@/lib/analytics";
 import { useUser } from "@/lib/use-user";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { apiFetch } from "@/lib/api";
 
 type ContentItem = {
@@ -186,30 +187,20 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0f1510]">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <div className="flex gap-4">
-            <Button variant="primary" size="sm">{t("nav.myProgress")}</Button>
-            <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
-            <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
-            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
-            <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-            {(user?.isAdmin || user?.planId === "NEXUS") && (
-              <Link href="/admin/nexus"><Button variant="outline" size="sm">My Company</Button></Link>
-            )}
-            <Link href="/admin/paths"><Button variant="outline" size="sm">{t("nav.admin")}</Button></Link>
-          </div>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <Link href="/profile" className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-green to-brand-green-light flex items-center justify-center text-white text-xs font-bold hover:opacity-90 transition-opacity" title="My Profile">
-              {(user?.name ?? "").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
-            </Link>
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={globalLearnerNavItems(t, user)}
+        trailing={
+          <Link
+            href="/profile"
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-green to-brand-green-light flex items-center justify-center text-white text-xs font-bold hover:opacity-90 transition-opacity"
+            title="My Profile"
+          >
+            {(user?.name ?? "").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+          </Link>
+        }
+      />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome + Gamification */}

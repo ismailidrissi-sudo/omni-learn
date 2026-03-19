@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { authShellNavItems } from "@/lib/nav/burger-nav";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
@@ -24,6 +25,7 @@ interface StaticPageProps {
 
 export function StaticPage({ slug, titleKey, introKey, defaultSections }: StaticPageProps) {
   const { t } = useI18n();
+  const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const { user } = useUser();
   const isAdmin = !!user?.isAdmin || user?.planId === "NEXUS" || user?.planId === "VISIONARY";
 
@@ -109,12 +111,13 @@ export function StaticPage({ slug, titleKey, introKey, defaultSections }: Static
   if (editing) {
     return (
       <div className="min-h-screen bg-[#F5F5DC] dark:bg-[#0f1510]">
-        <header className="border-b border-gray-200 dark:border-white/10 px-4 py-4 md:px-8 flex justify-between items-center">
-          <Link href="/">
-            <OmnilearnLogo size="md" variant="light" />
-          </Link>
-          <NavToggles />
-        </header>
+        <AppBurgerHeader
+          borderClassName="border-b border-gray-200 dark:border-white/10"
+          headerClassName="px-4 py-4 md:px-8 flex justify-between items-center gap-3"
+          logoHref="/"
+          logo={<OmnilearnLogo size="md" variant="light" />}
+          items={shellNav}
+        />
         <main className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-brand-heading">
@@ -202,13 +205,16 @@ export function StaticPage({ slug, titleKey, introKey, defaultSections }: Static
 
   return (
     <div className="min-h-screen bg-[#F5F5DC] dark:bg-[#0f1510]">
-      <header className="border-b border-gray-200 dark:border-white/10 px-4 py-4 md:px-8 flex justify-between items-center">
-        <Link href="/">
-          <OmnilearnLogo size="md" variant="light" />
-        </Link>
-        <div className="flex items-center gap-3">
-          {isAdmin && (
+      <AppBurgerHeader
+        borderClassName="border-b border-gray-200 dark:border-white/10"
+        headerClassName="px-4 py-4 md:px-8 flex justify-between items-center gap-3"
+        logoHref="/"
+        logo={<OmnilearnLogo size="md" variant="light" />}
+        items={shellNav}
+        trailing={
+          isAdmin ? (
             <button
+              type="button"
               onClick={startEditing}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[#059669]/30 text-[#059669] hover:bg-[#059669]/10 transition"
             >
@@ -217,10 +223,9 @@ export function StaticPage({ slug, titleKey, introKey, defaultSections }: Static
               </svg>
               Edit Page
             </button>
-          )}
-          <NavToggles />
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
       <main className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-brand-heading">
           {title}

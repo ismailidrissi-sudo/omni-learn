@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { Button } from "@/components/ui/button";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
@@ -239,28 +240,11 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0f1510]">
-      {/* Header */}
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <div className="flex gap-4">
-            <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.myProgress")}</Button></Link>
-            <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
-            <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
-            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
-            <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-            {(user?.isAdmin || user?.planId === "NEXUS") && (
-              <Link href="/admin/nexus"><Button variant="outline" size="sm">My Company</Button></Link>
-            )}
-            <Link href="/admin/paths"><Button variant="outline" size="sm">{t("nav.admin")}</Button></Link>
-          </div>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={globalLearnerNavItems(t, user)}
+      />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {loading ? (

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
+import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 
@@ -53,6 +55,8 @@ function buildShareUrl(channel: string, link: string, message: string) {
 }
 
 export default function ReferralsPage() {
+  const { t } = useI18n();
+  const { user } = useUser();
   const [dashboard, setDashboard] = useState<ReferralDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -292,19 +296,11 @@ export default function ReferralsPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/learn"><Button variant="ghost" size="sm">Learn</Button></Link>
-          <Link href="/discover"><Button variant="ghost" size="sm">Discover</Button></Link>
-          <Link href="/referrals"><Button variant="primary" size="sm">Referrals</Button></Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={globalLearnerNavItems(t, user)}
+      />
 
       <main className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-8">

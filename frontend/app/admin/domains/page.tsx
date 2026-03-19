@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
@@ -44,6 +45,7 @@ export default function AdminDomainsPage() {
   const { t } = useI18n();
   const { user } = useUser();
   const tenantId = user?.tenantId;
+  const adminNav = useMemo(() => adminHubNavItems(t), [t]);
 
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,25 +161,7 @@ export default function AdminDomainsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <LearnLogo size="md" variant="purple" />
-        <nav className="flex items-center gap-4">
-          <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-          <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
-          <Link href="/admin/domains"><Button variant="primary" size="sm">Domains</Button></Link>
-          <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
-          <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
-          <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
-          <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
-          <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
-          <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
-          <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
-          <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={adminNav} />
 
       <main className="max-w-6xl mx-auto p-6">
         {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-4" />}

@@ -1,13 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailerService } from '../mailer/mailer.service';
+import { EmailService } from '../email/email.service';
+import { EmailPriority } from '../email/constants';
+import { referralInvitationHtml, referralInvitationSubject } from '../email/templates';
 
 @Injectable()
 export class ReferralService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailer: MailerService,
+    private readonly emailService: EmailService,
   ) {}
 
   private generateCode(): string {
@@ -236,12 +238,16 @@ export class ReferralService {
         });
 
         const referralUrl = `${baseUrl}/signup?ref=${code.code}`;
-        await this.mailer.sendReferralInvitation(
-          contact.email,
-          contact.name ?? 'there',
-          user.name,
-          referralUrl,
-        );
+        await this.emailService.enqueue({
+          toEmail: contact.email,
+          toName: contact.name ?? 'there',
+          subject: referralInvitationSubject(user.name),
+          htmlBody: referralInvitationHtml(contact.name ?? 'there', user.name, referralUrl),
+          emailType: 'referral_invitation',
+          priority: EmailPriority.NORMAL,
+          triggeredBy: 'bulk_referral_invite',
+          userId,
+        });
 
         results.sent++;
       } catch {

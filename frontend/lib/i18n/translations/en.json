@@ -253,6 +253,8 @@
     "steps": "steps",
     "published": "Published",
     "draft": "Draft",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
     "companyAdmin": "Company Admin & Branding",
     "tenants": "Tenants",
     "branding": "Branding",

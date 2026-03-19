@@ -10,7 +10,8 @@ import { SmartVideo } from "@/components/media/smart-video";
 import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
 import { CompletionCelebration } from "@/components/learning/completion-celebration";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
@@ -73,6 +74,7 @@ export default function CoursePlayerPage() {
   const params = useParams();
   const { t } = useI18n();
   const { user } = useUser();
+  const learnerNav = useMemo(() => globalLearnerNavItems(t, user), [t, user]);
   const courseId = params?.id as string;
 
   const [course, setCourse] = useState<CourseInfo | null>(null);
@@ -487,31 +489,37 @@ export default function CoursePlayerPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-brand-grey-light px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4 bg-white shrink-0 z-20">
-        <Link href="/" className="shrink-0">
-          <LearnLogo size="sm" variant="purple" />
-        </Link>
-        <div className="h-6 w-px bg-brand-grey-light hidden sm:block" />
-        <h1 className="text-xs sm:text-sm font-semibold text-brand-grey-dark truncate flex-1 min-w-0">
-          {course.title}
-        </h1>
-        <div className="hidden sm:flex items-center gap-2 text-sm text-brand-grey shrink-0">
-          <span>
-            {activeIndex + 1} / {totalItems}
-          </span>
-          {totalDuration > 0 && <span>&middot; {totalDuration} min</span>}
-        </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey shrink-0"
-          title={t("content.courseContents")}
-        >
-          ☰
-        </button>
-        <div className="hidden sm:block">
-          <NavToggles />
-        </div>
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-brand-grey-light bg-white shrink-0 z-20"
+        headerClassName="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-4"
+        logoHref="/"
+        logo={<LearnLogo size="sm" variant="purple" />}
+        items={learnerNav}
+        center={
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
+            <div className="h-6 w-px bg-brand-grey-light hidden sm:block shrink-0" />
+            <h1 className="text-xs sm:text-sm font-semibold text-brand-grey-dark truncate flex-1 min-w-0 text-left">
+              {course.title}
+            </h1>
+            <div className="hidden sm:flex items-center gap-2 text-sm text-brand-grey shrink-0">
+              <span>
+                {activeIndex + 1} / {totalItems}
+              </span>
+              {totalDuration > 0 && <span>&middot; {totalDuration} min</span>}
+            </div>
+          </div>
+        }
+        beforeMenu={
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey shrink-0"
+            title={t("content.courseContents")}
+          >
+            ☰
+          </button>
+        }
+      />
 
       <div className="flex flex-1 min-h-0 relative">
         {/* Main content area */}

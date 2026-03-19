@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
-import { TenantLogo } from "@/components/ui/tenant-logo";
+import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -40,6 +38,24 @@ export default function TenantPathsAdminPage() {
       .finally(() => setLoading(false));
   }, [tenant?.id]);
 
+  const handleTogglePublish = async (path: Path) => {
+    try {
+      const res = await apiFetch(`/learning-paths/${path.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isPublished: !path.isPublished }),
+      });
+      if (res.ok) {
+        setPaths((prev) =>
+          prev.map((p) =>
+            p.id === path.id ? { ...p, isPublished: !path.isPublished } : p
+          )
+        );
+      }
+    } catch {
+      console.error("Failed to toggle publish status");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -50,14 +66,14 @@ export default function TenantPathsAdminPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}/admin`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-          <span className="text-sm text-[var(--color-text-secondary)]">/ Learning Paths</span>
-        </Link>
-        <NavToggles />
-      </header>
+      <TenantAdminBurgerHeader
+        slug={slug}
+        academyName={academyName}
+        logoUrl={tenant?.logoUrl}
+        contextSlot={
+          <span className="text-sm text-[var(--color-text-secondary)]">/ {t("adminTenant.learningPaths")}</span>
+        }
+      />
 
       <main className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
@@ -92,7 +108,16 @@ export default function TenantPathsAdminPage() {
                         </span>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">{t("common.edit")}</Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={path.isPublished ? "ghost" : "primary"}
+                        size="sm"
+                        onClick={() => handleTogglePublish(path)}
+                      >
+                        {path.isPublished ? t("admin.unpublish") : t("admin.publish")}
+                      </Button>
+                      <Button variant="ghost" size="sm">{t("common.edit")}</Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

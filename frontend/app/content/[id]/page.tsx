@@ -13,7 +13,8 @@ import { PodcastPlayer } from "@/components/media/podcast-player";
 import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
 import { track } from "@/lib/analytics";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 
 import { apiFetch } from "@/lib/api";
@@ -282,18 +283,12 @@ export default function ContentPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2">
-        <Link href="/" className="shrink-0">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-2 sm:gap-4">
-          <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
-          <Link href="/forum" className="hidden sm:inline-flex"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
-          <div className="hidden sm:flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={globalLearnerNavItems(t, user)}
+        headerClassName="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2"
+      />
 
       <main className="max-w-3xl mx-auto px-4 py-4 sm:p-6">
         <Link href="/learn" className="text-brand-purple text-sm mb-4 inline-block">{t("content.backToLearn")}</Link>

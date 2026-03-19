@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CourseBuilder } from "@/components/admin/course-builder";
 import { ContentAddForm, type ContentType } from "@/components/admin/content-add-form";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { trainerNavItemsApproved, trainerNavItemsGuest } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
@@ -42,6 +43,8 @@ type ContentItem = {
 export default function TrainerPage() {
   const { t } = useI18n();
   const { user, loading: userLoading } = useUser();
+  const trainerNavApproved = useMemo(() => trainerNavItemsApproved(t), [t]);
+  const trainerNavGuest = useMemo(() => trainerNavItemsGuest(t), [t]);
   const [view, setView] = useState<"list" | "create" | "courseBuilder">("list");
   const [content, setContent] = useState<ContentItem[]>([]);
   const [filterType, setFilterType] = useState<string>("");
@@ -112,23 +115,6 @@ export default function TrainerPage() {
       .catch(console.error);
   };
 
-  const navLinks = (
-    <nav className="flex items-center gap-4">
-      <Link href="/trainer"><Button variant="primary" size="sm">{t("nav.trainer")}</Button></Link>
-      <Link href="/trainer/profile"><Button variant="ghost" size="sm">My Profile</Button></Link>
-      <Link href="/admin/paths"><Button variant="ghost" size="sm">{t("nav.paths")}</Button></Link>
-      <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
-      <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
-      <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
-      <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
-      <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
-      <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
-      <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-        <NavToggles />
-      </div>
-    </nav>
-  );
-
   const handleRequestTrainer = () => {
     setRequestingTrainer(true);
     apiFetch("/profile/request-trainer", { method: "POST" })
@@ -149,15 +135,7 @@ export default function TrainerPage() {
   if (!isApprovedTrainer) {
     return (
       <div className="min-h-screen bg-white">
-        <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-          <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
-            <Link href="/discover"><Button variant="ghost" size="sm">{t("nav.discover")}</Button></Link>
-            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
-            <NavToggles />
-          </nav>
-        </header>
+        <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={trainerNavGuest} />
         <main className="max-w-xl mx-auto p-8">
           <Card className="p-8 text-center">
             {trainerPending ? (
@@ -188,10 +166,7 @@ export default function TrainerPage() {
   if (view === "courseBuilder" && editing) {
     return (
       <div className="min-h-screen bg-white">
-        <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-          <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
-          {navLinks}
-        </header>
+        <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={trainerNavApproved} />
         <main className="max-w-4xl mx-auto p-6">
           <CourseBuilder
             courseId={editing.id}
@@ -209,10 +184,7 @@ export default function TrainerPage() {
   if (view === "create") {
     return (
       <div className="min-h-screen bg-white">
-        <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-          <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
-          {navLinks}
-        </header>
+        <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={trainerNavApproved} />
 
         <main className="max-w-2xl mx-auto p-6">
           <div className="flex justify-between items-center mb-6">
@@ -268,10 +240,7 @@ export default function TrainerPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
-        {navLinks}
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={trainerNavApproved} />
 
       <main className="max-w-6xl mx-auto p-6">
         <div className="mb-6">

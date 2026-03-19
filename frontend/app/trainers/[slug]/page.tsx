@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { trainersDirectoryNavItems } from "@/lib/nav/burger-nav";
+import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
 import { SmartVideo } from "@/components/media/smart-video";
 import { apiFetch } from "@/lib/api";
 
@@ -64,6 +67,9 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 export default function PublicTrainerProfilePage() {
+  const { t } = useI18n();
+  const { user } = useUser();
+  const navItems = useMemo(() => trainersDirectoryNavItems(t, user), [t, user]);
   const params = useParams();
   const slug = params.slug as string;
   const [profile, setProfile] = useState<TrainerProfileData | null>(null);
@@ -111,14 +117,7 @@ export default function PublicTrainerProfilePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/"><LearnLogo size="md" variant="purple" /></Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/learn"><Button variant="ghost" size="sm">Learn</Button></Link>
-          <Link href="/trainers"><Button variant="ghost" size="sm">Trainers</Button></Link>
-          <NavToggles />
-        </nav>
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={navItems} />
 
       {/* Banner */}
       <div className="h-48 md:h-56 bg-gradient-to-r from-brand-purple/30 via-brand-purple/10 to-brand-purple/5 relative">

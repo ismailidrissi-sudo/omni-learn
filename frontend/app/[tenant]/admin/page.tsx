@@ -4,8 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTenant } from "@/components/providers/tenant-context";
 import { useI18n } from "@/lib/i18n/context";
-import { TenantLogo } from "@/components/ui/tenant-logo";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { useUser } from "@/lib/use-user";
 
 const adminSections = [
@@ -42,18 +41,7 @@ export default function TenantAdminPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link href={`/${slug}/learn`} className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-            {t("tenant.backToLearning")}
-          </Link>
-          <NavToggles />
-        </div>
-      </header>
+      <TenantAdminBurgerHeader slug={slug} academyName={academyName} logoUrl={tenant?.logoUrl} />
 
       <main className="max-w-5xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">

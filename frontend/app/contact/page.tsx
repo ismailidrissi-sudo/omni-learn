@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { authShellNavItems } from "@/lib/nav/burger-nav";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { ErrorBanner } from "@/components/ui/error-banner";
@@ -228,14 +229,17 @@ function ContactContent() {
 }
 
 export default function ContactPage() {
+  const { t } = useI18n();
+  const shellNav = useMemo(() => authShellNavItems(t), [t]);
   return (
     <div className="min-h-screen bg-[#F5F5DC] dark:bg-[#0f1510]">
-      <header className="border-b border-gray-200 dark:border-white/10 px-4 py-4 md:px-8 flex justify-between items-center">
-        <Link href="/">
-          <OmnilearnLogo size="md" variant="light" />
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-gray-200 dark:border-white/10"
+        headerClassName="px-4 py-4 md:px-8 flex justify-between items-center gap-3"
+        logoHref="/"
+        logo={<OmnilearnLogo size="md" variant="light" />}
+        items={shellNav}
+      />
       <Suspense fallback={<main className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">Loading...</main>}>
         <ContactContent />
       </Suspense>

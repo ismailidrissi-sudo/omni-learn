@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
@@ -13,7 +13,8 @@ import { ContentSection } from "@/components/learning/content-section";
 import { PathCard } from "@/components/learning/path-card";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { apiFetch } from "@/lib/api";
 import { track } from "@/lib/analytics";
 
@@ -163,27 +164,17 @@ export default function TenantLearnPage() {
   }
 
   const totalContent = Object.values(contentByType).reduce((sum, items) => sum + items.length, 0);
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <nav className="flex items-center gap-3">
-          <Link href={`/${slug}/learn`}><Button variant="primary" size="sm">{t("tenant.learn")}</Button></Link>
-          <Link href={`/${slug}/discover`}><Button variant="ghost" size="sm">{t("tenant.discover")}</Button></Link>
-          <Link href={`/${slug}/certificates`}><Button variant="ghost" size="sm">{t("certificate.myCertificates")}</Button></Link>
-          <Link href={`/${slug}/forum`}><Button variant="ghost" size="sm">{t("tenant.forum")}</Button></Link>
-          {(user?.isAdmin || user?.planId === "NEXUS" || user?.trainerApprovedAt) && (
-            <Link href={`/${slug}/admin`}><Button variant="ghost" size="sm">{t("tenant.admin")}</Button></Link>
-          )}
-          <div className="pl-3 ml-3 border-l border-[var(--color-bg-secondary)]">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-[var(--color-bg-secondary)]"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        items={tenantNav}
+      />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome + Gamification */}

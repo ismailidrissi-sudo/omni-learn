@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, setToken } from "@/lib/api";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import Link from "next/link";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { authShellNavItems } from "@/lib/nav/burger-nav";
+import { useI18n } from "@/lib/i18n/context";
 
 /**
  * Handles server-side OAuth redirects (e.g. LinkedIn Passport flow).
@@ -13,6 +16,8 @@ import Link from "next/link";
 function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
+  const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -55,11 +60,13 @@ function AuthCallbackContent() {
   if (error) {
     return (
       <div className="min-h-screen font-landing flex flex-col bg-[#F5F5DC] dark:bg-[#0f1510]">
-        <header className="p-4 md:p-6">
-          <Link href="/">
-            <OmnilearnLogo size="md" variant="auto" />
-          </Link>
-        </header>
+        <AppBurgerHeader
+          borderClassName="border-0"
+          headerClassName="p-4 md:p-6 flex justify-between items-center gap-3"
+          logoHref="/"
+          logo={<OmnilearnLogo size="md" variant="auto" />}
+          items={shellNav}
+        />
         <main className="flex flex-1 items-center justify-center px-4 py-12">
           <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-[#059669]/30 bg-white dark:bg-[#1a1e18] p-8 shadow-lg">
             <h1 className="text-xl font-bold text-[#1a1212] dark:text-brand-heading">

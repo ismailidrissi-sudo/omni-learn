@@ -1,12 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
 import { useI18n } from "@/lib/i18n/context";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantAuthShellNavItems } from "@/lib/nav/burger-nav";
 
 export default function TenantPortalPage() {
   const params = useParams();
@@ -48,23 +50,17 @@ export default function TenantPortalPage() {
   const academyName = branding?.appName || tenant.name;
   const tagline = branding?.tagline || "Your enterprise learning platform";
   const primaryColor = branding?.primaryColor || "#059669";
+  const portalNav = useMemo(() => tenantAuthShellNavItems(t, slug), [t, slug]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link href={`/${slug}/signin`}>
-            <button className="px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors">
-              {t("auth.signIn")}
-            </button>
-          </Link>
-          <NavToggles />
-        </div>
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-[var(--color-bg-secondary)]"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        items={portalNav}
+      />
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
         <motion.div

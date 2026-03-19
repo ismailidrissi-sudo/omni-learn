@@ -7,7 +7,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LinkedInStrategy } from './strategies/linkedin.strategy';
 import { RbacGuard } from './guards/rbac.guard';
 import { PrismaModule } from '../prisma/prisma.module';
-import { MailerModule } from '../mailer/mailer.module';
 import { OptionalJwtGuard } from './guards/optional-jwt.guard';
 import { ReferralModule } from '../referral/referral.module';
 
@@ -15,7 +14,6 @@ import { ReferralModule } from '../referral/referral.module';
   controllers: [AuthController],
   imports: [
     PrismaModule,
-    MailerModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: (() => {

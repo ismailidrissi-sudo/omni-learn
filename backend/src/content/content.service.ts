@@ -27,6 +27,10 @@ export interface CreateContentDto {
   tenantId?: string;
   /** Tag for Explorer (Free) tier */
   isFoundational?: boolean;
+  /** Which subscription plans can access this content */
+  availablePlans?: string[];
+  /** Whether this content is available in company white-label academies */
+  availableInEnterprise?: boolean;
 }
 
 export interface ScormMetadata {
@@ -48,6 +52,7 @@ export class ContentService {
     const metadata = data.metadata ?? {};
     const metadataVal =
       typeof metadata === 'string' ? JSON.parse(metadata || '{}') : metadata;
+    const plans = data.availablePlans ?? ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'];
     const content = await this.prisma.contentItem.create({
       data: {
         type: data.type as 'COURSE' | 'VIDEO' | 'MICRO_LEARNING' | 'PODCAST' | 'DOCUMENT' | 'IMPLEMENTATION_GUIDE' | 'QUIZ_ASSESSMENT' | 'GAME',
@@ -60,7 +65,9 @@ export class ContentService {
         accessLevel: data.accessLevel ?? 0,
         sectorTag: data.sectorTag,
         tenantId: data.tenantId,
-        isFoundational: data.isFoundational ?? false,
+        isFoundational: data.isFoundational ?? plans.includes('EXPLORER'),
+        availablePlans: plans,
+        availableInEnterprise: data.availableInEnterprise ?? false,
       },
     });
     await this.setAssignments(content.id, data.tenantIds ?? [], data.userIds ?? []);
@@ -119,19 +126,7 @@ export class ContentService {
   }
 
   async update(id: string, data: Partial<CreateContentDto>) {
-    const updateData: {
-      type?: string;
-      title?: string;
-      description?: string;
-      domainId?: string;
-      mediaId?: string;
-      durationMinutes?: number;
-      metadata?: string;
-      accessLevel?: number;
-      sectorTag?: string;
-      tenantId?: string;
-      isFoundational?: boolean;
-    } = {};
+    const updateData: Record<string, unknown> = {};
     if (data.type) updateData.type = data.type;
     if (data.title) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
@@ -143,11 +138,16 @@ export class ContentService {
     }
     if (data.accessLevel !== undefined) updateData.accessLevel = data.accessLevel;
     if (data.sectorTag !== undefined) updateData.sectorTag = data.sectorTag;
-    if (data.tenantId !== undefined) (updateData as { tenantId?: string | null }).tenantId = data.tenantId || null;
+    if (data.tenantId !== undefined) updateData.tenantId = data.tenantId || null;
     if (data.isFoundational !== undefined) updateData.isFoundational = data.isFoundational;
+    if (data.availablePlans !== undefined) {
+      updateData.availablePlans = data.availablePlans;
+      updateData.isFoundational = data.availablePlans.includes('EXPLORER');
+    }
+    if (data.availableInEnterprise !== undefined) updateData.availableInEnterprise = data.availableInEnterprise;
     await this.prisma.contentItem.update({
       where: { id },
-      data: updateData as Record<string, unknown>,
+      data: updateData,
     });
     if (data.tenantIds !== undefined || data.userIds !== undefined) {
       await this.setAssignments(
@@ -201,7 +201,15 @@ export class ContentService {
     title: string,
     scormMetadata: ScormMetadata,
     durationMinutes?: number,
-    opts?: { description?: string; domainId?: string; tenantIds?: string[]; userIds?: string[]; isFoundational?: boolean },
+    opts?: {
+      description?: string;
+      domainId?: string;
+      tenantIds?: string[];
+      userIds?: string[];
+      isFoundational?: boolean;
+      availablePlans?: string[];
+      availableInEnterprise?: boolean;
+    },
   ) {
     return this.create({
       type: 'COURSE',
@@ -213,6 +221,8 @@ export class ContentService {
       tenantIds: opts?.tenantIds,
       userIds: opts?.userIds,
       isFoundational: opts?.isFoundational,
+      availablePlans: opts?.availablePlans,
+      availableInEnterprise: opts?.availableInEnterprise,
     });
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -9,7 +9,8 @@ import { LinkedInSignInButton } from "@/components/auth/LinkedInSignIn";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
 import { useI18n } from "@/lib/i18n/context";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantAuthShellNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 
@@ -28,6 +29,7 @@ export default function TenantSignUpPage() {
 
   const academyName = branding?.appName || tenant?.name || "Academy";
   const primaryColor = branding?.primaryColor || "#059669";
+  const shellNav = useMemo(() => tenantAuthShellNavItems(t, slug), [t, slug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,13 +85,14 @@ export default function TenantSignUpPage() {
 
   return (
     <div className="min-h-screen font-landing flex flex-col bg-[var(--color-bg-primary)]">
-      <header className="p-4 md:p-6 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-0"
+        headerClassName="p-4 md:p-6 flex justify-between items-center gap-3"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        items={shellNav}
+      />
 
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <motion.div

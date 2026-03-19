@@ -7,7 +7,8 @@ import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { discoverNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
@@ -213,22 +214,15 @@ export default function DiscoverPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
-      <header className="sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl px-6 py-3">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <Link href="/">
-            <LearnLogo size="md" variant="purple" />
-          </Link>
-          <nav className="flex items-center gap-2">
-            <Link href="/learn"><Button variant="ghost" size="sm">{t("nav.learn")}</Button></Link>
-            <Link href="/forum"><Button variant="ghost" size="sm">{t("nav.forums")}</Button></Link>
-            <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
-            <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-            <div className="flex items-center gap-1 pl-3 ml-3 border-l border-gray-200 dark:border-white/10">
-              <NavToggles />
-            </div>
-          </nav>
-        </div>
-      </header>
+      <div className="sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl">
+        <AppBurgerHeader
+          borderClassName="border-0"
+          headerClassName="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center gap-3"
+          logoHref="/"
+          logo={<LearnLogo size="md" variant="purple" />}
+          items={discoverNavItems(t, user)}
+        />
+      </div>
 
       {/* Hero search area */}
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-purple/5 via-white to-blue-50/50 dark:from-brand-purple/10 dark:via-gray-950 dark:to-blue-950/20 border-b border-gray-200/50 dark:border-white/5">

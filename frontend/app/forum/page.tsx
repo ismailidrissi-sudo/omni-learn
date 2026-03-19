@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -150,24 +151,11 @@ export default function ForumPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/learn">
-            <Button variant="ghost" size="sm">{t("nav.learn")}</Button>
-          </Link>
-          <Link href="/referrals"><Button variant="ghost" size="sm">Referrals</Button></Link>
-          <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-          <Link href="/admin/paths">
-            <Button variant="outline" size="sm">{t("nav.admin")}</Button>
-          </Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={globalLearnerNavItems(t, user)}
+      />
 
       <main className="max-w-5xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-brand-grey-dark mb-6">{t("forum.title")}</h1>

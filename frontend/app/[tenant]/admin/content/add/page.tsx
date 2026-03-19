@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
-import { TenantLogo } from "@/components/ui/tenant-logo";
+import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { Button } from "@/components/ui/button";
-import { NavToggles } from "@/components/ui/nav-toggles";
 import { ContentAddForm, type ContentType } from "@/components/admin/content-add-form";
 import { CourseBuilder } from "@/components/admin/course-builder";
 import { apiFetch } from "@/lib/api";
@@ -35,6 +34,8 @@ export default function TenantContentAddPage() {
   const [formTenantIds, setFormTenantIds] = useState<string[]>([]);
   const [formUserIds, setFormUserIds] = useState<string[]>([]);
   const [formAssignToAllCompanies, setFormAssignToAllCompanies] = useState(true);
+  const [formAvailablePlans, setFormAvailablePlans] = useState<string[]>(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
+  const [formAvailableInEnterprise, setFormAvailableInEnterprise] = useState(false);
 
   const [view, setView] = useState<"form" | "courseBuilder">("form");
   const [courseBuilderCourse, setCourseBuilderCourse] = useState<{ id: string; title: string } | null>(null);
@@ -80,14 +81,12 @@ export default function TenantContentAddPage() {
   if (view === "courseBuilder" && courseBuilderCourse) {
     return (
       <div className="min-h-screen bg-[var(--color-bg-primary)]">
-        <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-          <Link href={`/${slug}/admin`} className="flex items-center gap-3">
-            <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-            <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-            <span className="text-sm text-[var(--color-text-secondary)]">/ Content / Add</span>
-          </Link>
-          <NavToggles />
-        </header>
+        <TenantAdminBurgerHeader
+          slug={slug}
+          academyName={academyName}
+          logoUrl={tenant?.logoUrl}
+          contextSlot={<span className="text-sm text-[var(--color-text-secondary)]">/ Content / Add</span>}
+        />
         <main className="max-w-4xl mx-auto p-6">
           <CourseBuilder
             courseId={courseBuilderCourse.id}
@@ -105,14 +104,12 @@ export default function TenantContentAddPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}/admin`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-          <span className="text-sm text-[var(--color-text-secondary)]">/ Content / Add</span>
-        </Link>
-        <NavToggles />
-      </header>
+      <TenantAdminBurgerHeader
+        slug={slug}
+        academyName={academyName}
+        logoUrl={tenant?.logoUrl}
+        contextSlot={<span className="text-sm text-[var(--color-text-secondary)]">/ Content / Add</span>}
+      />
 
       <main className="max-w-2xl mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
@@ -158,6 +155,10 @@ export default function TenantContentAddPage() {
           users={users}
           onCourseCreated={handleCourseCreated}
           publicOnly={false}
+          availablePlans={formAvailablePlans}
+          onAvailablePlansChange={setFormAvailablePlans}
+          availableInEnterprise={formAvailableInEnterprise}
+          onAvailableInEnterpriseChange={setFormAvailableInEnterprise}
         />
       </main>
     </div>

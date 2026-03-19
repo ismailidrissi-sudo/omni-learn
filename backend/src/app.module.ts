@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module';
-import { MailerModule } from './mailer/mailer.module';
+import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { ProfileModule } from './profile/profile.module';
 import { DomainsModule } from './domains/domains.module';
@@ -26,7 +26,7 @@ import { VideoModule } from './video/video.module';
 @Module({
   imports: [
     PrismaModule,
-    MailerModule,
+    EmailModule,
     AuthModule,
     ProfileModule,
     DomainsModule,

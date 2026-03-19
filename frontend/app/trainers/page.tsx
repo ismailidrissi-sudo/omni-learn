@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { trainersDirectoryNavItems } from "@/lib/nav/burger-nav";
+import { useI18n } from "@/lib/i18n/context";
+import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
 interface TrainerCard {
@@ -25,6 +28,9 @@ interface TrainerCard {
 }
 
 export default function TrainersDirectoryPage() {
+  const { t } = useI18n();
+  const { user } = useUser();
+  const navItems = useMemo(() => trainersDirectoryNavItems(t, user), [t, user]);
   const [trainers, setTrainers] = useState<TrainerCard[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -50,17 +56,7 @@ export default function TrainersDirectoryPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/learn"><Button variant="ghost" size="sm">Learn</Button></Link>
-          <Link href="/discover"><Button variant="ghost" size="sm">Discover</Button></Link>
-          <Link href="/trainers"><Button variant="primary" size="sm">Trainers</Button></Link>
-          <NavToggles />
-        </nav>
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={navItems} />
 
       <main className="max-w-6xl mx-auto p-6">
         <div className="text-center mb-8">

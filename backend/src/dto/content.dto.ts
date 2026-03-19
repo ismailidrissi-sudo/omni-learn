@@ -52,6 +52,15 @@ export class CreateContentBodyDto {
   @IsOptional()
   @IsBoolean()
   isFoundational?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  availablePlans?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  availableInEnterprise?: boolean;
 }
 
 export class CreateCourseBodyDto {
@@ -92,6 +101,15 @@ export class CreateCourseBodyDto {
   @IsOptional()
   @IsBoolean()
   isFoundational?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  availablePlans?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  availableInEnterprise?: boolean;
 }
 
 export class ValidateUrlDto {

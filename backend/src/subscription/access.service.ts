@@ -60,12 +60,18 @@ export class AccessService {
 
   /** Build Prisma where clause for content filtering based on tier + assignments */
   buildContentWhere(ctx: UserAccessContext) {
+    const planFilter = {
+      availablePlans: { array_contains: [ctx.planId] },
+    };
     const tierFilter: Record<string, unknown> = {};
     const assignmentFilter = this.buildAssignmentFilter(ctx);
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:
-        tierFilter.isFoundational = true;
+        tierFilter.OR = [
+          { isFoundational: true },
+          planFilter,
+        ];
         break;
 
       case SubscriptionPlan.SPECIALIST:
@@ -74,33 +80,51 @@ export class AccessService {
             { tenantId: null },
             {
               OR: [
+                planFilter,
                 { sectorTag: ctx.sectorFocus },
                 { isFoundational: true },
               ],
             },
           ];
         } else {
-          tierFilter.isFoundational = true;
+          tierFilter.OR = [
+            { isFoundational: true },
+            planFilter,
+          ];
         }
         break;
 
       case SubscriptionPlan.VISIONARY:
-        tierFilter.tenantId = null;
+        tierFilter.AND = [
+          { tenantId: null },
+          planFilter,
+        ];
         break;
 
       case SubscriptionPlan.NEXUS:
         if (ctx.tenantId) {
-          tierFilter.OR = [
-            { tenantId: null },
-            { tenantId: ctx.tenantId },
+          tierFilter.AND = [
+            planFilter,
+            {
+              OR: [
+                { tenantId: null },
+                { tenantId: ctx.tenantId },
+              ],
+            },
           ];
         } else {
-          tierFilter.tenantId = null;
+          tierFilter.AND = [
+            { tenantId: null },
+            planFilter,
+          ];
         }
         break;
 
       default:
-        tierFilter.isFoundational = true;
+        tierFilter.OR = [
+          { isFoundational: true },
+          planFilter,
+        ];
     }
 
     return { AND: [tierFilter, assignmentFilter] };
@@ -117,6 +141,7 @@ export class AccessService {
         isFoundational: true,
         sectorTag: true,
         tenantId: true,
+        availablePlans: true,
         tenantAssignments: { select: { tenantId: true } },
       },
     });
@@ -127,27 +152,31 @@ export class AccessService {
       return false;
     }
 
+    const plans = Array.isArray(content.availablePlans) ? content.availablePlans as string[] : [];
+    const planAllowed = plans.includes(ctx.planId);
+
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:
-        return content.isFoundational === true;
+        return content.isFoundational === true || planAllowed;
 
       case SubscriptionPlan.SPECIALIST:
         return (
+          planAllowed ||
           content.isFoundational ||
           (!!ctx.sectorFocus && content.sectorTag === ctx.sectorFocus)
         );
 
       case SubscriptionPlan.VISIONARY:
-        return true;
+        return planAllowed;
 
       case SubscriptionPlan.NEXUS:
         return (
-          content.tenantId === null ||
-          content.tenantId === ctx.tenantId
+          planAllowed &&
+          (content.tenantId === null || content.tenantId === ctx.tenantId)
         );
 
       default:
-        return content.isFoundational === true;
+        return content.isFoundational === true || planAllowed;
     }
   }
 

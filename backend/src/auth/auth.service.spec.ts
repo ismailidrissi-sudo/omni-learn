@@ -3,13 +3,13 @@ import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailerService } from '../mailer/mailer.service';
+import { EmailService } from '../email/email.service';
 
 describe('AuthService', () => {
   let service: AuthService;
   let prisma: { user: { findUnique: jest.Mock; findFirst: jest.Mock; create: jest.Mock; update: jest.Mock } };
   let jwtService: { sign: jest.Mock };
-  let mailer: { sendVerificationEmail: jest.Mock };
+  let emailService: { enqueue: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -21,14 +21,14 @@ describe('AuthService', () => {
       },
     };
     jwtService = { sign: jest.fn().mockReturnValue('mock-jwt-token') };
-    mailer = { sendVerificationEmail: jest.fn().mockResolvedValue(undefined) };
+    emailService = { enqueue: jest.fn().mockResolvedValue('mock-queue-id') };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwtService },
-        { provide: MailerService, useValue: mailer },
+        { provide: EmailService, useValue: emailService },
       ],
     }).compile();
 
@@ -54,7 +54,7 @@ describe('AuthService', () => {
 
       expect(result.userId).toBe('new-id');
       expect(result.message).toContain('Verification email sent');
-      expect(mailer.sendVerificationEmail).toHaveBeenCalled();
+      expect(emailService.enqueue).toHaveBeenCalled();
     });
   });
 

@@ -4,7 +4,9 @@ import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailerService } from '../mailer/mailer.service';
+import { EmailService } from '../email/email.service';
+import { EmailPriority } from '../email/constants';
+import { verificationEmailHtml, verificationEmailSubject } from '../email/templates';
 import { RbacRole } from '../constants/rbac.constant';
 
 /**
@@ -28,7 +30,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-    private readonly mailer: MailerService,
+    private readonly emailService: EmailService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
   }
@@ -60,7 +62,16 @@ export class AuthService {
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
-    await this.mailer.sendVerificationEmail(email, user.name, verifyUrl);
+    await this.emailService.enqueue({
+      toEmail: email,
+      toName: user.name,
+      subject: verificationEmailSubject(),
+      htmlBody: verificationEmailHtml(user.name, verifyUrl),
+      emailType: 'verification',
+      priority: EmailPriority.CRITICAL,
+      triggeredBy: 'user_signup',
+      userId: user.id,
+    });
 
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
   }
@@ -217,7 +228,16 @@ export class AuthService {
     });
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
-    await this.mailer.sendVerificationEmail(email, user.name, verifyUrl);
+    await this.emailService.enqueue({
+      toEmail: email,
+      toName: user.name,
+      subject: verificationEmailSubject(),
+      htmlBody: verificationEmailHtml(user.name, verifyUrl),
+      emailType: 'verification',
+      priority: EmailPriority.CRITICAL,
+      triggeredBy: 'resend_verification',
+      userId: user.id,
+    });
     return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
   }
 

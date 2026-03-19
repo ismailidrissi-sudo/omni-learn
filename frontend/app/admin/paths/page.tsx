@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PathBuilder } from "@/components/admin/path-builder";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
@@ -32,6 +32,8 @@ type PathItem = {
   domainId?: string;
   _count?: { steps: number; enrollments: number };
   isPublished: boolean;
+  availablePlans?: string[];
+  availableInEnterprise?: boolean;
   steps?: Array<{
     id: string;
     contentItemId: string;
@@ -52,6 +54,7 @@ export default function AdminPathsPage() {
   const [paths, setPaths] = useState<PathItem[]>([]);
   const [loadingPaths, setLoadingPaths] = useState(true);
   const [editingPath, setEditingPath] = useState<PathItem | null>(null);
+  const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
 
   const fetchPaths = useCallback(async (tid: string | null) => {
     setLoadingPaths(true);
@@ -71,6 +74,7 @@ export default function AdminPathsPage() {
     const tid = userTenantId ?? null;
     setTenantId(tid);
     fetchPaths(tid);
+    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d : [])).catch(() => setTenants([]));
     if (tid) {
       apiFetch(`/domains?tenantId=${tid}`)
         .then((r) => r.json())
@@ -98,6 +102,26 @@ export default function AdminPathsPage() {
     setView("builder");
   };
 
+  const adminNav = useMemo(() => adminHubNavItems(t), [t]);
+
+  const handleTogglePublish = async (path: PathItem) => {
+    try {
+      const res = await apiFetch(`/learning-paths/${path.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ isPublished: !path.isPublished }),
+      });
+      if (res.ok) {
+        setPaths((prev) =>
+          prev.map((p) =>
+            p.id === path.id ? { ...p, isPublished: !path.isPublished } : p
+          )
+        );
+      }
+    } catch {
+      console.error("Failed to toggle publish status");
+    }
+  };
+
   const handleEditPath = async (path: PathItem) => {
     try {
       const res = await apiFetch(`/learning-paths/${path.id}`);
@@ -115,25 +139,7 @@ export default function AdminPathsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-brand-grey-light px-6 py-4 flex justify-between items-center">
-        <LearnLogo size="md" variant="purple" />
-        <nav className="flex items-center gap-4">
-          <Link href="/trainer"><Button variant="ghost" size="sm">{t("nav.trainer")}</Button></Link>
-          <Link href="/admin/paths"><Button variant="primary" size="sm">{t("nav.paths")}</Button></Link>
-          <Link href="/admin/domains"><Button variant="ghost" size="sm">Domains</Button></Link>
-          <Link href="/admin/content"><Button variant="ghost" size="sm">{t("nav.content")}</Button></Link>
-          <Link href="/admin/certificates"><Button variant="ghost" size="sm">Certificates</Button></Link>
-          <Link href="/admin/company"><Button variant="ghost" size="sm">{t("nav.company")}</Button></Link>
-          <Link href="/admin/pages"><Button variant="ghost" size="sm">Pages</Button></Link>
-          <Link href="/admin/analytics"><Button variant="ghost" size="sm">{t("nav.analytics")}</Button></Link>
-          <Link href="/admin/provisioning"><Button variant="ghost" size="sm">{t("nav.scim")}</Button></Link>
-          <Link href="/admin/trainers"><Button variant="ghost" size="sm">Trainer requests</Button></Link>
-          <Link href="/admin/company-admins"><Button variant="ghost" size="sm">Company Admin requests</Button></Link>
-          <div className="flex items-center gap-1 pl-4 ml-4 border-l border-brand-grey-light">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={adminNav} />
 
       <main className="max-w-6xl mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
@@ -190,10 +196,17 @@ export default function AdminPathsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
                       <Badge variant={path.isPublished ? "pulsar" : "stardust"}>
                         {path.isPublished ? t("admin.published") : t("admin.draft")}
                       </Badge>
+                      <Button
+                        variant={path.isPublished ? "outline" : "primary"}
+                        size="sm"
+                        onClick={() => handleTogglePublish(path)}
+                      >
+                        {path.isPublished ? t("admin.unpublish") : t("admin.publish")}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -215,12 +228,15 @@ export default function AdminPathsPage() {
             tenantId={tenantId}
             contentTypes={CONTENT_TYPES}
             onSave={handleSaved}
+            tenants={tenants}
             editingPath={editingPath ? {
               id: editingPath.id,
               name: editingPath.name,
               domainId: editingPath.domainId ?? editingPath.domain?.id ?? "",
               description: editingPath.description,
               isPublished: editingPath.isPublished,
+              availablePlans: editingPath.availablePlans,
+              availableInEnterprise: editingPath.availableInEnterprise,
               steps: editingPath.steps,
             } : null}
           />

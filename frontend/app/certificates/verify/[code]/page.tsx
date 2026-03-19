@@ -1,18 +1,20 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { authShellNavItems } from "@/lib/nav/burger-nav";
 import { apiFetch } from "@/lib/api";
 
 export default function VerifyCertificatePage() {
   const params = useParams();
   const { t } = useI18n();
+  const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const code = params?.code as string;
   const [cert, setCert] = useState<{
     verifyCode: string;
@@ -35,12 +37,13 @@ export default function VerifyCertificatePage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col p-6">
-      <header className="absolute top-6 left-6 right-6 flex justify-between items-center">
-        <Link href="/">
-          <LearnLogo size="md" variant="purple" />
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-0"
+        headerClassName="absolute top-6 left-6 right-6 z-10 flex justify-between items-center gap-3"
+        logoHref="/"
+        logo={<LearnLogo size="md" variant="purple" />}
+        items={shellNav}
+      />
       <div className="flex-1 flex flex-col items-center justify-center">
         <Card className="max-w-md w-full mt-8 p-8 text-center">
           {loading ? (

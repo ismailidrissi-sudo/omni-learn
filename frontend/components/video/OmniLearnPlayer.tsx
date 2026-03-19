@@ -6,6 +6,7 @@ import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
 import '@/styles/videojs-omnilearn.css';
 import { VIDEOJS_DEFAULT_OPTIONS, COMPLETION_CONFIG } from '@/lib/videojs/config';
+import { inferVideoJsMimeType } from '@/lib/videojs/infer-source-type';
 import { apiFetch } from '@/lib/api';
 import { CompletionBadge } from './CompletionBadge';
 
@@ -153,7 +154,7 @@ export default function OmniLearnPlayer({
       sources: [
         {
           src: streamEndpoint,
-          type: 'video/mp4',
+          type: inferVideoJsMimeType(streamEndpoint),
         },
       ],
     };

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTenant } from "@/components/providers/tenant-context";
-import { TenantLogo } from "@/components/ui/tenant-logo";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ErrorBanner } from "@/components/ui/error-banner";
@@ -80,18 +79,16 @@ export default function TenantAffiliationsPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}/admin`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <div className="flex items-center gap-3">
+      <TenantAdminBurgerHeader
+        slug={slug}
+        academyName={academyName}
+        logoUrl={tenant?.logoUrl}
+        trailing={
           <Link href={`/${slug}/admin`}>
             <Button variant="ghost" size="sm">Back to Admin</Button>
           </Link>
-          <NavToggles />
-        </div>
-      </header>
+        }
+      />
 
       <main className="max-w-3xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">

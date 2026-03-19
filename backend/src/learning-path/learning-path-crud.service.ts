@@ -14,6 +14,9 @@ export interface CreatePathDto {
   difficulty?: string;
   description?: string;
   isPublished?: boolean;
+  availablePlans?: string[];
+  availableInEnterprise?: boolean;
+  enterpriseTenantIds?: string[];
 }
 
 export interface CreateStepDto {
@@ -39,6 +42,8 @@ export class LearningPathCrudService {
         difficulty: data.difficulty,
         description: data.description,
         isPublished: data.isPublished ?? false,
+        availablePlans: data.availablePlans ?? ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'],
+        availableInEnterprise: data.availableInEnterprise ?? false,
       },
     });
   }
@@ -79,6 +84,8 @@ export class LearningPathCrudService {
         ...(data.difficulty !== undefined && { difficulty: data.difficulty }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.isPublished !== undefined && { isPublished: data.isPublished }),
+        ...(data.availablePlans !== undefined && { availablePlans: data.availablePlans }),
+        ...(data.availableInEnterprise !== undefined && { availableInEnterprise: data.availableInEnterprise }),
       },
     });
   }

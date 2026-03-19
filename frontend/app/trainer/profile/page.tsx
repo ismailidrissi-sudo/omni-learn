@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { trainerNavItemsApproved } from "@/lib/nav/burger-nav";
+import { useI18n } from "@/lib/i18n/context";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
@@ -77,6 +79,8 @@ function useProfileCompletion(profile: TrainerProfile): { pct: number; missing: 
 }
 
 export default function TrainerProfileEditPage() {
+  const { t } = useI18n();
+  const trainerNav = useMemo(() => trainerNavItemsApproved(t), [t]);
   const { user, loading: userLoading } = useUser();
   const [profile, setProfile] = useState<TrainerProfile>({});
   const [loading, setLoading] = useState(true);
@@ -190,21 +194,15 @@ export default function TrainerProfileEditPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
-      <header className="sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl px-6 py-3">
-        <div className="max-w-5xl mx-auto flex justify-between items-center">
-          <Link href="/">
-            <LearnLogo size="md" variant="purple" />
-          </Link>
-          <nav className="flex items-center gap-2">
-            <Link href="/trainer"><Button variant="ghost" size="sm">Dashboard</Button></Link>
-            <Button variant="primary" size="sm">My Profile</Button>
-            <Link href="/trainers"><Button variant="ghost" size="sm">Directory</Button></Link>
-            <div className="flex items-center gap-1 pl-3 ml-3 border-l border-gray-200 dark:border-white/10">
-              <NavToggles />
-            </div>
-          </nav>
-        </div>
-      </header>
+      <div className="sticky top-0 z-40 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl">
+        <AppBurgerHeader
+          borderClassName="border-0"
+          headerClassName="max-w-5xl mx-auto px-6 py-3 flex justify-between items-center gap-3"
+          logoHref="/"
+          logo={<LearnLogo size="md" variant="purple" />}
+          items={trainerNav}
+        />
+      </div>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
         {/* Page header with status and actions */}

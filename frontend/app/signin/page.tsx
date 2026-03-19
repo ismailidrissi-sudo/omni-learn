@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -8,7 +8,8 @@ import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignIn";
 import { LinkedInSignInButton } from "@/components/auth/LinkedInSignIn";
 import { useI18n } from "@/lib/i18n/context";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { authShellNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch, setToken } from "@/lib/api";
 
@@ -18,6 +19,7 @@ function SignInPageContent() {
   const verified = searchParams.get("verified") === "1";
   const redirect = searchParams.get("redirect") ?? "/learn";
   const { t } = useI18n();
+  const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -115,12 +117,13 @@ function SignInPageContent() {
 
   return (
     <div className="min-h-screen font-landing flex flex-col bg-[#F5F5DC] dark:bg-[#0f1510]">
-      <header className="p-4 md:p-6 flex justify-between items-center">
-        <Link href="/">
-          <OmnilearnLogo size="md" variant="auto" />
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-0"
+        headerClassName="p-4 md:p-6 flex justify-between items-center gap-3"
+        logoHref="/"
+        logo={<OmnilearnLogo size="md" variant="auto" />}
+        items={shellNav}
+      />
 
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <motion.div

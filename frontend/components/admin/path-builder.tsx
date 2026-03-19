@@ -27,17 +27,27 @@ interface Step {
   order: number;
 }
 
+const PLAN_OPTIONS = [
+  { id: "EXPLORER", label: "Explorer (Free)", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  { id: "SPECIALIST", label: "Specialist", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  { id: "VISIONARY", label: "Visionary", color: "bg-purple-100 text-purple-700 border-purple-300" },
+  { id: "NEXUS", label: "Nexus (Enterprise)", color: "bg-amber-100 text-amber-700 border-amber-300" },
+] as const;
+
 interface PathBuilderProps {
   domains: Array<{ id: string; name: string; icon: string }>;
   tenantId?: string | null;
   contentTypes: Array<{ type: string; icon: string }>;
   onSave: (pathId: string) => void;
+  tenants?: Array<{ id: string; name: string }>;
   editingPath?: {
     id: string;
     name: string;
     domainId: string;
     description?: string;
     isPublished?: boolean;
+    availablePlans?: string[];
+    availableInEnterprise?: boolean;
     steps?: Array<{
       id: string;
       contentItemId: string;
@@ -56,7 +66,7 @@ function formatDuration(minutes?: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPath }: PathBuilderProps) {
+export function PathBuilder({ domains, tenantId, contentTypes, onSave, tenants = [], editingPath }: PathBuilderProps) {
   const { t } = useI18n();
   const [pathName, setPathName] = useState(editingPath?.name ?? t("pathBuilder.newLearningPath"));
   const [pathDomainId, setPathDomainId] = useState(editingPath?.domainId ?? domains[0]?.id ?? "");
@@ -74,6 +84,15 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
       order: s.stepOrder,
     }));
   });
+  const [isPublished, setIsPublished] = useState(editingPath?.isPublished ?? false);
+  const [pathAvailablePlans, setPathAvailablePlans] = useState<string[]>(
+    editingPath?.availablePlans && Array.isArray(editingPath.availablePlans)
+      ? editingPath.availablePlans
+      : ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]
+  );
+  const [pathAvailableInEnterprise, setPathAvailableInEnterprise] = useState(editingPath?.availableInEnterprise ?? false);
+  const [pathEnterpriseTenantIds, setPathEnterpriseTenantIds] = useState<string[]>([]);
+  const [pathEnterpriseAllCompanies, setPathEnterpriseAllCompanies] = useState(true);
   const [saving, setSaving] = useState(false);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [contentSearch, setContentSearch] = useState("");
@@ -167,6 +186,9 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             domainId: pathDomainId,
             slug,
             description: pathDescription,
+            isPublished,
+            availablePlans: pathAvailablePlans,
+            availableInEnterprise: pathAvailableInEnterprise,
           }),
         });
         if (!res.ok) throw new Error("Failed to update path");
@@ -180,6 +202,9 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             name: pathName.trim(),
             slug,
             description: pathDescription,
+            isPublished,
+            availablePlans: pathAvailablePlans,
+            availableInEnterprise: pathAvailableInEnterprise,
           }),
         });
         if (!res.ok) throw new Error("Failed to create path");
@@ -241,6 +266,20 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
             <p className="text-xs text-gray-500 dark:text-gray-400">Required</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsPublished((v) => !v)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+            isPublished
+              ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700"
+              : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10"
+          }`}
+        >
+          <div className={`w-8 h-[18px] rounded-full relative transition-colors ${isPublished ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"}`}>
+            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${isPublished ? "left-[17px]" : "left-[2px]"}`} />
+          </div>
+          {isPublished ? t("admin.published") : t("admin.draft")}
+        </button>
         <Button onClick={handleSave} disabled={saving || !pathName.trim() || !pathDomainId} className="gap-1.5">
           {saving ? (
             <>
@@ -296,6 +335,87 @@ export function PathBuilder({ domains, tenantId, contentTypes, onSave, editingPa
                   onChange={(e) => setPathDescription(e.target.value)}
                   placeholder={t("pathBuilder.description")}
                 />
+              </div>
+
+              {/* Plan availability */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                  Available in Plans
+                </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {PLAN_OPTIONS.map((plan) => {
+                    const checked = pathAvailablePlans.includes(plan.id);
+                    return (
+                      <label
+                        key={plan.id}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${
+                          checked
+                            ? plan.color + " border-current"
+                            : "bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setPathAvailablePlans((prev) =>
+                              checked ? prev.filter((p) => p !== plan.id) : [...prev, plan.id]
+                            );
+                          }}
+                          className="accent-current"
+                        />
+                        <span className="font-medium">{plan.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Enterprise availability */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pathAvailableInEnterprise}
+                    onChange={(e) => setPathAvailableInEnterprise(e.target.checked)}
+                  />
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                    Available for Enterprise
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                  Companies can include this path in their white-label academies.
+                </p>
+
+                {pathAvailableInEnterprise && tenants.length > 0 && (
+                  <div className="ml-6 space-y-2 p-3 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pathEnterpriseAllCompanies}
+                        onChange={(e) => setPathEnterpriseAllCompanies(e.target.checked)}
+                      />
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">All companies</span>
+                    </label>
+                    {!pathEnterpriseAllCompanies && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {tenants.map((t) => (
+                          <label key={t.id} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-white dark:hover:bg-white/10 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={pathEnterpriseTenantIds.includes(t.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setPathEnterpriseTenantIds((prev) => [...prev, t.id]);
+                                else setPathEnterpriseTenantIds((prev) => prev.filter((id) => id !== t.id));
+                              }}
+                            />
+                            <span className="text-sm">{t.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </Card>

@@ -63,6 +63,8 @@ export class ContentController {
         tenantIds: body.tenantIds,
         userIds: body.userIds,
         isFoundational: body.isFoundational,
+        availablePlans: body.availablePlans,
+        availableInEnterprise: body.availableInEnterprise,
       },
     );
   }

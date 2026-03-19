@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { useI18n } from "@/lib/i18n/context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
+import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
 type ContentDetail = {
@@ -25,6 +27,7 @@ export default function TenantContentPage() {
   const contentId = typeof params.id === "string" ? params.id : "";
   const { t } = useI18n();
   const { tenant, branding, isLoading: tenantLoading } = useTenant();
+  const { user } = useUser();
 
   const [content, setContent] = useState<ContentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,15 +64,17 @@ export default function TenantContentPage() {
     );
   }
 
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <NavToggles />
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-[var(--color-bg-secondary)]"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        items={tenantNav}
+      />
 
       <main className="max-w-4xl mx-auto p-6">
         <Link href={`/${slug}/discover`} className="text-sm text-[var(--color-accent)] hover:underline mb-4 inline-block">

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { useI18n } from "@/lib/i18n/context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NavToggles } from "@/components/ui/nav-toggles";
+import { AppBurgerHeader } from "@/components/ui/app-burger-header";
+import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
+import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 
 type ContentItem = {
@@ -25,6 +26,7 @@ export default function TenantDiscoverPage() {
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const { t } = useI18n();
   const { tenant, branding, isLoading: tenantLoading } = useTenant();
+  const { user } = useUser();
 
   const [query, setQuery] = useState("");
   const [content, setContent] = useState<ContentItem[]>([]);
@@ -55,24 +57,17 @@ export default function TenantDiscoverPage() {
   }
 
   const types = ["COURSE", "MICRO_LEARNING", "PODCAST", "DOCUMENT", "VIDEO", "QUIZ_ASSESSMENT", "GAME"];
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
-        </Link>
-        <nav className="flex items-center gap-3">
-          <Link href={`/${slug}/learn`}><Button variant="ghost" size="sm">{t("tenant.learn")}</Button></Link>
-          <Link href={`/${slug}/discover`}><Button variant="primary" size="sm">{t("tenant.discover")}</Button></Link>
-          <Link href={`/${slug}/forum`}><Button variant="ghost" size="sm">{t("tenant.forum")}</Button></Link>
-          <Link href={`/${slug}/admin`}><Button variant="ghost" size="sm">{t("tenant.admin")}</Button></Link>
-          <div className="pl-3 ml-3 border-l border-[var(--color-bg-secondary)]">
-            <NavToggles />
-          </div>
-        </nav>
-      </header>
+      <AppBurgerHeader
+        borderClassName="border-b border-[var(--color-bg-secondary)]"
+        logoHref={`/${slug}`}
+        logo={<TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />}
+        title={academyName}
+        items={tenantNav}
+      />
 
       <main className="max-w-6xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-6">

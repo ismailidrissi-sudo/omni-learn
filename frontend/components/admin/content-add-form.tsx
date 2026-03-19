@@ -21,6 +21,13 @@ export type ContentType =
 type VideoEntry = { url: string; description: string };
 type GuideItem = { format: string; url: string; description: string };
 
+const PLAN_OPTIONS = [
+  { id: "EXPLORER", label: "Explorer (Free)", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  { id: "SPECIALIST", label: "Specialist", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  { id: "VISIONARY", label: "Visionary", color: "bg-purple-100 text-purple-700 border-purple-300" },
+  { id: "NEXUS", label: "Nexus (Enterprise)", color: "bg-amber-100 text-amber-700 border-amber-300" },
+] as const;
+
 interface ContentAddFormProps {
   contentType: ContentType;
   onSuccess: () => void;
@@ -41,6 +48,10 @@ interface ContentAddFormProps {
   publicOnly?: boolean;
   isFoundational?: boolean;
   onIsFoundationalChange?: (v: boolean) => void;
+  availablePlans?: string[];
+  onAvailablePlansChange?: (plans: string[]) => void;
+  availableInEnterprise?: boolean;
+  onAvailableInEnterpriseChange?: (v: boolean) => void;
 }
 
 export function ContentAddForm({
@@ -62,6 +73,10 @@ export function ContentAddForm({
   publicOnly = false,
   isFoundational = true,
   onIsFoundationalChange,
+  availablePlans = ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"],
+  onAvailablePlansChange,
+  availableInEnterprise = false,
+  onAvailableInEnterpriseChange,
 }: ContentAddFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -98,6 +113,14 @@ export function ContentAddForm({
   const updateGuideItem = (i: number, f: keyof GuideItem, v: string) =>
     setGuideItems((p) => p.map((e, idx) => (idx === i ? { ...e, [f]: v } : e)));
 
+  const togglePlan = (planId: string) => {
+    const next = availablePlans.includes(planId)
+      ? availablePlans.filter((p) => p !== planId)
+      : [...availablePlans, planId];
+    onAvailablePlansChange?.(next);
+    if (planId === "EXPLORER") onIsFoundationalChange?.(next.includes("EXPLORER"));
+  };
+
   const buildPayload = (): Record<string, unknown> | null => {
     const base: Record<string, unknown> = {
       type: contentType,
@@ -105,9 +128,11 @@ export function ContentAddForm({
       description: description.trim() || undefined,
       domainId: domainId || undefined,
       durationMinutes: duration ? parseInt(duration, 10) : undefined,
-      tenantIds: assignToAllCompanies ? [] : tenantIds,
+      tenantIds: availableInEnterprise ? (assignToAllCompanies ? [] : tenantIds) : [],
       userIds,
-      isFoundational,
+      isFoundational: availablePlans.includes("EXPLORER"),
+      availablePlans,
+      availableInEnterprise,
     };
 
     switch (contentType) {
@@ -192,9 +217,11 @@ export function ContentAddForm({
             description: description.trim() || undefined,
             domainId: domainId || undefined,
             durationMinutes: duration ? parseInt(duration, 10) : undefined,
-            tenantIds: assignToAllCompanies ? [] : tenantIds,
+            tenantIds: availableInEnterprise ? (assignToAllCompanies ? [] : tenantIds) : [],
             userIds,
-            isFoundational,
+            isFoundational: availablePlans.includes("EXPLORER"),
+            availablePlans,
+            availableInEnterprise,
             scormMetadata: {
               scormPackageUrl: scormUrl || undefined,
               xapiEndpoint: xapiEndpoint || undefined,
@@ -220,10 +247,13 @@ export function ContentAddForm({
             description: v.description || description || undefined,
             domainId: domainId || undefined,
             durationMinutes: duration ? parseInt(duration, 10) : undefined,
-            tenantIds: assignToAllCompanies ? [] : tenantIds,
+            tenantIds: availableInEnterprise ? (assignToAllCompanies ? [] : tenantIds) : [],
             userIds,
             mediaId: v.url,
             metadata: { videoUrl: v.url, hlsUrl: v.url, description: v.description },
+            isFoundational: availablePlans.includes("EXPLORER"),
+            availablePlans,
+            availableInEnterprise,
           };
           const res = await apiFetch("/content", {
             method: "POST",
@@ -528,50 +558,86 @@ export function ContentAddForm({
         </select>
       </div>
 
-      {/* Company assignment — hidden when publicOnly (trainer flow) */}
+      {/* Plan availability */}
       {!publicOnly && (
-        <div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={assignToAllCompanies}
-              onChange={(e) => onAssignToAllChange(e.target.checked)}
-            />
-            <span className="text-sm font-medium">Available to all companies</span>
-          </label>
-          {!assignToAllCompanies && (
-            <div className="mt-2 space-y-2 max-h-24 overflow-y-auto">
-              {tenants.map((t) => (
-                <label key={t.id} className="flex items-center gap-2 cursor-pointer">
+        <div className="space-y-3">
+          <label className="block text-sm font-medium">Available in Plans</label>
+          <p className="text-xs text-brand-grey -mt-2">
+            Select which subscription plans can access this content.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {PLAN_OPTIONS.map((plan) => {
+              const checked = availablePlans.includes(plan.id);
+              return (
+                <label
+                  key={plan.id}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
+                    checked
+                      ? plan.color + " border-current"
+                      : "bg-white border-brand-grey-light hover:border-brand-grey"
+                  }`}
+                >
                   <input
                     type="checkbox"
-                    checked={tenantIds.includes(t.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) onTenantChange([...tenantIds, t.id]);
-                      else onTenantChange(tenantIds.filter((id) => id !== t.id));
-                    }}
+                    checked={checked}
+                    onChange={() => togglePlan(plan.id)}
+                    className="accent-current"
                   />
-                  <span className="text-sm">{t.name}</span>
+                  <span className="text-sm font-medium">{plan.label}</span>
                 </label>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {/* Enterprise / white-label academy availability */}
       {!publicOnly && (
-        <div>
+        <div className="space-y-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={isFoundational}
-              onChange={(e) => onIsFoundationalChange?.(e.target.checked)}
+              checked={availableInEnterprise}
+              onChange={(e) => onAvailableInEnterpriseChange?.(e.target.checked)}
             />
-            <span className="text-sm font-medium">Visible to free-tier users</span>
+            <span className="text-sm font-medium">Available for Enterprise (Company Academies)</span>
           </label>
-          <p className="text-xs text-brand-grey mt-1 ml-6">
-            When enabled, Explorer (free) users can access this content. Disable to restrict to paid tiers only.
+          <p className="text-xs text-brand-grey ml-6 -mt-2">
+            When enabled, companies can include this content in their white-label academies.
           </p>
+
+          {availableInEnterprise && (
+            <div className="ml-6 space-y-2 p-3 rounded-lg border border-brand-grey-light bg-gray-50">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={assignToAllCompanies}
+                  onChange={(e) => onAssignToAllChange(e.target.checked)}
+                />
+                <span className="text-sm font-medium">Available to all companies</span>
+              </label>
+              {!assignToAllCompanies && (
+                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+                  {tenants.length === 0 && (
+                    <p className="text-xs text-brand-grey italic">No companies found.</p>
+                  )}
+                  {tenants.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded hover:bg-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={tenantIds.includes(t.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) onTenantChange([...tenantIds, t.id]);
+                          else onTenantChange(tenantIds.filter((id) => id !== t.id));
+                        }}
+                      />
+                      <span className="text-sm">{t.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

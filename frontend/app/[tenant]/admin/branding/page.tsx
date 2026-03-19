@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
-import { TenantLogo } from "@/components/ui/tenant-logo";
+import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";
@@ -91,14 +89,14 @@ export default function BrandingStudioPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <header className="border-b border-[var(--color-bg-secondary)] px-6 py-4 flex justify-between items-center">
-        <Link href={`/${slug}/admin`} className="flex items-center gap-3">
-          <TenantLogo logoUrl={tenant?.logoUrl} name={academyName} size="md" />
-          <span className="text-lg font-bold text-[var(--color-text-primary)]">{academyName}</span>
+      <TenantAdminBurgerHeader
+        slug={slug}
+        academyName={academyName}
+        logoUrl={tenant?.logoUrl}
+        contextSlot={
           <span className="text-sm text-[var(--color-text-secondary)]">/ {t("adminTenant.branding")}</span>
-        </Link>
-        <NavToggles />
-      </header>
+        }
+      />
 
       <main className="max-w-5xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
