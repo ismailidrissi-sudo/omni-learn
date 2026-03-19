@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";

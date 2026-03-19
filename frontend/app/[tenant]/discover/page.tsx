@@ -48,6 +48,8 @@ export default function TenantDiscoverPage() {
       .finally(() => setLoading(false));
   }, [query, typeFilter]);
 
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
+
   if (tenantLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -57,7 +59,6 @@ export default function TenantDiscoverPage() {
   }
 
   const types = ["COURSE", "MICRO_LEARNING", "PODCAST", "DOCUMENT", "VIDEO", "QUIZ_ASSESSMENT", "GAME"];
-  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">

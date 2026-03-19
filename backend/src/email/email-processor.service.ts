@@ -26,12 +26,15 @@ export class EmailProcessorService {
   private readonly logger = new Logger(EmailProcessorService.name);
   private processing = false;
 
+  private readonly db: any;
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: EmailConfigService,
     private readonly resendClient: ResendClientService,
     private readonly rateLimiter: RateLimiterService,
-  ) {}
+  ) {
+    this.db = prisma as any;
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async handleCron() {
@@ -104,7 +107,7 @@ export class EmailProcessorService {
       }
 
       try {
-        await this.prisma.emailQueue.update({
+        await this.db.emailQueue.update({
           where: { id: email.id },
           data: { status: 'SENDING', updatedAt: new Date() },
         });
@@ -120,7 +123,7 @@ export class EmailProcessorService {
           textBody: email.textBody || undefined,
         });
 
-        await this.prisma.emailQueue.update({
+        await this.db.emailQueue.update({
           where: { id: email.id },
           data: {
             status: 'SENT',
@@ -142,7 +145,7 @@ export class EmailProcessorService {
       } catch (e) {
         if (e instanceof ResendRateLimitError) {
           this.logger.warn('Resend rate limit hit, pausing processor');
-          await this.prisma.emailQueue.update({
+          await this.db.emailQueue.update({
             where: { id: email.id },
             data: {
               status: 'PENDING',
@@ -171,7 +174,7 @@ export class EmailProcessorService {
           );
         }
 
-        await this.prisma.emailQueue.update({
+        await this.db.emailQueue.update({
           where: { id: email.id },
           data: {
             status: 'FAILED',
@@ -198,7 +201,7 @@ export class EmailProcessorService {
 
     const tomorrowBucket = new Date(tomorrow.toISOString().split('T')[0]);
 
-    await this.prisma.emailQueue.update({
+    await this.db.emailQueue.update({
       where: { id: emailId },
       data: {
         status: 'SCHEDULED',

@@ -15,6 +15,7 @@ export default function TenantPortalPage() {
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const { tenant, branding, isLoading, error } = useTenant();
   const { t } = useI18n();
+  const portalNav = useMemo(() => tenantAuthShellNavItems(t, slug), [t, slug]);
 
   if (isLoading) {
     return (
@@ -50,7 +51,6 @@ export default function TenantPortalPage() {
   const academyName = branding?.appName || tenant.name;
   const tagline = branding?.tagline || "Your enterprise learning platform";
   const primaryColor = branding?.primaryColor || "#059669";
-  const portalNav = useMemo(() => tenantAuthShellNavItems(t, slug), [t, slug]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+// import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { NavToggles } from "@/components/ui/nav-toggles";
+// import { NavToggles } from "@/components/ui/nav-toggles";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";

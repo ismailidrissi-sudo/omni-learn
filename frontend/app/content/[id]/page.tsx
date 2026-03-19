@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
-import { Button } from "@/components/ui/button";
 import { CourseReviews } from "@/components/learning/course-reviews";
 import { ScormViewer } from "@/components/media/scorm-viewer";
 import { SmartVideo } from "@/components/media/smart-video";

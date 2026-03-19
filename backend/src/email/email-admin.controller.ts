@@ -28,13 +28,16 @@ import { testEmailHtml, testEmailSubject } from './templates';
 @UseGuards(AuthGuard('jwt'), RbacGuard)
 @Roles(RbacRole.SUPER_ADMIN)
 export class EmailAdminController {
+  private readonly db: any;
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: EmailConfigService,
     private readonly resendClient: ResendClientService,
     private readonly rateLimiter: RateLimiterService,
     private readonly emailService: EmailService,
-  ) {}
+  ) {
+    this.db = prisma as any;
+  }
 
   @Get('config')
   async getConfig() {
@@ -102,7 +105,7 @@ export class EmailAdminController {
 
     if (hasConfig) {
       const existing = await this.configService.getConfig();
-      await this.prisma.emailConfig.update({
+      await this.db.emailConfig.update({
         where: { id: existing.id },
         data,
       });
@@ -110,7 +113,7 @@ export class EmailAdminController {
       if (!data.apiKey) {
         throw new BadRequestException('API key is required for initial configuration');
       }
-      await this.prisma.emailConfig.create({
+      await this.db.emailConfig.create({
         data: {
           apiKey: data.apiKey,
           apiKeyLastFour: data.apiKeyLastFour,
@@ -140,7 +143,7 @@ export class EmailAdminController {
       const result = await this.resendClient.verifyKey();
       if (result.valid) {
         const config = await this.configService.getConfig();
-        await this.prisma.emailConfig.update({
+        await this.db.emailConfig.update({
           where: { id: config.id },
           data: { lastVerifiedAt: new Date() },
         });
@@ -183,11 +186,11 @@ export class EmailAdminController {
     const todayStr = new Date().toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
-    const stats = await this.prisma.emailDailyStats.findUnique({
+    const stats = await this.db.emailDailyStats.findUnique({
       where: { dayBucket: todayDate },
     });
 
-    const pending = await this.prisma.emailQueue.count({
+    const pending = await this.db.emailQueue.count({
       where: {
         status: { in: ['PENDING', 'SCHEDULED'] },
         dayBucket: todayDate,
@@ -215,7 +218,7 @@ export class EmailAdminController {
     since.setDate(since.getDate() - daysCount);
     const sinceStr = since.toISOString().split('T')[0];
 
-    const rows = await this.prisma.emailDailyStats.findMany({
+    const rows = await this.db.emailDailyStats.findMany({
       where: { dayBucket: { gte: new Date(sinceStr) } },
       orderBy: { dayBucket: 'asc' },
     });
@@ -244,8 +247,8 @@ export class EmailAdminController {
     }
 
     const [total, items] = await Promise.all([
-      this.prisma.emailQueue.count({ where }),
-      this.prisma.emailQueue.findMany({
+      this.db.emailQueue.count({ where }),
+      this.db.emailQueue.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -271,7 +274,7 @@ export class EmailAdminController {
 
   @Post('queue/:id/retry')
   async retryEmail(@Param('id') emailId: string) {
-    await this.prisma.emailQueue.updateMany({
+    await this.db.emailQueue.updateMany({
       where: { id: emailId, status: 'FAILED' },
       data: {
         status: 'PENDING',
@@ -286,7 +289,7 @@ export class EmailAdminController {
 
   @Post('queue/:id/cancel')
   async cancelEmail(@Param('id') emailId: string) {
-    await this.prisma.emailQueue.updateMany({
+    await this.db.emailQueue.updateMany({
       where: {
         id: emailId,
         status: { in: ['PENDING', 'SCHEDULED'] },

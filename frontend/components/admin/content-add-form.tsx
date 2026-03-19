@@ -71,7 +71,7 @@ export function ContentAddForm({
   onDomainChange,
   onCourseCreated,
   publicOnly = false,
-  isFoundational = true,
+  isFoundational: _isFoundational = true,
   onIsFoundationalChange,
   availablePlans = ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"],
   onAvailablePlansChange,

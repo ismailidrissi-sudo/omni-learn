@@ -155,6 +155,8 @@ export default function TenantLearnPage() {
     track("COURSE_ENROLLMENT", { userId, courseId });
   };
 
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
+
   if (tenantLoading || userLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -164,7 +166,6 @@ export default function TenantLearnPage() {
   }
 
   const totalContent = Object.values(contentByType).reduce((sum, items) => sum + items.length, 0);
-  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">

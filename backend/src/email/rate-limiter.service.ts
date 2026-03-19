@@ -5,16 +5,19 @@ import { EmailPriority } from './constants';
 
 @Injectable()
 export class RateLimiterService {
+  private readonly db: any;
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: EmailConfigService,
-  ) {}
+  ) {
+    this.db = prisma as any;
+  }
 
   async getDailySendCount(day?: Date): Promise<number> {
     const bucket = day || new Date();
     const dateStr = bucket.toISOString().split('T')[0];
 
-    const stats = await this.prisma.emailDailyStats.findUnique({
+    const stats = await this.db.emailDailyStats.findUnique({
       where: { dayBucket: new Date(dateStr) },
     });
 
@@ -26,7 +29,7 @@ export class RateLimiterService {
     const dateStr = bucket.toISOString().split('T')[0];
     const dayDate = new Date(dateStr);
 
-    const result = await this.prisma.$executeRaw`
+    await this.prisma.$executeRaw`
       INSERT INTO email_daily_stats ("dayBucket", "sentCount", "updatedAt")
       VALUES (${dayDate}::date, 1, NOW())
       ON CONFLICT ("dayBucket") DO UPDATE SET
@@ -34,7 +37,7 @@ export class RateLimiterService {
         "updatedAt" = NOW()
     `;
 
-    const stats = await this.prisma.emailDailyStats.findUnique({
+    const stats = await this.db.emailDailyStats.findUnique({
       where: { dayBucket: dayDate },
     });
     return stats?.sentCount ?? 1;

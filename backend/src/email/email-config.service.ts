@@ -1,6 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { EmailConfig } from '@prisma/client';
+
+interface EmailConfig {
+  id: string;
+  provider: string;
+  apiKey: string;
+  apiKeyLastFour: string | null;
+  defaultFromName: string;
+  defaultFromEmail: string;
+  defaultReplyTo: string | null;
+  dailySendLimit: number;
+  rateLimitPerSecond: number;
+  overflowStrategy: string;
+  overflowSendHour: number;
+  isActive: boolean;
+  lastVerifiedAt: Date | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 @Injectable()
 export class EmailConfigService {
@@ -9,7 +27,10 @@ export class EmailConfigService {
   private cacheExpiresAt: number = 0;
   private readonly CACHE_TTL_MS = 60_000;
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly db: any;
+  constructor(private readonly prisma: PrismaService) {
+    this.db = prisma as any;
+  }
 
   async getConfig(): Promise<EmailConfig> {
     const now = Date.now();
@@ -17,7 +38,7 @@ export class EmailConfigService {
       return this.cache;
     }
 
-    const config = await this.prisma.emailConfig.findFirst({
+    const config = await this.db.emailConfig.findFirst({
       orderBy: { createdAt: 'desc' },
     });
 
@@ -39,7 +60,7 @@ export class EmailConfigService {
   }
 
   async hasConfig(): Promise<boolean> {
-    const count = await this.prisma.emailConfig.count();
+    const count = await this.db.emailConfig.count();
     return count > 0;
   }
 }

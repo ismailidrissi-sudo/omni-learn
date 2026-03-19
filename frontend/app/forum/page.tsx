@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";

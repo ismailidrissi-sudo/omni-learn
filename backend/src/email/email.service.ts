@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailPriority, PRIORITY_TO_ENUM } from './constants';
-import type { EmailPriorityLevel, EmailStatus } from '@prisma/client';
+
+type EmailPriorityLevel = 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW';
+type EmailStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'SCHEDULED' | 'CANCELLED';
 
 export interface EnqueueParams {
   toEmail: string;
@@ -41,7 +43,10 @@ export interface EnqueueFromTemplateParams {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly db: any;
+  constructor(private readonly prisma: PrismaService) {
+    this.db = prisma as any;
+  }
 
   async enqueue(params: EnqueueParams): Promise<string> {
     const priority = params.priority ?? EmailPriority.NORMAL;
@@ -62,7 +67,7 @@ export class EmailService {
       status = 'SCHEDULED';
     }
 
-    const entry = await this.prisma.emailQueue.create({
+    const entry = await this.db.emailQueue.create({
       data: {
         toEmail: params.toEmail,
         toName: params.toName,
@@ -91,7 +96,7 @@ export class EmailService {
   }
 
   async enqueueFromTemplate(params: EnqueueFromTemplateParams): Promise<string> {
-    const template = await this.prisma.emailTemplate.findUnique({
+    const template = await this.db.emailTemplate.findUnique({
       where: { slug: params.templateSlug },
     });
 

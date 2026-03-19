@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";

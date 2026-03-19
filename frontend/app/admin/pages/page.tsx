@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
 import { useI18n } from "@/lib/i18n/context";
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
