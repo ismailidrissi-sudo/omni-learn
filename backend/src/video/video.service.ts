@@ -186,7 +186,7 @@ export class VideoService {
       where: { contentId: { in: contentIds } },
     });
 
-    const progressMap = new Map<string, typeof progress>();
+    const progressMap = new Map<string, (typeof progress)[number]>();
     for (const p of progress) {
       const key = `${p.userId}:${p.contentId}`;
       progressMap.set(key, p);
