@@ -160,8 +160,12 @@ export default function OmniLearnPlayer({
 
     if (!allowSpeedChange) {
       options.playbackRates = [1];
+      const existingControlBar =
+        typeof options.controlBar === 'object' && options.controlBar !== null
+          ? options.controlBar
+          : {};
       options.controlBar = {
-        ...options.controlBar,
+        ...(existingControlBar as Record<string, unknown>),
         playbackRateMenuButton: false,
       };
     }
