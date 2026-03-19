@@ -146,7 +146,7 @@ export default function OmniLearnPlayer({
     if (!allowSeeking) videoElement.classList.add('vjs-seeking-disabled');
     videoRef.current.appendChild(videoElement);
 
-    const options = {
+    const options: Record<string, unknown> = {
       ...VIDEOJS_DEFAULT_OPTIONS,
       autoplay,
       poster,
