@@ -6,17 +6,20 @@
 #   - Manual dispatch (trigger from Cursor terminal or GitHub UI)
 #
 # Required GitHub Secrets:
-#   DEPLOY_HOST       — VPS IP (187.124.42.35)
-#   DEPLOY_USER       — SSH user (root or deploy user)
-#   DEPLOY_SSH_KEY    — Private SSH key for the VPS
-#   POSTGRES_PASSWORD — Production database password
-#   JWT_SECRET        — JWT signing secret
+#   DEPLOY_HOST          — VPS IP
+#   DEPLOY_USER          — SSH user (root or deploy user)
+#   DEPLOY_SSH_KEY       — Private SSH key for the VPS
+#   POSTGRES_PASSWORD    — Production database password
+#   JWT_SECRET           — JWT signing secret
+#   INTERNAL_SERVICE_KEY — Key for backend <-> microservice auth
 #
 # Optional GitHub Secrets:
 #   ADMIN_EMAIL, ADMIN_PASSWORD
 #   GOOGLE_CLIENT_ID, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET
-#   SMTP_URL, MAIL_FROM, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+#   EMAIL_ENCRYPTION_KEY, MAIL_FROM
+#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 #   NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_LINKEDIN_CLIENT_ID
+#   YTDLP_COOKIES_PATH
 
 name: Deploy
 
@@ -68,32 +71,46 @@ jobs:
             LINKEDIN_SERVER_CALLBACK_URL=https://omnilearn.space/api/auth/linkedin/callback
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
             NEXT_PUBLIC_LINKEDIN_CLIENT_ID=${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
-            SMTP_URL=${{ secrets.SMTP_URL }}
+            INTERNAL_SERVICE_KEY=${{ secrets.INTERNAL_SERVICE_KEY }}
+            EMAIL_ENCRYPTION_KEY=${{ secrets.EMAIL_ENCRYPTION_KEY }}
             MAIL_FROM=${{ secrets.MAIL_FROM }}
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            YTDLP_MAX_QUALITY=720p
+            YTDLP_COOKIES_PATH=${{ secrets.YTDLP_COOKIES_PATH }}
             ENVEOF
 
-            echo "==> Building and starting containers..."
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            mkdir -p video-proxy/cookies
 
-            echo "==> Waiting for backend to be ready..."
-            sleep 15
+            echo "==> Building images (old containers keep running)..."
+            docker compose -f docker-compose.prod.yml build
 
-            echo "==> Container status..."
-            docker compose -f docker-compose.prod.yml ps
+            echo "==> Rolling update: infrastructure..."
+            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build postgres redis
+            sleep 5
+
+            echo "==> Rolling update: backend services..."
+            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build backend video-proxy recommendations
+            sleep 10
+
+            echo "==> Rolling update: frontend..."
+            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
+            sleep 10
+
+            echo "==> Reloading nginx..."
+            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build nginx
 
             echo "==> Running database schema sync..."
             docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js db push --skip-generate || true
 
-            echo "==> Backend logs (last 50 lines)..."
-            docker compose -f docker-compose.prod.yml logs --tail=50 backend
+            echo "==> Container status..."
+            docker compose -f docker-compose.prod.yml ps
 
-            echo "==> Frontend logs (last 20 lines)..."
-            docker compose -f docker-compose.prod.yml logs --tail=20 frontend
+            echo "==> Backend logs (last 30 lines)..."
+            docker compose -f docker-compose.prod.yml logs --tail=30 backend
 
-            echo "==> Nginx logs (last 20 lines)..."
-            docker compose -f docker-compose.prod.yml logs --tail=20 nginx
+            echo "==> Frontend logs (last 15 lines)..."
+            docker compose -f docker-compose.prod.yml logs --tail=15 frontend
 
             echo "==> Cleaning up old images..."
             docker image prune -f
