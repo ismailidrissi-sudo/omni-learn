@@ -43,7 +43,7 @@ export function SmartVideo({
   src,
   hlsUrl,
   poster,
-  title,
+  title: _title,
   className = '',
   adsEnabled = false,
   contentId,

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
@@ -30,9 +31,9 @@ interface ReelsPlayerProps {
   userId: string;
   onClose: () => void;
   onLike: (contentId: string, liked: boolean) => Promise<void>;
-  onComment: (contentId: string, text: string) => Promise<any>;
+  onComment: (contentId: string, text: string) => Promise<unknown>;
   onShare: (contentId: string) => Promise<void>;
-  onLoadComments: (contentId: string) => Promise<any[]>;
+  onLoadComments: (contentId: string) => Promise<{ id: string; body: string; user_name?: string }[]>;
 }
 
 export default function MicrolearningReels({
@@ -54,7 +55,7 @@ export default function MicrolearningReels({
   const [progress, setProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<{ id: string | number; body: string; user_name?: string }[]>([]);
 
   const playerRef = useRef<Player | null>(null);
   const videoRef = useRef<HTMLDivElement>(null);
@@ -63,7 +64,7 @@ export default function MicrolearningReels({
   const currentItem = items[currentIndex];
 
   useEffect(() => {
-    const initial: Record<string, any> = {};
+    const initial: Record<string, { liked: boolean; saved: boolean; likeCount: number }> = {};
     items.forEach((item) => {
       initial[item.id] = {
         liked: item.isLiked,
@@ -434,10 +435,12 @@ export default function MicrolearningReels({
         <div className="absolute bottom-0 left-0 right-16 p-4 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
           {currentItem?.authorAvatar && (
             <div className="flex items-center gap-3 mb-3">
-              <img
+              <Image
                 src={currentItem.authorAvatar}
-                alt={currentItem.authorName}
-                className="w-10 h-10 rounded-full border-2 border-white object-cover"
+                alt={currentItem.authorName || ''}
+                width={40}
+                height={40}
+                className="rounded-full border-2 border-white object-cover"
               />
               <span className="text-white font-semibold text-sm">
                 {currentItem.authorName}

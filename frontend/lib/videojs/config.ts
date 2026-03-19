@@ -4,6 +4,7 @@
  * omnilearn.space | Afflatus Consulting Group
  */
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const VIDEOJS_DEFAULT_OPTIONS: Record<string, any> = {
   controls: true,
   responsive: true,
