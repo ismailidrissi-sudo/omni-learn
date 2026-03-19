@@ -269,7 +269,8 @@ export default function MicrolearningReels({
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !currentItem) return;
     try {
-      const comment = await onComment(currentItem.contentId, commentText.trim());
+      const result = await onComment(currentItem.contentId, commentText.trim());
+      const comment = result as { id?: string | number } | null | undefined;
       setComments((prev) => [
         { id: comment?.id || Date.now(), body: commentText.trim(), user_name: 'You' },
         ...prev,
