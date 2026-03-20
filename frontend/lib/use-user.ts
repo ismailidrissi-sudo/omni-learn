@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiFetch, tryRefreshToken } from "./api";
+import { apiFetch, refreshTokenQuiet } from "./api";
 
 export type UserPlan = "EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS";
 
@@ -52,7 +52,7 @@ export function useUser(): { user: User | null; loading: boolean } {
         if (profile && (profile.trainerApprovedAt || profile.isAdmin)) {
           const roles = getJwtRoles();
           if (!roles.includes("instructor")) {
-            await tryRefreshToken();
+            await refreshTokenQuiet();
           }
         }
         setUser(profile);
