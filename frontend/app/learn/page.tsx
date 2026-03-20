@@ -154,18 +154,23 @@ export default function LearnPage() {
       .catch(() => {});
   }, [userId]);
 
-  const enroll = (pathId: string) => {
+  const enroll = async (pathId: string) => {
     if (!userId) return;
-    apiFetch(`/learning-paths/${pathId}/enroll`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    })
-      .then((r) => r.json())
-      .then((e) => {
-        setEnrollments((prev) => [...prev, { id: e.id, pathId, progressPct: 0 }]);
-        track("ENROLLMENT", { userId, pathId });
+    try {
+      const res = await apiFetch(`/learning-paths/${pathId}/enroll`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
       });
+      if (!res.ok) return;
+      const e = await res.json();
+      if (e?.id) {
+        setEnrollments((prev) => {
+          if (prev.some((x) => x.pathId === pathId)) return prev;
+          return [...prev, { id: e.id, pathId, progressPct: e.progressPct ?? 0 }];
+        });
+        track("ENROLLMENT", { userId, pathId });
+      }
+    } catch { /* network error */ }
   };
 
   const enrollCourse = (courseId: string) => {

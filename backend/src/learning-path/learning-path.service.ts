@@ -19,8 +19,14 @@ export class LearningPathService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  /** Enroll a user in a learning path */
+  /** Enroll a user in a learning path (idempotent — returns existing enrollment if already enrolled) */
   async enrollUser(userId: string, pathId: string, deadline?: Date) {
+    const existing = await this.prisma.pathEnrollment.findUnique({
+      where: { userId_pathId: { userId, pathId } },
+      include: { stepProgress: true },
+    });
+    if (existing) return existing;
+
     const path = await this.prisma.learningPath.findUniqueOrThrow({
       where: { id: pathId, isPublished: true },
       include: { steps: { orderBy: { stepOrder: 'asc' } } },
