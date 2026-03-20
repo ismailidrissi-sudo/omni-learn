@@ -44,6 +44,8 @@ export default function TenantContentPage() {
       .finally(() => setLoading(false));
   }, [contentId]);
 
+  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
+
   if (tenantLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -51,8 +53,6 @@ export default function TenantContentPage() {
       </div>
     );
   }
-
-  const tenantNav = useMemo(() => tenantLearnerNavItems(t, slug, user), [t, slug, user]);
 
   if (!content) {
     return (
