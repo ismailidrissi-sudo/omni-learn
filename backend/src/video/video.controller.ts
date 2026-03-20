@@ -13,6 +13,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { Request, Response } from 'express';
 import { VideoService } from './video.service';
 import { ResolveVideoDto } from './dto/resolve-video.dto';
@@ -26,7 +27,7 @@ export class VideoController {
   constructor(private readonly videoService: VideoService) {}
 
   @Post('resolve')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtGuard)
   async resolveVideo(@Body() dto: ResolveVideoDto) {
     try {
       return await this.videoService.resolveVideo(dto.url, dto.preferredQuality);

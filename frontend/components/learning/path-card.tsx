@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 interface PathCardProps {
@@ -12,7 +13,7 @@ interface PathCardProps {
   enrolled?: boolean;
   progressPct?: number;
   href?: string;
-  onEnroll?: () => void;
+  onEnroll?: () => void | Promise<void>;
 }
 
 export function PathCard({
@@ -27,8 +28,19 @@ export function PathCard({
   href,
   onEnroll,
 }: PathCardProps) {
+  const [enrolling, setEnrolling] = useState(false);
   const domainName = typeof domain === "object" ? domain?.name : domain;
   const link = href ?? `/learn?path=${id}`;
+
+  const handleEnroll = async () => {
+    if (!onEnroll || enrolling) return;
+    setEnrolling(true);
+    try {
+      await onEnroll();
+    } finally {
+      setEnrolling(false);
+    }
+  };
 
   return (
     <div className="group flex flex-col min-w-[260px] max-w-[300px] rounded-xl border border-[var(--color-bg-secondary)] bg-[var(--color-bg-primary)] hover:shadow-lg hover:border-brand-green/40 transition-all duration-200 overflow-hidden">
@@ -81,10 +93,11 @@ export function PathCard({
             </Link>
           ) : onEnroll ? (
             <button
-              onClick={onEnroll}
-              className="inline-flex items-center text-xs font-semibold text-brand-green hover:underline"
+              onClick={handleEnroll}
+              disabled={enrolling}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-brand-green text-white shadow-md hover:bg-brand-green/90 transition-colors disabled:opacity-50"
             >
-              Enroll →
+              {enrolling ? "Enrolling…" : "Enroll"}
             </button>
           ) : (
             <Link

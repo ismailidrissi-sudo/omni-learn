@@ -156,21 +156,35 @@ export default function LearnPage() {
 
   const enroll = async (pathId: string) => {
     if (!userId) return;
+
+    const applyEnrollment = (e: { id?: string; pathId?: string; progressPct?: number }) => {
+      if (!e?.id) return false;
+      setEnrollments((prev) => {
+        if (prev.some((x) => x.pathId === pathId)) return prev;
+        return [...prev, { id: e.id!, pathId, progressPct: e.progressPct ?? 0 }];
+      });
+      track("ENROLLMENT", { userId, pathId });
+      return true;
+    };
+
     try {
       const res = await apiFetch(`/learning-paths/${pathId}/enroll`, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
-      if (!res.ok) return;
-      const e = await res.json();
-      if (e?.id) {
-        setEnrollments((prev) => {
-          if (prev.some((x) => x.pathId === pathId)) return prev;
-          return [...prev, { id: e.id, pathId, progressPct: e.progressPct ?? 0 }];
-        });
-        track("ENROLLMENT", { userId, pathId });
+      if (res.ok) {
+        const e = await res.json();
+        if (applyEnrollment(e)) return;
       }
-    } catch { /* network error */ }
+    } catch { /* POST failed */ }
+
+    try {
+      const fallback = await apiFetch(`/learning-paths/${pathId}/enrollment/${userId}`);
+      if (fallback.ok) {
+        const e = await fallback.json();
+        applyEnrollment(e);
+      }
+    } catch { /* fallback also failed */ }
   };
 
   const enrollCourse = (courseId: string) => {

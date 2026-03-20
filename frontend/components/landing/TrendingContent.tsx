@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useUser } from "@/lib/use-user";
 import { useI18n } from "@/lib/i18n/context";
 import { apiFetch } from "@/lib/api";
+import { detectProvider } from "@/lib/video-provider";
 
 type ContentItem = {
   id: string;
@@ -153,6 +154,9 @@ export function TrendingContent() {
             <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
               {trendingMicro.map((item) => {
                 const videoUrl = getVideoUrl(item);
+                const provider = videoUrl ? detectProvider(videoUrl) : null;
+                const thumbnailUrl = provider?.thumbnailUrl ?? null;
+                const canPlayDirectly = videoUrl && provider?.provider === "direct";
                 return (
                   <Link
                     key={item.id}
@@ -160,7 +164,13 @@ export function TrendingContent() {
                     className="flex-shrink-0 w-56 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[#059669] transition group block"
                   >
                     <div className="aspect-[9/12] bg-gray-200 dark:bg-gray-800 relative">
-                      {videoUrl ? (
+                      {thumbnailUrl ? (
+                        <img
+                          src={thumbnailUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : canPlayDirectly ? (
                         <video
                           src={videoUrl}
                           className="w-full h-full object-cover"

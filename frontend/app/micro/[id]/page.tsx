@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/use-user';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_URL } from '@/lib/api';
 import { detectProvider } from '@/lib/video-provider';
 import { toast } from '@/lib/use-toast';
 import dynamic from 'next/dynamic';
@@ -59,7 +59,12 @@ async function resolveStreamIfNeeded(raw: string): Promise<string> {
     });
     if (!res.ok) return trimmed;
     const data = (await res.json()) as { streamEndpoint?: string };
-    return data.streamEndpoint?.trim() || trimmed;
+    const endpoint = data.streamEndpoint?.trim() || '';
+    if (!endpoint) return trimmed;
+    if (endpoint.startsWith('/') && !endpoint.startsWith('//')) {
+      return `${API_URL}${endpoint}`;
+    }
+    return endpoint;
   } catch {
     return trimmed;
   }
