@@ -89,6 +89,9 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build postgres redis
             sleep 5
 
+            echo "==> Running database schema sync (before backend starts)..."
+            docker compose -f docker-compose.prod.yml run --rm -T backend node node_modules/prisma/build/index.js db push --skip-generate || true
+
             echo "==> Rolling update: backend services..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build backend video-proxy recommendations
             sleep 10
@@ -99,9 +102,6 @@ jobs:
 
             echo "==> Reloading nginx..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build nginx
-
-            echo "==> Running database schema sync..."
-            docker compose -f docker-compose.prod.yml exec -T backend node node_modules/prisma/build/index.js db push --skip-generate || true
 
             echo "==> Container status..."
             docker compose -f docker-compose.prod.yml ps
