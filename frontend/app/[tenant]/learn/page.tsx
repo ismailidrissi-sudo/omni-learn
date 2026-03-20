@@ -90,10 +90,11 @@ export default function TenantLearnPage() {
     if (!userId) return;
 
     try {
-      const [pathsRes, contentRes, courseEnrollRes] = await Promise.all([
+      const [pathsRes, contentRes, courseEnrollRes, pathEnrollRes] = await Promise.all([
         apiFetch("/learning-paths").then((r) => r.json()).catch(() => []),
         apiFetch("/content").then((r) => r.json()).catch(() => []),
         apiFetch(`/course-enrollments/user/${userId}`).then((r) => r.json()).catch(() => []),
+        apiFetch(`/learning-paths/user/${userId}/enrollments`).then((r) => r.json()).catch(() => []),
       ]);
 
       const pathsList: Path[] = Array.isArray(pathsRes) ? pathsRes : [];
@@ -113,6 +114,16 @@ export default function TenantLearnPage() {
           id: e.id,
           courseId: e.courseId,
           progressPct: e.progressPct ?? 0,
+        })),
+      );
+
+      const peList = Array.isArray(pathEnrollRes) ? pathEnrollRes : [];
+      setEnrollments(
+        peList.map((e: { id: string; pathId: string; progressPct: number; stepProgress: { stepId: string; status: string }[] }) => ({
+          id: e.id,
+          pathId: e.pathId,
+          progressPct: e.progressPct ?? 0,
+          stepProgress: e.stepProgress ?? [],
         })),
       );
     } catch {

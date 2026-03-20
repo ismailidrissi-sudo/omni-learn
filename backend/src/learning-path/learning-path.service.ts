@@ -257,6 +257,19 @@ export class LearningPathService {
     return this.findEnrollmentForContent(userId, contentItemId);
   }
 
+  /** List all path enrollments for a given user */
+  async getUserPathEnrollments(userId: string) {
+    return this.prisma.pathEnrollment.findMany({
+      where: { userId },
+      include: {
+        path: { include: { domain: true } },
+        stepProgress: true,
+        certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /** List published learning paths (optionally by domain) */
   async listPaths(tenantId: string, domainId?: string) {
     return this.prisma.learningPath.findMany({

@@ -30,8 +30,9 @@ echo "==> Rolling update: frontend..."
 docker compose -f "$COMPOSE_FILE" up -d --no-deps --no-build frontend
 sleep 10
 
-echo "==> Reloading nginx..."
+echo "==> Reloading nginx (force restart to pick up new container IPs)..."
 docker compose -f "$COMPOSE_FILE" up -d --no-deps --no-build nginx
+docker compose -f "$COMPOSE_FILE" restart nginx
 
 echo "==> Running database schema sync..."
 docker compose -f "$COMPOSE_FILE" exec -T backend node node_modules/prisma/build/index.js db push --skip-generate || true

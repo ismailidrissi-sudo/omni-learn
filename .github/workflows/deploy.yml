@@ -100,8 +100,9 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
             sleep 10
 
-            echo "==> Reloading nginx..."
+            echo "==> Reloading nginx (force restart to pick up new container IPs)..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build nginx
+            docker compose -f docker-compose.prod.yml restart nginx
 
             echo "==> Container status..."
             docker compose -f docker-compose.prod.yml ps

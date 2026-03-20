@@ -55,6 +55,12 @@ export class LearningPathController {
     return this.learningPathService.findOrAutoEnrollForContent(body.userId, body.contentId);
   }
 
+  @Get('user/:userId/enrollments')
+  @UseGuards(AuthGuard('jwt'))
+  async getUserEnrollments(@Param('userId') userId: string) {
+    return this.learningPathService.getUserPathEnrollments(userId);
+  }
+
   @Get()
   @UseGuards(OptionalJwtGuard)
   async listPaths(
