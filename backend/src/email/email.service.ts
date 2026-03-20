@@ -67,32 +67,39 @@ export class EmailService {
       status = 'SCHEDULED';
     }
 
-    const entry = await this.db.emailQueue.create({
-      data: {
-        toEmail: params.toEmail,
-        toName: params.toName,
-        fromEmail: params.fromEmail,
-        fromName: params.fromName,
-        replyTo: params.replyTo,
-        subject: params.subject,
-        htmlBody: params.htmlBody,
-        textBody: params.textBody,
-        emailType: params.emailType || 'transactional',
-        priority: priorityEnum,
-        status,
-        scheduledFor: params.scheduledFor,
-        dayBucket,
-        triggeredBy: params.triggeredBy,
-        userId: params.userId,
-        metadata: params.metadata || {},
-      },
-    });
+    try {
+      const entry = await this.db.emailQueue.create({
+        data: {
+          toEmail: params.toEmail,
+          toName: params.toName,
+          fromEmail: params.fromEmail,
+          fromName: params.fromName,
+          replyTo: params.replyTo,
+          subject: params.subject,
+          htmlBody: params.htmlBody,
+          textBody: params.textBody,
+          emailType: params.emailType || 'transactional',
+          priority: priorityEnum,
+          status,
+          scheduledFor: params.scheduledFor,
+          dayBucket,
+          triggeredBy: params.triggeredBy,
+          userId: params.userId,
+          metadata: params.metadata || {},
+        },
+      });
 
-    this.logger.log(
-      `Email enqueued: id=${entry.id} to=${params.toEmail} type=${params.emailType} priority=${priorityEnum}`,
-    );
+      this.logger.log(
+        `Email enqueued: id=${entry.id} to=${params.toEmail} type=${params.emailType} priority=${priorityEnum}`,
+      );
 
-    return entry.id;
+      return entry.id;
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue email to=${params.toEmail} type=${params.emailType}: ${error}`,
+      );
+      return '';
+    }
   }
 
   async enqueueFromTemplate(params: EnqueueFromTemplateParams): Promise<string> {
