@@ -223,7 +223,7 @@ export class EmailAdminController {
       orderBy: { dayBucket: 'asc' },
     });
 
-    return rows.map((r) => ({
+    return rows.map((r: any) => ({
       dayBucket: r.dayBucket.toISOString().split('T')[0],
       sentCount: r.sentCount,
       failedCount: r.failedCount,
