@@ -299,6 +299,8 @@
     "noContentYet": "Aucun contenu. Ajoutez des cours, vidéos, documents, etc.",
     "contentHint": "Créez du contenu ici, puis ajoutez-le aux parcours dans le Gestionnaire de parcours.",
     "contentDeleteConfirm": "Êtes-vous sûr de vouloir supprimer ce contenu ?",
+    "contentDeleted": "Contenu supprimé avec succès.",
+    "contentDeleteFailed": "Échec de la suppression du contenu. Veuillez réessayer.",
     "courseCreateHint": "Après la création, vous construirez le curriculum avec sections, vidéos, documents, quiz, etc.",
     "courseCreateAndBuild": "Créer et construire le curriculum",
     "courseBuildCurriculum": "Construire le curriculum",

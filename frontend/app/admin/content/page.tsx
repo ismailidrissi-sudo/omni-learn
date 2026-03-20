@@ -14,6 +14,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚", label: "Course" },
@@ -262,8 +263,11 @@ function AdminContentPageContent() {
   const deleteContent = (id: string) => {
     if (!confirm(t("admin.contentDeleteConfirm"))) return;
     apiFetch(`/content/${id}`, { method: "DELETE" })
-      .then(loadContent)
-      .catch(console.error);
+      .then(() => {
+        toast(t("admin.contentDeleted"), "success");
+        loadContent();
+      })
+      .catch(() => toast(t("admin.contentDeleteFailed"), "error"));
   };
 
   const domainOptionsForForm = domains.map((d) => ({

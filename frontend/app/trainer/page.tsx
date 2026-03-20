@@ -14,6 +14,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { trainerNavItemsApproved, trainerNavItemsGuest } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 import { useUser } from "@/lib/use-user";
 
 const CONTENT_TYPES = [
@@ -111,8 +112,11 @@ export default function TrainerPage() {
   const deleteContent = (id: string) => {
     if (!confirm(t("admin.contentDeleteConfirm"))) return;
     apiFetch(`/content/${id}`, { method: "DELETE" })
-      .then(loadContent)
-      .catch(console.error);
+      .then(() => {
+        toast(t("admin.contentDeleted"), "success");
+        loadContent();
+      })
+      .catch(() => toast(t("admin.contentDeleteFailed"), "error"));
   };
 
   const handleRequestTrainer = () => {

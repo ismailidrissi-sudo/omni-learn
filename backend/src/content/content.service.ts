@@ -191,8 +191,14 @@ export class ContentService {
   }
 
   async remove(id: string) {
-    return this.prisma.contentItem.delete({
-      where: { id },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.learningPathStep.deleteMany({
+        where: { contentItemId: id },
+      });
+
+      return tx.contentItem.delete({
+        where: { id },
+      });
     });
   }
 

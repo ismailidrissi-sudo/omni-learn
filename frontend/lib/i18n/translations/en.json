@@ -289,6 +289,8 @@
     "noContentYet": "No content yet. Add courses, videos, documents, and more.",
     "contentHint": "Create content here, then add it to learning paths in the Path Builder.",
     "contentDeleteConfirm": "Are you sure you want to delete this content?",
+    "contentDeleted": "Content deleted successfully.",
+    "contentDeleteFailed": "Failed to delete content. Please try again.",
     "courseCreateHint": "After creating, you'll build the curriculum with sections, videos, documents, quizzes, and more.",
     "courseCreateAndBuild": "Create & Build Curriculum",
     "courseBuildCurriculum": "Build Curriculum",
