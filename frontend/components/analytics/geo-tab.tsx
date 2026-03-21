@@ -38,6 +38,7 @@ export function GeoTab({ data, filters }: Props) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require("leaflet/dist/leaflet.css");
       setLeafletReady(true);
     }
