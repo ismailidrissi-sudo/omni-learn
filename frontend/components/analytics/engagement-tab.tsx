@@ -88,8 +88,8 @@ export function EngagementTab({ funnel, velocity, retention }: Props) {
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip
-                      formatter={(value: number) => [`${value} days`, "Avg Days"]}
-                      labelFormatter={(label: string) => label}
+                      formatter={(value) => [`${value} days`, "Avg Days"]}
+                      labelFormatter={(label) => label}
                     />
                     <Bar dataKey="avgDaysToComplete" fill="#6B4E9A" radius={[0, 4, 4, 0]} />
                   </BarChart>
