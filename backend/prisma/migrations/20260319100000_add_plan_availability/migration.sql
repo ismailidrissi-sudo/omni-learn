@@ -1,15 +1,12 @@
 -- Add plan availability and enterprise access fields to ContentItem
 ALTER TABLE "ContentItem"
-ADD COLUMN "availablePlans" JSONB NOT NULL DEFAULT '["EXPLORER","SPECIALIST","VISIONARY","NEXUS"]',
-ADD COLUMN "availableInEnterprise" BOOLEAN NOT NULL DEFAULT false;
+ADD COLUMN IF NOT EXISTS "availablePlans" JSONB NOT NULL DEFAULT '["EXPLORER","SPECIALIST","VISIONARY","NEXUS"]',
+ADD COLUMN IF NOT EXISTS "availableInEnterprise" BOOLEAN NOT NULL DEFAULT false;
 
 -- Add plan availability and enterprise access fields to LearningPath
 ALTER TABLE "LearningPath"
-ADD COLUMN "availablePlans" JSONB NOT NULL DEFAULT '["EXPLORER","SPECIALIST","VISIONARY","NEXUS"]',
-ADD COLUMN "availableInEnterprise" BOOLEAN NOT NULL DEFAULT false;
-
--- Backfill: content marked as isFoundational should include EXPLORER in availablePlans
--- (all existing content already defaults to all plans, so no backfill needed for availablePlans)
+ADD COLUMN IF NOT EXISTS "availablePlans" JSONB NOT NULL DEFAULT '["EXPLORER","SPECIALIST","VISIONARY","NEXUS"]',
+ADD COLUMN IF NOT EXISTS "availableInEnterprise" BOOLEAN NOT NULL DEFAULT false;
 
 -- Backfill: content with tenant assignments should be marked as enterprise-available
 UPDATE "ContentItem"

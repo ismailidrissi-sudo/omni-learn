@@ -1,14 +1,23 @@
 -- CreateEnum
-CREATE TYPE "EmailStatus" AS ENUM ('PENDING', 'SENDING', 'SENT', 'FAILED', 'SCHEDULED', 'CANCELLED');
+DO $$ BEGIN
+  CREATE TYPE "EmailStatus" AS ENUM ('PENDING', 'SENDING', 'SENT', 'FAILED', 'SCHEDULED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "EmailPriorityLevel" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'LOW');
+DO $$ BEGIN
+  CREATE TYPE "EmailPriorityLevel" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'LOW');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateEnum
-CREATE TYPE "OverflowStrategy" AS ENUM ('SCHEDULE_NEXT_DAY', 'DROP', 'QUEUE_HOLD');
+DO $$ BEGIN
+  CREATE TYPE "OverflowStrategy" AS ENUM ('SCHEDULE_NEXT_DAY', 'DROP', 'QUEUE_HOLD');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateTable
-CREATE TABLE "email_config" (
+CREATE TABLE IF NOT EXISTS "email_config" (
     "id" TEXT NOT NULL,
     "provider" VARCHAR(20) NOT NULL DEFAULT 'resend',
     "apiKey" TEXT NOT NULL,
@@ -30,7 +39,7 @@ CREATE TABLE "email_config" (
 );
 
 -- CreateTable
-CREATE TABLE "email_queue" (
+CREATE TABLE IF NOT EXISTS "email_queue" (
     "id" TEXT NOT NULL,
     "toEmail" VARCHAR(255) NOT NULL,
     "toName" VARCHAR(255),
@@ -61,7 +70,7 @@ CREATE TABLE "email_queue" (
 );
 
 -- CreateTable
-CREATE TABLE "email_daily_stats" (
+CREATE TABLE IF NOT EXISTS "email_daily_stats" (
     "dayBucket" DATE NOT NULL,
     "sentCount" INTEGER NOT NULL DEFAULT 0,
     "failedCount" INTEGER NOT NULL DEFAULT 0,
@@ -72,7 +81,7 @@ CREATE TABLE "email_daily_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "email_templates" (
+CREATE TABLE IF NOT EXISTS "email_templates" (
     "id" TEXT NOT NULL,
     "slug" VARCHAR(100) NOT NULL,
     "name" VARCHAR(200) NOT NULL,
@@ -89,16 +98,16 @@ CREATE TABLE "email_templates" (
 );
 
 -- CreateIndex
-CREATE INDEX "email_queue_status_priority_createdAt_idx" ON "email_queue"("status", "priority", "createdAt");
+CREATE INDEX IF NOT EXISTS "email_queue_status_priority_createdAt_idx" ON "email_queue"("status", "priority", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "email_queue_scheduledFor_idx" ON "email_queue"("scheduledFor");
+CREATE INDEX IF NOT EXISTS "email_queue_scheduledFor_idx" ON "email_queue"("scheduledFor");
 
 -- CreateIndex
-CREATE INDEX "email_queue_dayBucket_status_idx" ON "email_queue"("dayBucket", "status");
+CREATE INDEX IF NOT EXISTS "email_queue_dayBucket_status_idx" ON "email_queue"("dayBucket", "status");
 
 -- CreateIndex
-CREATE INDEX "email_queue_nextRetryAt_idx" ON "email_queue"("nextRetryAt");
+CREATE INDEX IF NOT EXISTS "email_queue_nextRetryAt_idx" ON "email_queue"("nextRetryAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "email_templates_slug_key" ON "email_templates"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "email_templates_slug_key" ON "email_templates"("slug");

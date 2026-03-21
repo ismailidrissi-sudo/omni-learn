@@ -77,8 +77,14 @@ CREATE INDEX IF NOT EXISTS "email_logs_recipientUserId_idx" ON "email_logs"("rec
 CREATE INDEX IF NOT EXISTS "email_logs_eventType_idx" ON "email_logs"("eventType");
 CREATE INDEX IF NOT EXISTS "email_logs_status_idx" ON "email_logs"("status");
 
-ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_recipientUserId_fkey" FOREIGN KEY ("recipientUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "email_queue"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_recipientUserId_fkey" FOREIGN KEY ("recipientUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "email_queue"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Tenant email branding overrides
 CREATE TABLE IF NOT EXISTS "email_branding" (
@@ -108,7 +114,10 @@ CREATE TABLE IF NOT EXISTS "email_branding" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "email_branding_tenantId_key" ON "email_branding"("tenantId");
-ALTER TABLE "email_branding" ADD CONSTRAINT "email_branding_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "email_branding" ADD CONSTRAINT "email_branding_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "user_content_interactions" (
     "id" TEXT NOT NULL,
@@ -123,7 +132,10 @@ CREATE TABLE IF NOT EXISTS "user_content_interactions" (
 );
 CREATE INDEX IF NOT EXISTS "user_content_interactions_userId_idx" ON "user_content_interactions"("userId");
 CREATE INDEX IF NOT EXISTS "user_content_interactions_contentId_contentType_idx" ON "user_content_interactions"("contentId", "contentType");
-ALTER TABLE "user_content_interactions" ADD CONSTRAINT "user_content_interactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "user_content_interactions" ADD CONSTRAINT "user_content_interactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "email_schedules" (
     "id" TEXT NOT NULL,
@@ -144,7 +156,10 @@ CREATE TABLE IF NOT EXISTS "email_schedules" (
     CONSTRAINT "email_schedules_pkey" PRIMARY KEY ("id")
 );
 CREATE INDEX IF NOT EXISTS "email_schedules_tenantId_idx" ON "email_schedules"("tenantId");
-ALTER TABLE "email_schedules" ADD CONSTRAINT "email_schedules_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "email_schedules" ADD CONSTRAINT "email_schedules_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "email_campaigns" (
     "id" TEXT NOT NULL,
@@ -166,7 +181,10 @@ CREATE TABLE IF NOT EXISTS "email_campaigns" (
     CONSTRAINT "email_campaigns_pkey" PRIMARY KEY ("id")
 );
 CREATE INDEX IF NOT EXISTS "email_campaigns_tenantId_idx" ON "email_campaigns"("tenantId");
-ALTER TABLE "email_campaigns" ADD CONSTRAINT "email_campaigns_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "email_campaigns" ADD CONSTRAINT "email_campaigns_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "user_email_preferences" (
     "id" TEXT NOT NULL,
@@ -177,6 +195,9 @@ CREATE TABLE IF NOT EXISTS "user_email_preferences" (
     CONSTRAINT "user_email_preferences_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "user_email_preferences_userId_eventType_key" ON "user_email_preferences"("userId", "eventType");
-ALTER TABLE "user_email_preferences" ADD CONSTRAINT "user_email_preferences_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "user_email_preferences" ADD CONSTRAINT "user_email_preferences_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "email_queue_scheduledAfter_idx" ON "email_queue"("scheduledAfter");
