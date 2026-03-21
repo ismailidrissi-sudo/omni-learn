@@ -64,8 +64,13 @@ export default function DeepAnalyticsPage() {
   const [domains] = useState<{ id: string; name: string }[]>([]);
   const [countries, setCountries] = useState<string[]>([]);
 
+  type OverviewData = {
+    totalUsers: number; activeUsers: number; newUsers: number; totalSessions: number;
+    avgSessionDuration: number; totalPageViews: number; totalEnrollments: number;
+    totalCompletions: number; completionRate: number; totalLearningHours: number;
+  };
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const [overview, setOverview] = useState<Record<string, number> | null>(null);
+  const [overview, setOverview] = useState<OverviewData | null>(null);
   const [timeline, setTimeline] = useState<{ date: string; sessions: number }[]>([]);
   const [heatmap, setHeatmap] = useState<number[][]>(Array.from({ length: 7 }, () => Array(24).fill(0)));
   const [devices, setDevices] = useState<{ deviceType: string; count: number; percentage: number }[]>([]);
