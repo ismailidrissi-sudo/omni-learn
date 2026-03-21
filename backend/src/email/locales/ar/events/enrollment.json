@@ -1,0 +1,13 @@
+{
+  "confirmed_subject": "تم تسجيلك في {{content_title}}",
+  "confirmed_heading": "تم تأكيد التسجيل",
+  "confirmed_body": "تم تسجيلك في {{content_title}}. ابدأ التعلم الآن!",
+  "confirmed_cta": "ابدأ التعلم",
+  "assigned_subject": "تم تعيينك في {{content_title}}",
+  "assigned_heading": "تعيين جديد",
+  "assigned_body": "قام {{assigner_name}} بتعيينك في {{content_title}}.",
+  "assigned_cta": "ابدأ التعلم",
+  "manager_subject": "تم تسجيل {{user_name}} في {{content_title}}",
+  "manager_heading": "إشعار التسجيل",
+  "manager_body": "تم تسجيل {{user_name}} في {{content_title}}."
+}

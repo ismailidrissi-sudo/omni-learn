@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { StepProgressStatus } from '../constants/db.constant';
 import { CourseEnrollmentService } from './course-enrollment.service';
@@ -12,11 +12,13 @@ export class CourseEnrollmentController {
   async enroll(
     @Param('courseId') courseId: string,
     @Body() body: { userId: string; deadline?: string },
+    @Req() req: { user?: { sub?: string } },
   ) {
     return this.courseEnrollmentService.enrollUser(
       body.userId,
       courseId,
       body.deadline ? new Date(body.deadline) : undefined,
+      { actorUserId: req.user?.sub },
     );
   }
 

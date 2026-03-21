@@ -258,7 +258,7 @@ export default function TenantLearnPage() {
                     difficulty={p.difficulty}
                     enrolled={!!enrollment}
                     progressPct={enrollment?.progressPct}
-                    href={`/${slug}/learn?path=${p.id}`}
+                    href={`/path/${p.id}`}
                     onEnroll={() => enroll(p.id)}
                   />
                 );

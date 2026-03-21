@@ -1,0 +1,10 @@
+{
+  "new_content_subject": "Nouveau sur {{platform_name}} : {{content_title}}",
+  "new_content_heading": "Nouveau contenu disponible",
+  "new_content_body": "Un nouveau parcours d'apprentissage est disponible : {{content_title}} dans {{domain_name}}.",
+  "new_content_cta": "Voir les détails",
+  "admin_review_subject": "Nouvelle inscription à examiner : {{user_name}}",
+  "admin_review_heading": "Examen d'inscription",
+  "admin_review_body": "{{user_name}} ({{user_email}}) s'est inscrit et attend votre approbation.",
+  "admin_review_cta": "Examiner"
+}

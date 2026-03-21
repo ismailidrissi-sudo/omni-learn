@@ -3,6 +3,7 @@ import {
   Get,
   Put,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -23,6 +24,9 @@ import { EmailPriority } from './constants';
 import { encryptApiKey, decryptApiKey, maskApiKey } from './encryption.util';
 import { UpdateEmailConfigDto, SendTestEmailDto } from './dto/update-email-config.dto';
 import { testEmailHtml, testEmailSubject } from './templates';
+import { TemplateLoaderService } from './templates/template-loader.service';
+import { BrandingResolverService } from './templates/branding-resolver.service';
+import { TemplateEngineService } from './templates/template-engine.service';
 
 @Controller('admin/email')
 @UseGuards(AuthGuard('jwt'), RbacGuard)
@@ -35,6 +39,9 @@ export class EmailAdminController {
     private readonly resendClient: ResendClientService,
     private readonly rateLimiter: RateLimiterService,
     private readonly emailService: EmailService,
+    private readonly templateLoader: TemplateLoaderService,
+    private readonly brandingResolver: BrandingResolverService,
+    private readonly templateEngine: TemplateEngineService,
   ) {
     this.db = prisma as any;
   }
@@ -161,6 +168,50 @@ export class EmailAdminController {
     }
   }
 
+  @Get('templates/preview')
+  async previewEmailTemplate(
+    @Query('slug') slug: string,
+    @Query('language') language = 'en',
+    @Query('tenantId') tenantId?: string,
+  ) {
+    if (!slug?.trim()) {
+      throw new BadRequestException('slug is required');
+    }
+    const template = await this.templateLoader.loadActive(slug.trim(), language || 'en');
+    const branding = await this.brandingResolver.resolveForTenant(tenantId?.trim() || null, {
+      language: language || 'en',
+    });
+    const rendered = this.templateEngine.render(
+      template.subjectTemplate,
+      template.htmlTemplate,
+      template.textTemplate,
+      {},
+      branding,
+    );
+    return {
+      subject: rendered.subject,
+      html: rendered.htmlBody,
+      text: rendered.textBody,
+      variables: template.variables,
+    };
+  }
+
+  @Get('templates')
+  async listEmailTemplates() {
+    return this.db.emailTemplate.findMany({
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        language: true,
+        eventType: true,
+        version: true,
+        isActive: true,
+      },
+      orderBy: [{ slug: 'asc' }, { language: 'asc' }, { version: 'desc' }],
+    });
+  }
+
   @Post('send-test')
   async sendTestEmail(@Body() payload: SendTestEmailDto) {
     const queueId = await this.emailService.enqueue({
@@ -231,6 +282,126 @@ export class EmailAdminController {
     }));
   }
 
+  @Get('dashboard')
+  async getDashboard() {
+    const now = Date.now();
+    const since24h = new Date(now - 24 * 60 * 60 * 1000);
+    const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const [stats24h, stats7d, stats30d, lastOk, lastErr] = await Promise.all([
+      this.aggregateEmailLogStats(since24h),
+      this.aggregateEmailLogStats(since7d),
+      this.aggregateEmailLogStats(since30d),
+      this.db.emailLog.findFirst({
+        where: { sentAt: { not: null }, status: { in: ['sent', 'delivered'] } },
+        orderBy: { sentAt: 'desc' },
+        select: { sentAt: true },
+      }),
+      this.db.emailLog.findFirst({
+        where: {
+          OR: [{ status: 'failed' }, { errorMessage: { not: null } }],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { errorMessage: true, createdAt: true },
+      }),
+    ]);
+
+    const denom = stats24h.delivered + stats24h.failed + stats24h.bounced;
+    const deliveryRate24h =
+      denom > 0 ? Math.round((stats24h.delivered / denom) * 10000) / 100 : 0;
+    const bounceRate24h =
+      stats24h.total > 0
+        ? Math.round((stats24h.bounced / stats24h.total) * 10000) / 100
+        : 0;
+
+    return {
+      stats24h,
+      stats7d,
+      stats30d,
+      deliveryRate24h,
+      bounceRate24h,
+      lastSuccessfulSend: lastOk?.sentAt ?? null,
+      lastError: lastErr
+        ? {
+            message: lastErr.errorMessage?.trim() || 'Delivery failed',
+            at: lastErr.createdAt,
+          }
+        : null,
+    };
+  }
+
+  @Get('dashboard/queue')
+  async getDashboardQueue() {
+    const [queued, sending, scheduled, failed, total] = await Promise.all([
+      this.db.emailQueue.count({ where: { status: 'PENDING' } }),
+      this.db.emailQueue.count({ where: { status: 'SENDING' } }),
+      this.db.emailQueue.count({ where: { status: 'SCHEDULED' } }),
+      this.db.emailQueue.count({ where: { status: 'FAILED' } }),
+      this.db.emailQueue.count(),
+    ]);
+
+    return { queued, sending, scheduled, failed, total };
+  }
+
+  private async aggregateEmailLogStats(since: Date): Promise<{
+    total: number;
+    delivered: number;
+    failed: number;
+    bounced: number;
+  }> {
+    const windowWhere = { createdAt: { gte: since } };
+    const [total, delivered, failed, bounced] = await Promise.all([
+      this.db.emailLog.count({ where: windowWhere }),
+      this.db.emailLog.count({
+        where: { ...windowWhere, status: { in: ['delivered', 'sent'] } },
+      }),
+      this.db.emailLog.count({ where: { ...windowWhere, status: 'failed' } }),
+      this.db.emailLog.count({
+        where: { ...windowWhere, status: { in: ['bounced', 'complained'] } },
+      }),
+    ]);
+    return { total, delivered, failed, bounced };
+  }
+
+  @Get('suppressions')
+  async listSuppressions(
+    @Query('page') page?: number,
+    @Query('perPage') perPage?: number,
+  ) {
+    const pageNum = page || 1;
+    const limit = Math.min(perPage || 25, 100);
+    const offset = (pageNum - 1) * limit;
+
+    const [total, items] = await Promise.all([
+      this.db.emailBounceSuppression.count(),
+      this.db.emailBounceSuppression.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          email: true,
+          reason: true,
+          sourceEventId: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return { total, page: pageNum, perPage: limit, items };
+  }
+
+  @Delete('suppressions/:email')
+  async deleteSuppression(@Param('email') emailParam: string) {
+    const email = decodeURIComponent(emailParam).trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('email is required');
+    }
+    await this.db.emailBounceSuppression.deleteMany({ where: { email } });
+    return { status: 'removed' };
+  }
+
   @Get('queue')
   async getQueue(
     @Query('status') status?: string,
@@ -265,6 +436,60 @@ export class EmailAdminController {
           attempts: true,
           lastError: true,
           createdAt: true,
+        },
+      }),
+    ]);
+
+    return { total, page: pageNum, perPage: limit, items };
+  }
+
+  @Get('logs')
+  async getLogs(
+    @Query('status') status?: string,
+    @Query('eventType') eventType?: string,
+    @Query('recipientEmail') recipientEmail?: string,
+    @Query('from') fromIso?: string,
+    @Query('to') toIso?: string,
+    @Query('page') page?: number,
+    @Query('perPage') perPage?: number,
+  ) {
+    const pageNum = page || 1;
+    const limit = Math.min(perPage || 25, 100);
+    const offset = (pageNum - 1) * limit;
+
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (eventType) where.eventType = eventType;
+    if (recipientEmail) {
+      where.recipientEmail = { contains: recipientEmail };
+    }
+    if (fromIso || toIso) {
+      const createdAt: { gte?: Date; lte?: Date } = {};
+      if (fromIso) createdAt.gte = new Date(fromIso);
+      if (toIso) createdAt.lte = new Date(toIso);
+      where.createdAt = createdAt;
+    }
+
+    const [total, items] = await Promise.all([
+      this.db.emailLog.count({ where }),
+      this.db.emailLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          recipientEmail: true,
+          eventType: true,
+          subject: true,
+          status: true,
+          provider: true,
+          providerMessageId: true,
+          templateSlug: true,
+          sentAt: true,
+          createdAt: true,
+          errorMessage: true,
+          queueId: true,
         },
       }),
     ]);

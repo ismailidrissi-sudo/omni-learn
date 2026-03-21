@@ -1,0 +1,8 @@
+{
+  "subject": "Vérifiez votre email pour commencer sur {{platform_name}}",
+  "heading": "Bienvenue sur {{platform_name}} !",
+  "body": "Veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous.",
+  "cta": "Confirmer l'email",
+  "expiry_note": "Ce lien expire dans 24 heures.",
+  "ignore_note": "Si vous n'avez pas créé de compte, vous pouvez ignorer cet email."
+}

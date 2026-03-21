@@ -1,0 +1,7 @@
+{
+  "subject": "Bienvenue sur {{platform_name}} ! Votre compte est prêt",
+  "heading": "Bienvenue",
+  "body": "Votre email est vérifié et votre compte {{platform_name}} est prêt.",
+  "cta": "Se connecter",
+  "not_you": "Si vous n'avez pas créé ce compte, contactez le support."
+}

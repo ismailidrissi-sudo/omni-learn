@@ -138,6 +138,8 @@ model User {
   emailVerified Boolean         @default(false)
   emailVerifyToken String?      // Token for email confirmation
   emailVerifyExpiresAt DateTime? // Token expiry
+  passwordResetTokenHash String? @db.VarChar(128) // bcrypt hash of one-time reset token
+  passwordResetExpiresAt DateTime?
   departmentId  String?
   positionId    String?
   tenantId      String?
@@ -171,6 +173,9 @@ model User {
   createdContentItems        ContentItem[]            @relation("ContentCreatedBy")
   trainerProfile           TrainerProfile?
   videoWatchProgress       VideoWatchProgress[]
+  emailLogs                EmailLog[]
+  userEmailPreferences     UserEmailPreference[]
+  userContentInteractions  UserContentInteraction[]
 }
 
 // ── TENANTS (rich company profile) ──
@@ -207,6 +212,9 @@ model Tenant {
   tags                      Tag[]
   ssoConfigs                TenantSsoConfig[]
   contentTenantAssignments   ContentTenantAssignment[]
+  emailBranding              EmailBranding?
+  emailSchedules             EmailSchedule[]
+  emailCampaigns             EmailCampaign[]
 
   @@index([industryId])
 }
@@ -1171,6 +1179,7 @@ model EmailQueue {
   priority      EmailPriorityLevel @default(NORMAL)
   status        EmailStatus        @default(PENDING)
   scheduledFor  DateTime?
+  scheduledAfter DateTime?         // Rate-limit / deferred send — processor skips until <= now
   dayBucket     DateTime           @default(now()) @db.Date
   resendId      String?            @db.VarChar(100)
   sentAt        DateTime?
@@ -1180,14 +1189,19 @@ model EmailQueue {
   nextRetryAt   DateTime?
   triggeredBy   String?            @db.VarChar(100)
   userId        String?
+  idempotencyKey String?           @unique @db.VarChar(255)
+  eventType     String?            @db.VarChar(100)
   metadata      Json               @default("{}")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
+
+  emailLog      EmailLog?
 
   @@index([status, priority, createdAt])
   @@index([scheduledFor])
   @@index([dayBucket, status])
   @@index([nextRetryAt])
+  @@index([scheduledAfter])
   @@map("email_queue")
 }
 
@@ -1203,16 +1217,211 @@ model EmailDailyStats {
 
 model EmailTemplate {
   id              String   @id @default(uuid())
-  slug            String   @unique @db.VarChar(100)
+  slug            String   @db.VarChar(100)
   name            String   @db.VarChar(200)
   subjectTemplate String   @db.VarChar(500)
   htmlTemplate    String   @db.Text
   textTemplate    String?  @db.Text
   variables       Json     @default("[]")
+  language        String   @default("en") @db.VarChar(10)
+  eventType       String?  @db.VarChar(100)
+  version         Int      @default(1)
   isActive        Boolean  @default(true)
   updatedBy       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@unique([slug, language, version])
   @@map("email_templates")
+}
+
+/// Admin-managed provider row (future: UI switches active provider; until then use EmailConfig + env)
+model EmailProviderConfig {
+  id                    String    @id @default(uuid())
+  providerType          String    @db.VarChar(20) // smtp | resend
+  isActive              Boolean   @default(false)
+  displayName           String    @db.VarChar(200)
+
+  smtpHost              String?
+  smtpPort              Int?      @default(587)
+  smtpUsername          String?
+  smtpPasswordEncrypted String?   @db.Text
+  smtpUseTls            Boolean?  @default(true)
+  smtpUseSsl            Boolean?  @default(false)
+  smtpFromEmail         String?
+  smtpFromName          String?
+
+  resendApiKeyEncrypted String?   @db.Text
+  resendFromDomain      String?
+
+  sendLimitPerMinute    Int       @default(10)
+  sendLimitPerHour      Int       @default(100)
+  sendLimitPerDay       Int       @default(500)
+
+  emailsSentThisMinute  Int       @default(0)
+  emailsSentThisHour    Int       @default(0)
+  emailsSentToday       Int       @default(0)
+  minuteResetAt         DateTime?
+  hourResetAt           DateTime?
+  dayResetAt            DateTime?
+
+  lastTestAt            DateTime?
+  lastTestStatus        String?   @db.VarChar(20)
+  lastTestError         String?   @db.Text
+
+  notes                 String?   @db.Text
+  createdById           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("email_provider_config")
+}
+
+/// Permanent audit trail (separate from transient queue rows)
+model EmailLog {
+  id                String    @id @default(uuid())
+  recipientUserId   String?
+  recipientEmail    String    @db.VarChar(255)
+  eventType         String    @db.VarChar(100)
+  templateSlug      String?   @db.VarChar(100)
+  templateLanguage  String    @default("en") @db.VarChar(10)
+  subject           String    @db.VarChar(500)
+  brandingSnapshot  Json?
+  language          String    @default("en") @db.VarChar(10)
+  provider          String    @default("resend") @db.VarChar(50)
+  providerMessageId String?   @db.VarChar(255)
+  status            String    @default("queued") @db.VarChar(30) // queued, sent, delivered, failed, bounced
+  errorMessage      String?   @db.Text
+  metadata          Json?
+  idempotencyKey    String?   @unique @db.VarChar(255)
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  queueId           String?   @unique
+  queue             EmailQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  recipient         User?     @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@index([recipientUserId])
+  @@index([eventType])
+  @@index([status])
+  @@map("email_logs")
+}
+
+/// Overrides / extends Tenant + TenantBranding for outbound email
+model EmailBranding {
+  id              String    @id @default(uuid())
+  tenantId        String?   @unique
+  logoUrl         String?
+  primaryColor    String    @default("#6366F1") @db.VarChar(16)
+  secondaryColor  String    @default("#1E1B4B") @db.VarChar(16)
+  accentColor     String    @default("#F59E0B") @db.VarChar(16)
+  textColor       String    @default("#1F2937") @db.VarChar(16)
+  backgroundColor String    @default("#FFFFFF") @db.VarChar(16)
+  surfaceColor    String    @default("#F9FAFB") @db.VarChar(16)
+  borderRadius    String    @default("8px") @db.VarChar(16)
+  fontFamily      String    @default("Inter, system-ui, sans-serif")
+  fontFamilyAr    String    @default("Noto Sans Arabic, Segoe UI, Arial, sans-serif")
+  buttonStyle     Json      @default("{\"borderRadius\": \"8px\", \"padding\": \"12px 24px\", \"fontWeight\": \"600\"}")
+  senderName      String    @default("OmniLearn") @db.VarChar(255)
+  senderEmail     String    @default("noreply@omnilearn.space") @db.VarChar(255)
+  replyToEmail    String?   @db.VarChar(255)
+  footerText      String?   @db.Text
+  footerLinks     Json?
+  customCss       String?   @db.Text
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("email_branding")
+}
+
+model UserContentInteraction {
+  id                 String    @id @default(uuid())
+  userId             String
+  contentId          String
+  contentType        String    @db.VarChar(50)
+  interactionType    String    @db.VarChar(50)
+  interactionCount   Int       @default(1)
+  firstInteractionAt DateTime  @default(now())
+  lastInteractionAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contentId, contentType])
+  @@map("user_content_interactions")
+}
+
+model EmailSchedule {
+  id              String    @id @default(uuid())
+  name            String    @db.VarChar(255)
+  description     String?   @db.Text
+  scheduleType    String    @db.VarChar(50)
+  eventTrigger    String?   @db.VarChar(100)
+  cronExpression  String?   @db.VarChar(100)
+  targetAudience  Json
+  emailEventType  String    @db.VarChar(100)
+  isActive        Boolean   @default(true)
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdById     String?
+  tenantId        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([isActive, nextRunAt])
+  @@map("email_schedules")
+}
+
+model EmailCampaign {
+  id               String    @id @default(uuid())
+  subject          String    @db.Text
+  bodyHtml         String    @db.Text
+  senderRole       String    @db.VarChar(50)
+  tenantId         String?
+  targetFilter     Json?
+  status           String    @default("draft") @db.VarChar(30)
+  scheduledAt      DateTime?
+  sentAt           DateTime?
+  totalRecipients  Int       @default(0)
+  sentCount        Int       @default(0)
+  failedCount      Int       @default(0)
+  rateLimitedCount Int       @default(0)
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status, scheduledAt])
+  @@map("email_campaigns")
+}
+
+model UserEmailPreference {
+  id        String    @id @default(uuid())
+  userId    String
+  eventType String    @db.VarChar(100)
+  isEnabled Boolean   @default(true)
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType])
+  @@map("user_email_preferences")
+}
+
+model EmailBounceSuppression {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  reason        String // 'bounced' | 'complained'
+  sourceEventId String? // emailLog id that triggered the suppression
+  createdAt     DateTime @default(now())
+
+  @@map("email_bounce_suppressions")
 }

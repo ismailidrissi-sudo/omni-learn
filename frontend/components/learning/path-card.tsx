@@ -30,7 +30,7 @@ export function PathCard({
 }: PathCardProps) {
   const [enrolling, setEnrolling] = useState(false);
   const domainName = typeof domain === "object" ? domain?.name : domain;
-  const link = href ?? `/learn?path=${id}`;
+  const link = href ?? `/path/${id}`;
 
   const handleEnroll = async () => {
     if (!onEnroll || enrolling) return;

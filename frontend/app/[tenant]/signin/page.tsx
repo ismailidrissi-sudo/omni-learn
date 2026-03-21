@@ -20,14 +20,22 @@ function TenantSignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const verified = searchParams.get("verified") === "1";
+  const passwordResetDone = searchParams.get("passwordReset") === "1";
+  const resetToken = searchParams.get("resetToken");
   const redirect = searchParams.get("redirect") ?? `/${slug}/learn`;
   const { t } = useI18n();
   const { tenant, branding, isLoading } = useTenant();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState("");
 
   const academyName = branding?.appName || tenant?.name || "Academy";
   const primaryColor = branding?.primaryColor || "#059669";
@@ -104,6 +112,60 @@ function TenantSignInContent() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordResetConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!resetToken) {
+      setError("Reset link is invalid or expired.");
+      return;
+    }
+    if (!email || !newPassword) {
+      setError("Enter your email and new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiFetch("/auth/password-reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ email, token: resetToken, newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not reset password");
+      router.replace(`/${slug}/signin?passwordReset=1`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotSending(true);
+    setForgotMessage("");
+    try {
+      const res = await apiFetch("/auth/password-reset/request", {
+        method: "POST",
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setForgotMessage(data.message || t("auth.resetEmailSent"));
+    } catch {
+      setForgotMessage(t("auth.resetEmailSent"));
+    } finally {
+      setForgotSending(false);
     }
   };
 
@@ -191,7 +253,45 @@ function TenantSignInContent() {
                 className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
                 style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
               />
+              <button
+                type="button"
+                onClick={() => { setShowForgot(!showForgot); setForgotEmail(email); }}
+                className="mt-1.5 text-xs hover:underline"
+                style={{ color: primaryColor }}
+              >
+                {t("auth.forgotPassword")}
+              </button>
             </div>
+
+            {showForgot && (
+              <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: `${primaryColor}33`, backgroundColor: `${primaryColor}08` }}>
+                <p className="text-sm text-gray-700 dark:text-[var(--color-text-secondary)]">
+                  {t("auth.forgotPasswordHint")}
+                </p>
+                <form onSubmit={handleForgotPassword} className="flex gap-2">
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder={t("auth.emailPlaceholder")}
+                    className="flex-1 rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-white dark:bg-[var(--color-bg-primary)]/50 px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                    style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                  />
+                  <button
+                    type="submit"
+                    disabled={forgotSending || !forgotEmail}
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    {forgotSending ? "Sending…" : "Send"}
+                  </button>
+                </form>
+                {forgotMessage && (
+                  <p className="text-xs" style={{ color: primaryColor }}>{forgotMessage}</p>
+                )}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}

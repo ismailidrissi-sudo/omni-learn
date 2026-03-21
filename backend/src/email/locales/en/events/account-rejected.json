@@ -1,0 +1,7 @@
+{
+  "subject": "Update on your {{platform_name}} application",
+  "heading": "Account update",
+  "body": "We're sorry — your {{platform_name}} registration was not approved at this time.",
+  "reason_label": "Reason:",
+  "contact_note": "If you believe this is an error, please contact the academy administrator."
+}

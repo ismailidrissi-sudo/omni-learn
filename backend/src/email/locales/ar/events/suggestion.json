@@ -1,0 +1,11 @@
+{
+  "post_signup_subject": "ابدأ على {{platform_name}} — إليك أفضل اختياراتنا",
+  "trending_subject": "الأكثر رواجاً هذا الأسبوع على {{platform_name}}",
+  "re_engagement_subject": "افتقدناك! محتوى جديد على {{platform_name}}",
+  "weekly_digest_subject": "ملخصك الأسبوعي من {{platform_name}}",
+  "browsing_subject": "لا تزال مهتماً؟ تابع من حيث توقفت",
+  "new_category_subject": "جديد في {{category_name}} على {{platform_name}}",
+  "heading": "موصى به لك",
+  "cta": "ابدأ التعلم",
+  "unsubscribe_note": "يمكنك تغيير تفضيلات الإشعارات في أي وقت."
+}

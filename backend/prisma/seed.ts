@@ -398,6 +398,28 @@ async function main() {
     }
     console.log(`Seeded ${data.forumPosts.length} forum posts`);
   }
+
+  const tpl = await prisma.emailTemplate.findFirst({
+    where: { slug: 'schedule-announcement', language: 'en', version: 1 },
+  });
+  if (!tpl) {
+    await prisma.emailTemplate.create({
+      data: {
+        slug: 'schedule-announcement',
+        name: 'Scheduled announcement (template)',
+        subjectTemplate: 'Announcement from OmniLearn',
+        htmlTemplate:
+          '<p>Hello {{name}},</p><p>This is a template-based scheduled email. Configure copies in the database <code>email_templates</code> table.</p>',
+        textTemplate: null,
+        variables: jsonVal(['name']),
+        language: 'en',
+        eventType: 'template_broadcast',
+        version: 1,
+        isActive: true,
+      },
+    });
+    console.log('Seeded schedule-announcement email template');
+  }
 }
 
 main()

@@ -22,6 +22,7 @@ type ContentItem = {
   source?: string;
   trendScore?: number;
   domain?: { name: string } | null;
+  metadata?: string | Record<string, unknown>;
 };
 
 type PathSuggestion = {
@@ -50,43 +51,62 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   ADVANCED: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
 };
 
+function parseItemMetadata(raw: ContentItem["metadata"]): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    return typeof raw === "string" ? JSON.parse(raw || "{}") : (raw as Record<string, unknown>);
+  } catch {
+    return {};
+  }
+}
+
 function ContentCard({ item, rank }: { item: ContentItem; rank?: number }) {
   const typeLabel = item.type?.replace(/_/g, " ") ?? "";
   const meta = TYPE_META[item.type ?? ""] ?? { icon: "📖", color: "bg-gray-50 text-gray-700 border-gray-200" };
+  const itemMeta = parseItemMetadata(item.metadata);
+  const landingMeta = itemMeta?.landingPage as Record<string, string> | undefined;
+  const thumbUrl = landingMeta?.thumbnailUrl;
 
   return (
     <Link href={`/content/${item.id}`} className="block group">
-      <div className="relative h-full p-5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:shadow-lg hover:shadow-brand-purple/5 hover:border-brand-purple/30 dark:hover:border-brand-purple/40 transition-all duration-200">
+      <div className="relative h-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:shadow-lg hover:shadow-brand-purple/5 hover:border-brand-purple/30 dark:hover:border-brand-purple/40 transition-all duration-200 overflow-hidden">
         {rank != null && (
-          <div className="absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-brand-purple text-white text-xs font-bold flex items-center justify-center shadow-md">
+          <div className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-brand-purple text-white text-xs font-bold flex items-center justify-center shadow-md">
             {rank}
           </div>
         )}
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${meta.color}`}>
-            <span>{meta.icon}</span>
-            {typeLabel}
-          </span>
-          {item.durationMinutes && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {item.durationMinutes} min
+        {thumbUrl ? (
+          <div className="w-full h-36 overflow-hidden">
+            <img src={thumbUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          </div>
+        ) : null}
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${meta.color}`}>
+              <span>{meta.icon}</span>
+              {typeLabel}
             </span>
+            {item.durationMinutes && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {item.durationMinutes} min
+              </span>
+            )}
+          </div>
+          <h3 className="font-semibold text-[var(--color-text-primary)] group-hover:text-brand-purple transition-colors line-clamp-2 mb-1.5 leading-snug">
+            {item.title}
+          </h3>
+          {item.description && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">{item.description}</p>
+          )}
+          {item.domain && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
+              <span className="text-xs text-brand-purple/70 dark:text-brand-purple-light/70 font-medium">
+                {typeof item.domain === "string" ? item.domain : item.domain.name}
+              </span>
+            </div>
           )}
         </div>
-        <h3 className="font-semibold text-[var(--color-text-primary)] group-hover:text-brand-purple transition-colors line-clamp-2 mb-1.5 leading-snug">
-          {item.title}
-        </h3>
-        {item.description && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">{item.description}</p>
-        )}
-        {item.domain && (
-          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
-            <span className="text-xs text-brand-purple/70 dark:text-brand-purple-light/70 font-medium">
-              {typeof item.domain === "string" ? item.domain : item.domain.name}
-            </span>
-          </div>
-        )}
       </div>
     </Link>
   );
@@ -360,9 +380,10 @@ export default function DiscoverPage() {
                     {pathSuggestions.map((p) => {
                       const domainName = typeof p.domain === "object" ? p.domain?.name : p.domain;
                       return (
-                        <div
+                        <Link
+                          href={`/path/${p.id}`}
                           key={p.id}
-                          className="p-4 hover:bg-brand-purple/[0.03] dark:hover:bg-brand-purple/[0.06] transition-colors cursor-pointer group"
+                          className="block p-4 hover:bg-brand-purple/[0.03] dark:hover:bg-brand-purple/[0.06] transition-colors cursor-pointer group"
                         >
                           <div className="flex items-start gap-3">
                             <div className="w-9 h-9 rounded-lg bg-brand-purple/10 dark:bg-brand-purple/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -392,7 +413,7 @@ export default function DiscoverPage() {
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>

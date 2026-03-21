@@ -12,21 +12,33 @@ type Props = {
   logoUrl?: string | null;
   contextSlot?: React.ReactNode;
   trailing?: React.ReactNode;
+  /** Merged onto the header element (e.g. background for dark shells) */
+  className?: string;
+  borderClassName?: string;
 };
 
-export function TenantAdminBurgerHeader({ slug, academyName, logoUrl, contextSlot, trailing }: Props) {
+export function TenantAdminBurgerHeader({
+  slug,
+  academyName,
+  logoUrl,
+  contextSlot,
+  trailing,
+  className,
+  borderClassName = "border-b border-[var(--color-bg-secondary)]",
+}: Props) {
   const { t } = useI18n();
   const items = useMemo(() => tenantAdminNavItems(t, slug), [t, slug]);
 
   return (
     <AppBurgerHeader
-      borderClassName="border-b border-[var(--color-bg-secondary)]"
+      borderClassName={borderClassName}
       logoHref={`/${slug}`}
       logo={<TenantLogo logoUrl={logoUrl} name={academyName} size="md" />}
       title={academyName}
       contextSlot={contextSlot}
       trailing={trailing}
       items={items}
+      className={className}
     />
   );
 }

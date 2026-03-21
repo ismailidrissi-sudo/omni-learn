@@ -1,0 +1,11 @@
+{
+  "post_signup_subject": "Get started on {{platform_name}} — here are our top picks",
+  "trending_subject": "Trending on {{platform_name}} this week",
+  "re_engagement_subject": "We miss you! New content on {{platform_name}}",
+  "weekly_digest_subject": "Your weekly learning digest from {{platform_name}}",
+  "browsing_subject": "Still interested? Continue where you left off",
+  "new_category_subject": "New in {{category_name}} on {{platform_name}}",
+  "heading": "Recommended for you",
+  "cta": "Start Learning",
+  "unsubscribe_note": "You can change your notification preferences at any time."
+}

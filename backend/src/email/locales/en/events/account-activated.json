@@ -1,0 +1,7 @@
+{
+  "subject": "Welcome to {{platform_name}}! Your account is ready",
+  "heading": "Welcome",
+  "body": "Your email is verified and your {{platform_name}} account is ready.",
+  "cta": "Log in",
+  "not_you": "If you did not create this account, contact support."
+}

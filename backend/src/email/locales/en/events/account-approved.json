@@ -1,0 +1,6 @@
+{
+  "subject": "Welcome to {{platform_name}}! Your account has been approved",
+  "heading": "You're in!",
+  "body": "Your {{platform_name}} account has been approved by the administrator. You can now log in and start learning.",
+  "cta": "Log in"
+}

@@ -1,0 +1,10 @@
+{
+  "footer_text": "{{platform_name}} — Afflatus Consulting Group",
+  "footer_unsubscribe": "Se désabonner de ces emails",
+  "footer_preferences": "Préférences email",
+  "if_not_you": "Si vous n'êtes pas à l'origine de cette action, vous pouvez ignorer cet email.",
+  "link_expires": "Ce lien expire dans {{hours}} heures.",
+  "copy_link": "Ou copiez ce lien :",
+  "contact_support": "Si vous avez besoin d'aide, contactez-nous à {{support_email}}.",
+  "greeting": "Bonjour {{name}},"
+}

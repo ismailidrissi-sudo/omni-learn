@@ -3,13 +3,16 @@ import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { EmailService } from '../email/email.service';
+import { TransactionalEmailService } from '../email/transactional-email.service';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: { user: { findUnique: jest.Mock; findFirst: jest.Mock; create: jest.Mock; update: jest.Mock } };
+  let prisma: {
+    user: { findUnique: jest.Mock; findFirst: jest.Mock; create: jest.Mock; update: jest.Mock };
+    tenant: { findUnique: jest.Mock };
+  };
   let jwtService: { sign: jest.Mock };
-  let emailService: { enqueue: jest.Mock };
+  let transactionalEmail: { sendEmailVerification: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -19,16 +22,17 @@ describe('AuthService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      tenant: { findUnique: jest.fn() },
     };
     jwtService = { sign: jest.fn().mockReturnValue('mock-jwt-token') };
-    emailService = { enqueue: jest.fn().mockResolvedValue('mock-queue-id') };
+    transactionalEmail = { sendEmailVerification: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwtService },
-        { provide: EmailService, useValue: emailService },
+        { provide: TransactionalEmailService, useValue: transactionalEmail },
       ],
     }).compile();
 
@@ -54,18 +58,18 @@ describe('AuthService', () => {
 
       expect(result.userId).toBe('new-id');
       expect(result.message).toContain('Verification email sent');
-      expect(emailService.enqueue).toHaveBeenCalled();
+      expect(transactionalEmail.sendEmailVerification).toHaveBeenCalled();
     });
   });
 
   describe('loginWithPassword', () => {
     it('should throw UnauthorizedException if user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.findFirst.mockResolvedValue(null);
       await expect(service.loginWithPassword('nobody@test.com', 'pass')).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException if email not verified', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      prisma.user.findFirst.mockResolvedValue({
         id: '1', email: 'test@test.com', passwordHash: '$2b$10$hash', emailVerified: false,
       });
       await expect(service.loginWithPassword('test@test.com', 'pass')).rejects.toThrow(UnauthorizedException);

@@ -23,6 +23,7 @@ interface ContentCardProps {
   enrolled?: boolean;
   progressPct?: number;
   onEnroll?: () => void;
+  thumbnailUrl?: string | null;
 }
 
 export function ContentCard({
@@ -35,6 +36,7 @@ export function ContentCard({
   enrolled,
   progressPct,
   onEnroll,
+  thumbnailUrl,
 }: ContentCardProps) {
   const meta = TYPE_META[type] ?? { icon: "📎", label: type, color: "#C4A574" };
   const isCourse = type === "COURSE";
@@ -46,12 +48,16 @@ export function ContentCard({
       className="group flex flex-col min-w-[220px] max-w-[260px] rounded-xl border border-[var(--color-bg-secondary)] bg-[var(--color-bg-primary)] hover:shadow-lg hover:border-brand-green/40 transition-all duration-200 overflow-hidden"
     >
       <div
-        className="h-28 flex items-center justify-center text-4xl relative"
-        style={{ background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}08)` }}
+        className="h-28 flex items-center justify-center text-4xl relative overflow-hidden"
+        style={!thumbnailUrl ? { background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}08)` } : undefined}
       >
-        <span className="group-hover:scale-110 transition-transform duration-200">
-          {meta.icon}
-        </span>
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="group-hover:scale-110 transition-transform duration-200">
+            {meta.icon}
+          </span>
+        )}
         {isCourse && !enrolled && onEnroll && (
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEnroll(); }}

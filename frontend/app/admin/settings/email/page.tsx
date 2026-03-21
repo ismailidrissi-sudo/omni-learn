@@ -35,6 +35,21 @@ interface TodayStats {
   usagePercentage: number;
 }
 
+interface ProviderUsage {
+  configured: boolean;
+  thisMinute: number;
+  thisHour: number;
+  today: number;
+  limitPerMinute: number;
+  limitPerHour: number;
+  limitPerDay: number;
+  minuteResetAt: string | null;
+  hourResetAt: string | null;
+  dayResetAt: string | null;
+  queueDepth: number;
+  estimatedClearMinutes: number | null;
+}
+
 interface QueueItem {
   id: string;
   toEmail: string;
@@ -75,6 +90,14 @@ export default function EmailAdminPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [providerUsage, setProviderUsage] = useState<ProviderUsage | null>(null);
+
+  const loadProviderUsage = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/settings/email-provider/usage');
+      if (res.ok) setProviderUsage(await res.json());
+    } catch {}
+  }, []);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -114,7 +137,7 @@ export default function EmailAdminPage() {
   }, [queueFilter, queuePage]);
 
   useEffect(() => {
-    Promise.all([loadConfig(), loadStats(), loadQueue()]).finally(() => setIsLoading(false));
+    Promise.all([loadConfig(), loadStats(), loadQueue(), loadProviderUsage()]).finally(() => setIsLoading(false));
   }, [loadConfig, loadStats, loadQueue]);
 
   useEffect(() => {
@@ -122,9 +145,12 @@ export default function EmailAdminPage() {
   }, [queueFilter, queuePage, loadQueue]);
 
   useEffect(() => {
-    const interval = setInterval(loadStats, 30000);
+    const interval = setInterval(() => {
+      loadStats();
+      loadProviderUsage();
+    }, 15000);
     return () => clearInterval(interval);
-  }, [loadStats]);
+  }, [loadStats, loadProviderUsage]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -302,6 +328,75 @@ export default function EmailAdminPage() {
               Approaching daily limit. New emails will be scheduled for tomorrow.
             </p>
           )}
+        </div>
+      )}
+
+      {providerUsage?.configured && (
+        <div className="mb-8 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-indigo-400" />
+            Provider Rate Limits (Live)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {([
+              {
+                label: 'This Minute',
+                used: providerUsage.thisMinute,
+                limit: providerUsage.limitPerMinute,
+                resetAt: providerUsage.minuteResetAt,
+              },
+              {
+                label: 'This Hour',
+                used: providerUsage.thisHour,
+                limit: providerUsage.limitPerHour,
+                resetAt: providerUsage.hourResetAt,
+              },
+              {
+                label: 'Today',
+                used: providerUsage.today,
+                limit: providerUsage.limitPerDay,
+                resetAt: providerUsage.dayResetAt,
+              },
+            ]).map(({ label, used, limit, resetAt }) => {
+              const pct = limit > 0 ? Math.round((used / limit) * 100) : 0;
+              return (
+                <div key={label} className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-medium">{label}</span>
+                    <span className="text-slate-400">{used} / {limit}</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-indigo-500'
+                      }`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                  {resetAt && (
+                    <p className="text-[10px] text-slate-500">
+                      Resets {new Date(resetAt).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center gap-6 text-xs text-slate-400 border-t border-slate-700/50 pt-3">
+            <span>Queue depth: <strong className="text-white">{providerUsage.queueDepth}</strong> emails</span>
+            {providerUsage.estimatedClearMinutes != null && (
+              <span>Est. clear time: <strong className="text-white">~{providerUsage.estimatedClearMinutes} min</strong></span>
+            )}
+          </div>
+
+          <div className="mt-3 text-[10px] text-slate-500 space-y-0.5">
+            <p className="font-medium text-slate-400">Priority queue order:</p>
+            <p>P1 (Critical): Password reset, email verification</p>
+            <p>P2 (High): Account approval/rejection</p>
+            <p>P3 (Normal): Enrollment, completion, certificates</p>
+            <p>P4 (Low): Suggestions, digests, campaigns</p>
+          </div>
         </div>
       )}
 

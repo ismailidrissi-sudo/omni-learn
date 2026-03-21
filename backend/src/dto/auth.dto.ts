@@ -22,6 +22,29 @@ export class SignUpDto {
   @IsOptional()
   @IsString()
   referralCode?: string;
+
+  /** Branded academy slug — user joins tenant with pending org approval after email verification */
+  @IsOptional()
+  @IsString()
+  tenantSlug?: string;
+}
+
+export class PasswordResetRequestDto {
+  @IsEmail()
+  email: string;
+}
+
+export class PasswordResetConfirmDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(1)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
 }
 
 export class LoginDto {

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificateService } from '../certificate/certificate.service';
 import { NotificationService } from '../notification/notification.service';
+import { TransactionalEmailService } from '../email/transactional-email.service';
 import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 
 @Injectable()
@@ -12,9 +13,18 @@ export class CourseEnrollmentService {
     private readonly prisma: PrismaService,
     private readonly certificateService: CertificateService,
     private readonly notificationService: NotificationService,
+    private readonly transactionalEmail: TransactionalEmailService,
   ) {}
 
-  async enrollUser(userId: string, courseId: string, deadline?: Date) {
+  async enrollUser(userId: string, courseId: string, deadline?: Date, opts?: { actorUserId?: string }) {
+    const existing = await this.prisma.courseEnrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      include: { itemProgress: true },
+    });
+    if (existing) {
+      return existing;
+    }
+
     const course = await this.prisma.contentItem.findUniqueOrThrow({
       where: { id: courseId },
       include: {
@@ -44,7 +54,38 @@ export class CourseEnrollmentService {
       include: { itemProgress: true },
     });
 
+    void this.notifyEnrollmentEmail(userId, courseId, course.title, opts?.actorUserId).catch((err) =>
+      this.logger.warn(`Enrollment email failed: ${err}`),
+    );
+
     return enrollment;
+  }
+
+  private async notifyEnrollmentEmail(
+    userId: string,
+    courseId: string,
+    courseTitle: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+    const enrolledBy =
+      actorUserId && actorUserId !== userId ? 'admin' : 'self';
+    let assignerName: string | undefined;
+    if (enrolledBy === 'admin' && actorUserId) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
+      assignerName = actor?.name;
+    }
+    await this.transactionalEmail.sendEnrollmentConfirmed({
+      userId,
+      toEmail: user.email,
+      toName: user.name,
+      contentTitle: courseTitle,
+      contentType: 'course',
+      contentId: courseId,
+      enrolledBy,
+      assignerName,
+    });
   }
 
   async getEnrollment(userId: string, courseId: string) {
@@ -227,6 +268,23 @@ export class CourseEnrollmentService {
       } catch (notifErr) {
         this.logger.warn(`Certificate issued but notification failed for course enrollment ${enrollmentId}`, notifErr);
       }
+
+      try {
+        const learner = await this.prisma.user.findUnique({ where: { id: enrollment.userId } });
+        if (learner) {
+          await this.transactionalEmail.sendCompletionCertificateEmail({
+            userId: learner.id,
+            toEmail: learner.email,
+            toName: learner.name,
+            contentTitle: enrollment.course.title,
+            contentType: 'course',
+            verifyCode: cert.verifyCode,
+            certificateId: cert.id,
+          });
+        }
+      } catch (mailErr) {
+        this.logger.warn(`Completion email failed for course enrollment ${enrollmentId}`, mailErr);
+      }
     } catch (err) {
       this.logger.error(`Failed to auto-issue certificate for course enrollment ${enrollmentId}`, err);
     }
@@ -241,6 +299,28 @@ export class CourseEnrollmentService {
 
       const cert = await this.certificateService.issueCourseEnrollmentCertificate(enrollmentId);
       this.logger.log(`Certificate issued via retry for course enrollment ${enrollmentId}`);
+      try {
+        const enroll = await this.prisma.courseEnrollment.findUnique({
+          where: { id: enrollmentId },
+          include: { course: true },
+        });
+        const learner = enroll
+          ? await this.prisma.user.findUnique({ where: { id: enroll.userId } })
+          : null;
+        if (enroll && learner) {
+          await this.transactionalEmail.sendCompletionCertificateEmail({
+            userId: learner.id,
+            toEmail: learner.email,
+            toName: learner.name,
+            contentTitle: enroll.course.title,
+            contentType: 'course',
+            verifyCode: cert.verifyCode,
+            certificateId: cert.id,
+          });
+        }
+      } catch (mailErr) {
+        this.logger.warn(`Completion email failed on retry for course enrollment ${enrollmentId}`, mailErr);
+      }
       return cert;
     } catch (err) {
       this.logger.error(`Certificate retry also failed for course enrollment ${enrollmentId}`, err);

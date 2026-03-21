@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -43,6 +43,182 @@ type QuizQuestion = {
   options: string[];
   correctIndex: number;
 };
+
+function parseItemMetadata(item: CourseSectionItem): Record<string, unknown> {
+  const m = item.metadata;
+  if (m == null) return {};
+  if (typeof m === "string") {
+    try {
+      return JSON.parse(m) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  return typeof m === "object" ? (m as Record<string, unknown>) : {};
+}
+
+function normalizeQuizQuestionsFromMeta(raw: unknown): QuizQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((q) => {
+    const o = q as Record<string, unknown>;
+    let options = Array.isArray(o.options) ? o.options.map((x) => String(x ?? "")) : ["", ""];
+    if (options.length < 2) {
+      options = [...options, ...Array.from({ length: 2 - options.length }, () => "")];
+    }
+    let ci = typeof o.correctIndex === "number" ? o.correctIndex : 0;
+    if (Number.isNaN(ci)) ci = 0;
+    ci = Math.min(Math.max(0, ci), Math.max(0, options.length - 1));
+    return {
+      id: typeof o.id === "string" && o.id ? o.id : crypto.randomUUID(),
+      question: String(o.question ?? ""),
+      options,
+      correctIndex: ci,
+    };
+  });
+}
+
+function validateQuizQuestionsForSave(
+  questions: QuizQuestion[],
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | null {
+  if (questions.length === 0) {
+    return t("admin.courseQuizNeedQuestion");
+  }
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    if (!q.question.trim()) {
+      return t("admin.courseQuizInvalidQuestion", { n: i + 1 });
+    }
+    const filledCount = q.options.filter((o) => o.trim().length > 0).length;
+    if (filledCount < 2) {
+      return t("admin.courseQuizInvalidOptions", { n: i + 1 });
+    }
+    const ci = q.correctIndex;
+    if (ci < 0 || ci >= q.options.length || !q.options[ci]?.trim()) {
+      return t("admin.courseQuizInvalidCorrect", { n: i + 1 });
+    }
+  }
+  return null;
+}
+
+function QuizQuestionsEditor({
+  questions,
+  setQuestions,
+}: {
+  questions: QuizQuestion[];
+  setQuestions: Dispatch<SetStateAction<QuizQuestion[]>>;
+}) {
+  const { t } = useI18n();
+
+  const addQuizQuestion = () => {
+    setQuestions((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        question: "",
+        options: ["", ""],
+        correctIndex: 0,
+      },
+    ]);
+  };
+
+  const updateQuizQuestion = (idx: number, updates: Partial<QuizQuestion>) => {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        const next = { ...q, ...updates };
+        if (updates.options) {
+          const len = updates.options.length;
+          next.correctIndex = Math.min(Math.max(0, next.correctIndex), Math.max(0, len - 1));
+        }
+        return next;
+      }),
+    );
+  };
+
+  const removeQuizQuestion = (idx: number) => {
+    setQuestions((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-2">
+        <label className="text-sm font-medium text-brand-grey-dark">
+          {t("admin.courseQuizQuestions")}
+        </label>
+        <Button variant="ghost" size="sm" type="button" onClick={addQuizQuestion}>
+          + {t("admin.courseAddQuestion")}
+        </Button>
+      </div>
+      <p className="text-xs text-brand-grey mb-3">{t("admin.courseCorrectAnswer")}</p>
+      <div className="space-y-4">
+        {questions.map((q, idx) => (
+          <div
+            key={q.id}
+            className="p-4 rounded-lg border border-brand-grey-light bg-white"
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-sm font-medium text-brand-grey">
+                {t("admin.courseQuestion")} {idx + 1}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                className="text-red-600"
+                onClick={() => removeQuizQuestion(idx)}
+              >
+                ×
+              </Button>
+            </div>
+            <Input
+              placeholder={t("admin.courseQuestionPlaceholder")}
+              value={q.question}
+              onChange={(e) => updateQuizQuestion(idx, { question: e.target.value })}
+              className="mb-2"
+            />
+            <div className="space-y-2">
+              {q.options.map((opt, oi) => (
+                <div key={oi} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`correct-${q.id}`}
+                    title={t("admin.courseCorrectAnswer")}
+                    aria-label={`${t("admin.courseCorrectAnswer")} — ${t("admin.courseOption")} ${oi + 1}`}
+                    checked={q.correctIndex === oi}
+                    onChange={() => updateQuizQuestion(idx, { correctIndex: oi })}
+                  />
+                  <Input
+                    value={opt}
+                    onChange={(e) => {
+                      const opts = [...q.options];
+                      opts[oi] = e.target.value;
+                      updateQuizQuestion(idx, { options: opts });
+                    }}
+                    placeholder={`${t("admin.courseOption")} ${oi + 1}`}
+                    className="flex-1"
+                  />
+                </div>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() =>
+                  updateQuizQuestion(idx, {
+                    options: [...q.options, ""],
+                  })
+                }
+              >
+                + {t("admin.courseAddOption")}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface CourseBuilderProps {
   courseId: string;
@@ -189,12 +365,20 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
   const addItem = () => {
     if (!newItemSectionId || !newItemTitle.trim()) return;
 
+    if (newItemType === "QUIZ") {
+      const err = validateQuizQuestionsForSave(newItemQuestions, t);
+      if (err) {
+        toast(err, "error");
+        return;
+      }
+    }
+
     const metadata: Record<string, unknown> = {};
-    if (newItemType === "QUIZ" && newItemQuestions.length > 0) {
+    if (newItemType === "QUIZ") {
       metadata.questions = newItemQuestions.map((q) => ({
         id: q.id,
-        question: q.question,
-        options: q.options,
+        question: q.question.trim(),
+        options: q.options.map((o) => o.trim()),
         correctIndex: q.correctIndex,
       }));
     }
@@ -252,28 +436,6 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
         loadCurriculum();
       })
       .catch(console.error);
-  };
-
-  const addQuizQuestion = () => {
-    setNewItemQuestions((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        question: "",
-        options: ["", ""],
-        correctIndex: 0,
-      },
-    ]);
-  };
-
-  const updateQuizQuestion = (idx: number, updates: Partial<QuizQuestion>) => {
-    setNewItemQuestions((prev) =>
-      prev.map((q, i) => (i === idx ? { ...q, ...updates } : q))
-    );
-  };
-
-  const removeQuizQuestion = (idx: number) => {
-    setNewItemQuestions((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const totalItems = sections.reduce((acc, s) => acc + s.items.length, 0);
@@ -662,81 +824,10 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
                 )}
 
                 {newItemType === "QUIZ" && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium text-brand-grey-dark">
-                        {t("admin.courseQuizQuestions")}
-                      </label>
-                      <Button variant="ghost" size="sm" onClick={addQuizQuestion}>
-                        + {t("admin.courseAddQuestion")}
-                      </Button>
-                    </div>
-                    <div className="space-y-4">
-                      {newItemQuestions.map((q, idx) => (
-                        <div
-                          key={q.id}
-                          className="p-4 rounded-lg border border-brand-grey-light bg-white"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-sm font-medium text-brand-grey">
-                              {t("admin.courseQuestion")} {idx + 1}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600"
-                              onClick={() => removeQuizQuestion(idx)}
-                            >
-                              ×
-                            </Button>
-                          </div>
-                          <Input
-                            placeholder={t("admin.courseQuestionPlaceholder")}
-                            value={q.question}
-                            onChange={(e) =>
-                              updateQuizQuestion(idx, { question: e.target.value })
-                            }
-                            className="mb-2"
-                          />
-                          <div className="space-y-2">
-                            {q.options.map((opt, oi) => (
-                              <div key={oi} className="flex items-center gap-2">
-                                <input
-                                  type="radio"
-                                  name={`correct-${q.id}`}
-                                  checked={q.correctIndex === oi}
-                                  onChange={() =>
-                                    updateQuizQuestion(idx, { correctIndex: oi })
-                                  }
-                                />
-                                <Input
-                                  value={opt}
-                                  onChange={(e) => {
-                                    const opts = [...q.options];
-                                    opts[oi] = e.target.value;
-                                    updateQuizQuestion(idx, { options: opts });
-                                  }}
-                                  placeholder={`${t("admin.courseOption")} ${oi + 1}`}
-                                  className="flex-1"
-                                />
-                              </div>
-                            ))}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                updateQuizQuestion(idx, {
-                                  options: [...q.options, ""],
-                                })
-                              }
-                            >
-                              + {t("admin.courseAddOption")}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <QuizQuestionsEditor
+                    questions={newItemQuestions}
+                    setQuestions={setNewItemQuestions}
+                  />
                 )}
 
                 {newItemType === "ARTICLE" && (
@@ -843,16 +934,64 @@ function ItemEditor({
   onSave: (updates: Record<string, unknown>) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
+  const baseMeta = parseItemMetadata(item);
   const [title, setTitle] = useState(item.title);
   const [url, setUrl] = useState(item.contentUrl ?? "");
   const [duration, setDuration] = useState(item.durationMinutes?.toString() ?? "");
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(() =>
+    normalizeQuizQuestionsFromMeta(baseMeta.questions),
+  );
+
+  if (item.itemType === "QUIZ") {
+    return (
+      <div className="space-y-3 w-full min-w-0">
+        <Input
+          label={t("admin.name")}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t("admin.courseItemTitlePlaceholder")}
+        />
+        <QuizQuestionsEditor questions={quizQuestions} setQuestions={setQuizQuestions} />
+        <div className="flex gap-2 pt-1">
+          <Button
+            size="sm"
+            onClick={() => {
+              const err = validateQuizQuestionsForSave(quizQuestions, t);
+              if (err) {
+                toast(err, "error");
+                return;
+              }
+              onSave({
+                title: title.trim(),
+                metadata: {
+                  ...baseMeta,
+                  questions: quizQuestions.map((q) => ({
+                    id: q.id,
+                    question: q.question.trim(),
+                    options: q.options.map((o) => o.trim()),
+                    correctIndex: q.correctIndex,
+                  })),
+                },
+              });
+            }}
+          >
+            {t("common.save")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 w-full min-w-0">
       <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title"
+        placeholder={t("admin.courseItemTitlePlaceholder")}
       />
       {(item.itemType === "VIDEO" || item.itemType === "AUDIO" || item.itemType === "DOCUMENT" || item.itemType === "CODING_EXERCISE") && (
         <>
@@ -866,7 +1005,7 @@ function ItemEditor({
             <Input
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              placeholder="Duration (min)"
+              placeholder={t("admin.durationMinutes")}
             />
           )}
         </>
@@ -876,16 +1015,16 @@ function ItemEditor({
           size="sm"
           onClick={() =>
             onSave({
-              title,
+              title: title.trim(),
               contentUrl: url || undefined,
               durationMinutes: duration ? parseInt(duration, 10) : undefined,
             })
           }
         >
-          Save
+          {t("common.save")}
         </Button>
         <Button variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
     </div>

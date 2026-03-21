@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { OrgApprovalStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TransactionalEmailService } from '../email/transactional-email.service';
 
 /**
  * Profile Service — User & tenant profile completion for recommendation optimization
@@ -9,7 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly transactionalEmail: TransactionalEmailService,
+  ) {}
 
   async completeUserProfile(
     userId: string,
@@ -314,6 +318,7 @@ export class ProfileService {
         emailVerifyToken: token,
         emailVerifyExpiresAt: { gt: new Date() },
       },
+      include: { tenant: true },
     });
     if (!user) {
       throw new BadRequestException('Invalid or expired verification link');
@@ -326,10 +331,29 @@ export class ProfileService {
         emailVerifyExpiresAt: null,
       },
     });
+
+    if (user.tenantId && user.orgApprovalStatus === OrgApprovalStatus.PENDING) {
+      await this.transactionalEmail.notifyCompanyAdminsNewSignup({
+        tenantId: user.tenantId,
+        learnerName: user.name,
+        learnerEmail: user.email,
+      });
+    } else {
+      await this.transactionalEmail.sendAccountActivated({
+        userId: user.id,
+        toEmail: user.email,
+        toName: user.name,
+      });
+    }
+
     return {
       success: true,
-      message: 'Email verified. Please complete your profile.',
+      message:
+        user.tenantId && user.orgApprovalStatus === OrgApprovalStatus.PENDING
+          ? 'Email verified. Your organization administrator will review your access.'
+          : 'Email verified. Please complete your profile.',
       userId: user.id,
+      pendingOrgApproval: user.orgApprovalStatus === OrgApprovalStatus.PENDING,
     };
   }
 
@@ -427,40 +451,121 @@ export class ProfileService {
   }
 
   /** List users pending org affiliation approval for a given tenant (company admin) */
-  async getPendingOrgAffiliations(tenantId: string) {
+  async getPendingOrgAffiliations(tenantId: string, actorUserId: string) {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
+    if (!actor) throw new ForbiddenException();
+    if (!actor.isAdmin && actor.tenantId !== tenantId) {
+      throw new ForbiddenException();
+    }
     return this.prisma.user.findMany({
-      where: { tenantId, orgApprovalStatus: 'PENDING' },
-      select: { id: true, email: true, name: true, userType: true, createdAt: true },
+      where: { tenantId, orgApprovalStatus: OrgApprovalStatus.PENDING },
+      select: { id: true, email: true, name: true, userType: true, createdAt: true, emailVerified: true },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   /** Approve a user's organization affiliation (company admin) */
-  async approveOrgAffiliation(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+  async approveOrgAffiliation(userId: string, actorUserId: string) {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { tenant: true } });
     if (!user) throw new BadRequestException('User not found');
-    if (user.orgApprovalStatus !== 'PENDING') {
+    if (!actor) throw new ForbiddenException();
+    if (user.orgApprovalStatus !== OrgApprovalStatus.PENDING) {
       throw new BadRequestException('No pending affiliation request for this user');
+    }
+    if (!user.emailVerified) {
+      throw new BadRequestException('User must verify their email before approval');
+    }
+    if (!actor.isAdmin) {
+      if (!actor.companyAdminApprovedAt) throw new ForbiddenException();
+      if (user.tenantId !== actor.tenantId) throw new ForbiddenException();
     }
     await this.prisma.user.update({
       where: { id: userId },
-      data: { orgApprovalStatus: 'APPROVED' },
+      data: { orgApprovalStatus: OrgApprovalStatus.APPROVED },
+    });
+    await this.transactionalEmail.sendAccountApproved({
+      userId: user.id,
+      toEmail: user.email,
+      toName: user.name,
+      tenantName: user.tenant?.name ?? 'your organization',
     });
     return { success: true, message: 'Organization affiliation approved' };
   }
 
   /** Reject a user's organization affiliation — clears tenantId (company admin) */
-  async rejectOrgAffiliation(userId: string) {
+  async rejectOrgAffiliation(userId: string, actorUserId: string, reason?: string) {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
-    if (user.orgApprovalStatus !== 'PENDING') {
+    if (!actor) throw new ForbiddenException();
+    if (user.orgApprovalStatus !== OrgApprovalStatus.PENDING) {
       throw new BadRequestException('No pending affiliation request for this user');
+    }
+    if (!actor.isAdmin) {
+      if (!actor.companyAdminApprovedAt) throw new ForbiddenException();
+      if (user.tenantId !== actor.tenantId) throw new ForbiddenException();
     }
     await this.prisma.user.update({
       where: { id: userId },
-      data: { orgApprovalStatus: 'REJECTED', tenantId: null },
+      data: { orgApprovalStatus: OrgApprovalStatus.REJECTED, tenantId: null },
+    });
+    await this.transactionalEmail.sendAccountRejected({
+      userId: user.id,
+      toEmail: user.email,
+      toName: user.name,
+      reason,
     });
     return { success: true, message: 'Organization affiliation rejected' };
+  }
+
+  async getEmailPreferences(userId: string) {
+    const rows = await this.prisma.userEmailPreference.findMany({
+      where: { userId },
+      select: { eventType: true, isEnabled: true, updatedAt: true },
+    });
+    return { preferences: rows };
+  }
+
+  async upsertEmailPreference(userId: string, eventType: string, isEnabled: boolean) {
+    const row = await this.prisma.userEmailPreference.upsert({
+      where: { userId_eventType: { userId, eventType } },
+      create: { userId, eventType, isEnabled },
+      update: { isEnabled },
+    });
+    return { preference: row };
+  }
+
+  /** Tracks views/previews/etc. for the content suggestion engine */
+  async recordContentInteraction(
+    userId: string,
+    dto: { contentId: string; contentType: string; interactionType: string },
+  ) {
+    const existing = await this.prisma.userContentInteraction.findFirst({
+      where: {
+        userId,
+        contentId: dto.contentId,
+        contentType: dto.contentType,
+        interactionType: dto.interactionType,
+      },
+    });
+    if (existing) {
+      return this.prisma.userContentInteraction.update({
+        where: { id: existing.id },
+        data: {
+          interactionCount: { increment: 1 },
+          lastInteractionAt: new Date(),
+        },
+      });
+    }
+    return this.prisma.userContentInteraction.create({
+      data: {
+        userId,
+        contentId: dto.contentId,
+        contentType: dto.contentType,
+        interactionType: dto.interactionType,
+      },
+    });
   }
 
   /** List users who requested company admin role and are pending platform admin approval */

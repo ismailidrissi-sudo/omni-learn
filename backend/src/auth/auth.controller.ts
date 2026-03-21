@@ -3,7 +3,14 @@ import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignUpDto, LoginDto, GoogleSignInDto, LinkedInSignInDto } from '../dto/auth.dto';
+import {
+  SignUpDto,
+  LoginDto,
+  GoogleSignInDto,
+  LinkedInSignInDto,
+  PasswordResetRequestDto,
+  PasswordResetConfirmDto,
+} from '../dto/auth.dto';
 import { ReferralService } from '../referral/referral.service';
 
 @Controller('auth')
@@ -16,7 +23,13 @@ export class AuthController {
 
   @Post('signup')
   async signUp(@Body() body: SignUpDto) {
-    const result = await this.authService.signUp(body.email, body.password, body.name ?? '', body.trainerRequested ?? false);
+    const result = await this.authService.signUp(
+      body.email,
+      body.password,
+      body.name ?? '',
+      body.trainerRequested ?? false,
+      body.tenantSlug,
+    );
 
     if (body.referralCode && this.referralService) {
       try {
@@ -107,6 +120,16 @@ export class AuthController {
   async resendVerification(@Body() body: { email: string }) {
     if (!body?.email) throw new BadRequestException('Email required');
     return this.authService.resendVerification(body.email);
+  }
+
+  @Post('password-reset/request')
+  async requestPasswordReset(@Body() body: PasswordResetRequestDto) {
+    return this.authService.requestPasswordReset(body.email);
+  }
+
+  @Post('password-reset/confirm')
+  async confirmPasswordReset(@Body() body: PasswordResetConfirmDto) {
+    return this.authService.confirmPasswordReset(body.email, body.token, body.newPassword);
   }
 
   @Post('dev-login')

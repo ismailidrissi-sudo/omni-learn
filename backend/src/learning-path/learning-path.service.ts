@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 import { CertificateService } from '../certificate/certificate.service';
 import { NotificationService } from '../notification/notification.service';
+import { TransactionalEmailService } from '../email/transactional-email.service';
 
 /**
  * Learning Path Orchestration Engine
@@ -17,10 +18,11 @@ export class LearningPathService {
     private readonly prisma: PrismaService,
     private readonly certificateService: CertificateService,
     private readonly notificationService: NotificationService,
+    private readonly transactionalEmail: TransactionalEmailService,
   ) {}
 
   /** Enroll a user in a learning path (idempotent — returns existing enrollment if already enrolled) */
-  async enrollUser(userId: string, pathId: string, deadline?: Date) {
+  async enrollUser(userId: string, pathId: string, deadline?: Date, opts?: { actorUserId?: string }) {
     const existing = await this.prisma.pathEnrollment.findUnique({
       where: { userId_pathId: { userId, pathId } },
       include: { stepProgress: true },
@@ -49,7 +51,37 @@ export class LearningPathService {
       include: { stepProgress: true },
     });
 
+    void this.notifyPathEnrollmentEmail(userId, pathId, path.name, opts?.actorUserId).catch((err) =>
+      this.logger.warn(`Path enrollment email failed: ${err}`),
+    );
+
     return enrollment;
+  }
+
+  private async notifyPathEnrollmentEmail(
+    userId: string,
+    pathId: string,
+    pathName: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+    const enrolledBy = actorUserId && actorUserId !== userId ? 'admin' : 'self';
+    let assignerName: string | undefined;
+    if (enrolledBy === 'admin' && actorUserId) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
+      assignerName = actor?.name;
+    }
+    await this.transactionalEmail.sendEnrollmentConfirmed({
+      userId,
+      toEmail: user.email,
+      toName: user.name,
+      contentTitle: pathName,
+      contentType: 'path',
+      contentId: pathId,
+      enrolledBy,
+      assignerName,
+    });
   }
 
   /** Get enrollment with progress for a user */
@@ -186,6 +218,23 @@ export class LearningPathService {
       } catch (notifErr) {
         this.logger.warn(`Certificate issued but notification failed for enrollment ${enrollmentId}`, notifErr);
       }
+
+      try {
+        const learner = await this.prisma.user.findUnique({ where: { id: enrollment.userId } });
+        if (learner) {
+          await this.transactionalEmail.sendCompletionCertificateEmail({
+            userId: learner.id,
+            toEmail: learner.email,
+            toName: learner.name,
+            contentTitle: enrollment.path.name,
+            contentType: 'path',
+            verifyCode: cert.verifyCode,
+            certificateId: cert.id,
+          });
+        }
+      } catch (mailErr) {
+        this.logger.warn(`Completion email failed for path enrollment ${enrollmentId}`, mailErr);
+      }
     } catch (err) {
       this.logger.error(`Failed to auto-issue certificate for enrollment ${enrollmentId}`, err);
     }
@@ -201,6 +250,28 @@ export class LearningPathService {
 
       const cert = await this.certificateService.issueCertificate(enrollmentId);
       this.logger.log(`Certificate issued via retry for enrollment ${enrollmentId}`);
+      try {
+        const enroll = await this.prisma.pathEnrollment.findUnique({
+          where: { id: enrollmentId },
+          include: { path: true },
+        });
+        const learner = enroll
+          ? await this.prisma.user.findUnique({ where: { id: enroll.userId } })
+          : null;
+        if (enroll && learner) {
+          await this.transactionalEmail.sendCompletionCertificateEmail({
+            userId: learner.id,
+            toEmail: learner.email,
+            toName: learner.name,
+            contentTitle: enroll.path.name,
+            contentType: 'path',
+            verifyCode: cert.verifyCode,
+            certificateId: cert.id,
+          });
+        }
+      } catch (mailErr) {
+        this.logger.warn(`Completion email failed on retry for enrollment ${enrollmentId}`, mailErr);
+      }
       return cert;
     } catch (err) {
       this.logger.error(`Certificate retry also failed for enrollment ${enrollmentId}`, err);

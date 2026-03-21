@@ -2,9 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailConfigService } from './email-config.service';
-import { ResendClientService, ResendError, ResendRateLimitError } from './resend-client.service';
+import { EmailProviderConfigService } from './email-provider-config.service';
+import { ResendRateLimitError } from './resend-client.service';
 import { RateLimiterService } from './rate-limiter.service';
 import { EmailPriority, ENUM_TO_PRIORITY, BATCH_SIZE, SEND_DELAY_MS } from './constants';
+import { EmailProvider } from './providers/email-provider.interface';
+import { ResendEmailProvider } from './providers/resend-email.provider';
+import { SmtpEmailProvider } from './providers/smtp-email.provider';
 
 interface QueueRow {
   id: string;
@@ -30,10 +34,16 @@ export class EmailProcessorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: EmailConfigService,
-    private readonly resendClient: ResendClientService,
+    private readonly providerConfigService: EmailProviderConfigService,
+    private readonly resendProvider: ResendEmailProvider,
+    private readonly smtpProvider: SmtpEmailProvider,
     private readonly rateLimiter: RateLimiterService,
   ) {
     this.db = prisma as any;
+  }
+
+  private pickProvider(): EmailProvider {
+    return process.env.EMAIL_TRANSPORT === 'smtp' ? this.smtpProvider : this.resendProvider;
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -53,22 +63,27 @@ export class EmailProcessorService {
   }
 
   async processQueue(): Promise<void> {
-    let config;
-    try {
-      config = await this.configService.getConfig();
-    } catch {
-      this.logger.debug('No email config found, skipping processor tick');
-      return;
-    }
+    const providerConfig = await this.providerConfigService.getActiveConfig();
 
-    if (!config.isActive) {
-      this.logger.debug('Email system disabled, skipping');
-      return;
+    let legacyConfig: any = null;
+    if (!providerConfig) {
+      try {
+        legacyConfig = await this.configService.getConfig();
+      } catch {
+        this.logger.debug('No email config found, skipping processor tick');
+        return;
+      }
+      if (!legacyConfig.isActive) {
+        this.logger.debug('Email system disabled, skipping');
+        return;
+      }
     }
 
     const now = new Date();
+    const provider = providerConfig
+      ? this.providerConfigService.resolveProvider(providerConfig)
+      : this.pickProvider();
 
-    // Use raw SQL for FOR UPDATE SKIP LOCKED (Prisma doesn't support this natively)
     const emails: QueueRow[] = await this.prisma.$queryRaw`
       SELECT id, "toEmail", "toName", "fromEmail", "fromName", "replyTo",
              subject, "htmlBody", "textBody", priority, attempts, "maxAttempts"
@@ -78,6 +93,7 @@ export class EmailProcessorService {
         OR (status = 'SCHEDULED' AND "scheduledFor" <= ${now})
         OR (status = 'FAILED' AND attempts < "maxAttempts" AND "nextRetryAt" <= ${now})
       )
+      AND ("scheduledAfter" IS NULL OR "scheduledAfter" <= ${now})
       ORDER BY
         CASE priority
           WHEN 'CRITICAL' THEN 0
@@ -92,17 +108,46 @@ export class EmailProcessorService {
 
     if (!emails.length) return;
 
-    let remaining = await this.rateLimiter.getRemainingToday();
+    let usage = providerConfig
+      ? await this.providerConfigService.getCurrentUsage(providerConfig.id)
+      : null;
+    let legacyRemaining = !providerConfig
+      ? await this.rateLimiter.getRemainingToday()
+      : 0;
+
     let sent = 0;
     let deferred = 0;
+    const overflowHour = legacyConfig?.overflowSendHour ?? 6;
 
     for (const email of emails) {
       const priority = ENUM_TO_PRIORITY[email.priority] ?? EmailPriority.NORMAL;
       const isCritical = priority === EmailPriority.CRITICAL;
 
-      if (!isCritical && remaining <= 0) {
-        await this.rescheduleToNextDay(email.id, config.overflowSendHour);
-        deferred++;
+      if (!isCritical) {
+        const atLimit = providerConfig
+          ? !this.providerConfigService.canSend(usage!)
+          : legacyRemaining <= 0;
+
+        if (atLimit) {
+          await this.rescheduleToNextDay(email.id, overflowHour);
+          deferred++;
+          continue;
+        }
+      }
+
+      const toAddr = email.toEmail.trim().toLowerCase();
+      const suppressed = await (this.prisma as any).emailBounceSuppression.findUnique({
+        where: { email: toAddr },
+      });
+      if (suppressed) {
+        await this.db.emailQueue.update({
+          where: { id: email.id },
+          data: {
+            status: 'CANCELLED',
+            lastError: 'suppressed:bounce',
+            updatedAt: new Date(),
+          },
+        });
         continue;
       }
 
@@ -112,7 +157,7 @@ export class EmailProcessorService {
           data: { status: 'SENDING', updatedAt: new Date() },
         });
 
-        const result = await this.resendClient.send({
+        const result = await provider.send({
           toEmail: email.toEmail,
           subject: email.subject,
           htmlBody: email.htmlBody,
@@ -133,17 +178,34 @@ export class EmailProcessorService {
           },
         });
 
+        await this.db.emailLog.updateMany({
+          where: { queueId: email.id },
+          data: {
+            status: 'sent',
+            provider: provider.name,
+            providerMessageId: result.id,
+            sentAt: new Date(),
+            errorMessage: null,
+          },
+        });
+
         if (!isCritical) {
-          await this.rateLimiter.incrementDailyCount();
-          remaining--;
+          if (providerConfig) {
+            await this.providerConfigService.incrementUsage(providerConfig.id);
+            usage = await this.providerConfigService.getCurrentUsage(providerConfig.id);
+          } else {
+            await this.rateLimiter.incrementDailyCount();
+            legacyRemaining--;
+          }
         }
 
         sent++;
-        this.logger.log(`Sent email ${email.id} to ${email.toEmail} (resend_id=${result.id})`);
+        this.logger.log(`Sent email ${email.id} to ${email.toEmail} (${provider.name} id=${result.id})`);
 
         await this.sleep(SEND_DELAY_MS);
       } catch (e) {
-        if (e instanceof ResendRateLimitError) {
+        const usingResend = provider.name === 'resend';
+        if (usingResend && e instanceof ResendRateLimitError) {
           this.logger.warn('Resend rate limit hit, pausing processor');
           await this.db.emailQueue.update({
             where: { id: email.id },
@@ -163,7 +225,7 @@ export class EmailProcessorService {
 
         let nextRetryAt: Date | null = null;
         if (attempts < maxAttempts) {
-          const backoffMinutes = Math.pow(5, attempts - 1); // 1, 5, 25
+          const backoffMinutes = Math.pow(5, attempts - 1);
           nextRetryAt = new Date(Date.now() + backoffMinutes * 60_000);
           this.logger.warn(
             `Email ${email.id} failed (attempt ${attempts}), retry at ${nextRetryAt.toISOString()}: ${errorMsg}`,
@@ -182,6 +244,15 @@ export class EmailProcessorService {
             lastError: errorMsg,
             nextRetryAt,
             updatedAt: new Date(),
+          },
+        });
+
+        await this.db.emailLog.updateMany({
+          where: { queueId: email.id },
+          data: {
+            status: attempts < maxAttempts ? 'queued' : 'failed',
+            errorMessage: errorMsg,
+            provider: provider.name,
           },
         });
 

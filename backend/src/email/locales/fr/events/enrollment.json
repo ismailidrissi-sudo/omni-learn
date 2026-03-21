@@ -1,0 +1,13 @@
+{
+  "confirmed_subject": "Vous êtes inscrit à {{content_title}}",
+  "confirmed_heading": "Inscription confirmée",
+  "confirmed_body": "Vous avez été inscrit à {{content_title}}. Commencez à apprendre maintenant !",
+  "confirmed_cta": "Commencer",
+  "assigned_subject": "On vous a attribué {{content_title}}",
+  "assigned_heading": "Nouvelle attribution",
+  "assigned_body": "{{assigner_name}} vous a attribué {{content_title}}.",
+  "assigned_cta": "Commencer",
+  "manager_subject": "{{user_name}} a été inscrit à {{content_title}}",
+  "manager_heading": "Notification d'inscription",
+  "manager_body": "{{user_name}} a été inscrit à {{content_title}}."
+}

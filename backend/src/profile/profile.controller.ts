@@ -1,4 +1,17 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards, Req, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  BadRequestException,
+} from '@nestjs/common';
+import { ContentInteractionDto } from '../dto/content-interaction.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ProfileService } from './profile.service';
 import { RbacGuard } from '../auth/guards/rbac.guard';
@@ -120,25 +133,68 @@ export class ProfileController {
   @Get('org-affiliation-requests')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async getPendingOrgAffiliations(@Query('tenantId') tenantId: string) {
+  async getPendingOrgAffiliations(
+    @Query('tenantId') tenantId: string,
+    @Req() req: { user?: { sub?: string } },
+  ) {
     if (!tenantId) throw new BadRequestException('tenantId query parameter is required');
-    return this.profile.getPendingOrgAffiliations(tenantId);
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.getPendingOrgAffiliations(tenantId, userId);
   }
 
   /** Approve a user's organization affiliation (company admin / super admin) */
   @Patch('users/:userId/org-approve')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async approveOrgAffiliation(@Param('userId') userId: string) {
-    return this.profile.approveOrgAffiliation(userId);
+  async approveOrgAffiliation(@Param('userId') userId: string, @Req() req: { user?: { sub?: string } }) {
+    const actor = req.user?.sub;
+    if (!actor) throw new BadRequestException('Not authenticated');
+    return this.profile.approveOrgAffiliation(userId, actor);
   }
 
   /** Reject a user's organization affiliation (company admin / super admin) */
   @Patch('users/:userId/org-reject')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async rejectOrgAffiliation(@Param('userId') userId: string) {
-    return this.profile.rejectOrgAffiliation(userId);
+  async rejectOrgAffiliation(
+    @Param('userId') userId: string,
+    @Req() req: { user?: { sub?: string } },
+    @Body() body?: { reason?: string },
+  ) {
+    const actor = req.user?.sub;
+    if (!actor) throw new BadRequestException('Not authenticated');
+    return this.profile.rejectOrgAffiliation(userId, actor, body?.reason);
+  }
+
+  /** List per-event email opt-in/out (transactional notifications like enrollments) */
+  @Get('email-preferences')
+  @UseGuards(AuthGuard('jwt'))
+  async getEmailPreferences(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.getEmailPreferences(userId);
+  }
+
+  @Put('email-preferences')
+  @UseGuards(AuthGuard('jwt'))
+  async putEmailPreference(
+    @Req() req: { user?: { sub?: string } },
+    @Body() body: { eventType: string; isEnabled: boolean },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    if (!body?.eventType) throw new BadRequestException('eventType required');
+    return this.profile.upsertEmailPreference(userId, body.eventType, body.isEnabled !== false);
+  }
+
+  /** Record content view/preview/etc. (suggestion engine signals) */
+  @Post('content-interactions')
+  @UseGuards(AuthGuard('jwt'))
+  async recordContentInteraction(@Req() req: { user?: { sub?: string } }, @Body() body: ContentInteractionDto) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.recordContentInteraction(userId, body);
   }
 
   /** List pending company admin requests (platform admin only) */

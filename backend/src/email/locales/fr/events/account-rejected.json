@@ -1,0 +1,7 @@
+{
+  "subject": "Mise à jour concernant votre inscription sur {{platform_name}}",
+  "heading": "Mise à jour du compte",
+  "body": "Nous sommes désolés — votre inscription sur {{platform_name}} n'a pas été approuvée pour le moment.",
+  "reason_label": "Raison :",
+  "contact_note": "Si vous pensez qu'il s'agit d'une erreur, veuillez contacter l'administrateur de l'académie."
+}

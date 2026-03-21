@@ -557,7 +557,7 @@ export default function ProfilePage() {
                   {totalActive > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {p?.activePaths?.map((item) => (
-                        <Link key={`path-${item.id}`} href={`/learn?path=${item.pathId}`} className="block">
+                        <Link key={`path-${item.id}`} href={`/path/${item.pathId}`} className="block">
                           <div className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
                             <div className="flex items-center gap-1.5 mb-1">
                               <span className="text-xs">🛤️</span>

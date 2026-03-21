@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NewContentPublisherService } from '../email/new-content-publisher.service';
 
 /**
  * Learning Path CRUD — Full create, read, update, delete
@@ -30,10 +31,15 @@ export interface CreateStepDto {
 
 @Injectable()
 export class LearningPathCrudService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(LearningPathCrudService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly newContentPublisher: NewContentPublisherService,
+  ) {}
 
   async createPath(data: CreatePathDto) {
-    return this.prisma.learningPath.create({
+    const created = await this.prisma.learningPath.create({
       data: {
         tenantId: data.tenantId,
         domainId: data.domainId,
@@ -46,6 +52,12 @@ export class LearningPathCrudService {
         availableInEnterprise: data.availableInEnterprise ?? false,
       },
     });
+    if (created.isPublished) {
+      void this.newContentPublisher.publishLearningPathNotifications(created.id).catch((err) =>
+        this.logger.warn(`publishLearningPathNotifications: ${err}`),
+      );
+    }
+    return created;
   }
 
   async getPath(id: string) {
@@ -75,7 +87,8 @@ export class LearningPathCrudService {
   }
 
   async updatePath(id: string, data: Partial<CreatePathDto>) {
-    return this.prisma.learningPath.update({
+    const before = await this.prisma.learningPath.findUnique({ where: { id } });
+    const updated = await this.prisma.learningPath.update({
       where: { id },
       data: {
         ...(data.name && { name: data.name }),
@@ -88,6 +101,12 @@ export class LearningPathCrudService {
         ...(data.availableInEnterprise !== undefined && { availableInEnterprise: data.availableInEnterprise }),
       },
     });
+    if (data.isPublished === true && before && !before.isPublished) {
+      void this.newContentPublisher.publishLearningPathNotifications(id).catch((err) =>
+        this.logger.warn(`publishLearningPathNotifications: ${err}`),
+      );
+    }
+    return updated;
   }
 
   async deletePath(id: string) {

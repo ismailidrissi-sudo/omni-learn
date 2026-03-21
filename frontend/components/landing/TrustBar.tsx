@@ -53,9 +53,12 @@ export function TrustBar() {
   }, []);
 
   const companies = stats?.trustedCompanies ?? [];
-  const hasLogos = companies.length > 0;
+  const dedupedCompanies = companies.filter(
+    (c, i, arr) => arr.findIndex((o) => o.name === c.name) === i,
+  );
+  const hasLogos = dedupedCompanies.length > 0;
   const items = hasLogos
-    ? companies
+    ? dedupedCompanies
     : PLACEHOLDER_NAMES.map((name, i) => ({
         id: `ph-${i}`,
         name,
@@ -87,22 +90,23 @@ export function TrustBar() {
         </p>
       </motion.div>
 
-      <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-[#F5F5DC] dark:from-[#0f1510] to-transparent" />
-        <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-[#F5F5DC] dark:from-[#0f1510] to-transparent" />
-
-        <div className="flex animate-marquee gap-16 whitespace-nowrap items-center">
-          {[...items, ...items].map((item, i) => (
-            <div
-              key={`${item.id}-${i}`}
-              className="flex items-center justify-center min-w-[180px] h-20 flex-shrink-0"
+      <div className="mx-auto max-w-5xl px-4">
+        <div className="flex flex-wrap items-center justify-center gap-10 md:gap-14">
+          {items.map((item) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 8 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+              className="flex items-center justify-center h-20 flex-shrink-0"
             >
               {item.logoUrl ? (
                 <img
                   src={item.logoUrl}
                   alt={item.name}
                   title={item.name}
-                  className="h-16 w-auto max-w-[170px] object-contain object-center transition-all duration-300 mix-blend-multiply dark:mix-blend-normal hover:scale-105"
+                  className="h-14 w-auto max-w-[160px] object-contain object-center transition-all duration-300 mix-blend-multiply dark:brightness-0 dark:invert dark:opacity-80 hover:scale-105"
                   loading="lazy"
                 />
               ) : (
@@ -113,7 +117,7 @@ export function TrustBar() {
                   {item.name}
                 </span>
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

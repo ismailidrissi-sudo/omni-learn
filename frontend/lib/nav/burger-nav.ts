@@ -81,7 +81,9 @@ export function adminHubNavItems(t: T): BurgerNavItem[] {
     { href: "/admin/provisioning", label: t("nav.scim"), match: "exact" },
     { href: "/admin/trainers", label: "Trainer requests", match: "exact" },
     { href: "/admin/company-admins", label: "Company Admin requests", match: "exact" },
+    { href: "/admin/email", label: "Email ops", match: "exact" },
     { href: "/admin/settings/email", label: "Email", match: "exact" },
+    { href: "/admin/settings/content-suggestions", label: "Content suggestions", match: "exact" },
     { href: "/learn", label: t("nav.myProgress"), match: "exact" },
     { href: "/forum", label: t("nav.forums"), match: "prefix" },
     { href: "/discover", label: t("nav.discover"), match: "exact" },
@@ -141,6 +143,12 @@ export function tenantLearnerNavItems(t: T, slug: string, user: UserLike): Burge
     items.push({ href: `${base}/admin`, label: t("tenant.admin"), match: "prefix" });
   }
   return items;
+}
+
+/** Learner shell navigation. On tenant routes (`/[tenant]/...`), pass `tenantSlug` so links stay under the academy. */
+export function learnerNavItems(t: T, user: UserLike, tenantSlug?: string): BurgerNavItem[] {
+  if (tenantSlug) return tenantLearnerNavItems(t, tenantSlug, user);
+  return globalLearnerNavItems(t, user);
 }
 
 /** Tenant admin subpages: learning app + admin home */

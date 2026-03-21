@@ -1,0 +1,11 @@
+{
+  "post_signup_subject": "Commencez sur {{platform_name}} — voici nos suggestions",
+  "trending_subject": "Tendances cette semaine sur {{platform_name}}",
+  "re_engagement_subject": "Vous nous manquez ! Nouveau contenu sur {{platform_name}}",
+  "weekly_digest_subject": "Votre résumé hebdomadaire de {{platform_name}}",
+  "browsing_subject": "Toujours intéressé ? Reprenez là où vous en étiez",
+  "new_category_subject": "Nouveau dans {{category_name}} sur {{platform_name}}",
+  "heading": "Recommandé pour vous",
+  "cta": "Commencer",
+  "unsubscribe_note": "Vous pouvez modifier vos préférences de notification à tout moment."
+}

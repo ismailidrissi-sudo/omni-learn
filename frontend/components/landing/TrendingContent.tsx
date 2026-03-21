@@ -24,6 +24,7 @@ type RecommendationItem = {
   type?: string;
   description?: string;
   durationMinutes?: number;
+  metadata?: string | Record<string, unknown>;
 };
 
 function parseMetadata(meta: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -206,19 +207,33 @@ export function TrendingContent() {
               {t("landing.trending.coursesDesc")}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {trendingCourses.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleContentClick(item.id, "course")}
-                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-6 hover:border-[#059669] hover:shadow-lg transition"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-[#059669]/15 flex items-center justify-center text-2xl mb-4">📚</div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">{item.title}</h4>
-                  {item.durationMinutes && (
-                    <p className="text-sm text-gray-500 mt-2">{item.durationMinutes} min</p>
-                  )}
-                </button>
-              ))}
+              {trendingCourses.map((item) => {
+                const courseMeta = parseMetadata(item.metadata);
+                const landingMeta = courseMeta?.landingPage as Record<string, string> | undefined;
+                const thumbUrl = landingMeta?.thumbnailUrl;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleContentClick(item.id, "course")}
+                    className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] overflow-hidden hover:border-[#059669] hover:shadow-lg transition"
+                  >
+                    {thumbUrl ? (
+                      <div className="w-full h-40 overflow-hidden">
+                        <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-40 bg-gradient-to-br from-[#059669]/15 to-[#059669]/5 flex items-center justify-center text-5xl">📚</div>
+                    )}
+                    <div className="p-5">
+                      <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2">{item.title}</h4>
+                      {item.description && <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">{item.description}</p>}
+                      {item.durationMinutes && (
+                        <p className="text-sm text-gray-500 mt-2">{item.durationMinutes} min</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -270,23 +285,36 @@ export function TrendingContent() {
               {t("landing.trending.recommendedDesc")}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {recommendations.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleContentClick(item.id, "course")}
-                  className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-5 hover:border-[#059669] hover:shadow-lg transition group"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#059669]/20 to-[#10b981]/10 flex items-center justify-center text-xl mb-3">
-                    {item.type === "PODCAST" ? "🎧" : item.type === "MICRO_LEARNING" ? "▶" : "📚"}
-                  </div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2 text-sm">{item.title}</h4>
-                  {item.type && (
-                    <span className="inline-block mt-2 text-[10px] uppercase tracking-wider font-medium text-[#059669] dark:text-[#10b981]">
-                      {item.type.replace(/_/g, " ")}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {recommendations.map((item) => {
+                const recMeta = parseMetadata(item.metadata);
+                const recLanding = recMeta?.landingPage as Record<string, string> | undefined;
+                const recThumb = recLanding?.thumbnailUrl;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleContentClick(item.id, "course")}
+                    className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] overflow-hidden hover:border-[#059669] hover:shadow-lg transition group"
+                  >
+                    {recThumb ? (
+                      <div className="w-full h-28 overflow-hidden">
+                        <img src={recThumb} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-28 bg-gradient-to-br from-[#059669]/15 to-[#10b981]/5 flex items-center justify-center text-3xl">
+                        {item.type === "PODCAST" ? "🎧" : item.type === "MICRO_LEARNING" ? "▶" : "📚"}
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white line-clamp-2 text-sm">{item.title}</h4>
+                      {item.type && (
+                        <span className="inline-block mt-2 text-[10px] uppercase tracking-wider font-medium text-[#059669] dark:text-[#10b981]">
+                          {item.type.replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
@@ -70,12 +70,49 @@ const ITEM_ICONS: Record<string, string> = {
   CODING_EXERCISE: "💻",
 };
 
+function parseLessonMetadata(metadata: CourseSectionItem["metadata"]): Record<string, unknown> {
+  if (metadata == null) return {};
+  if (typeof metadata === "string") {
+    try {
+      return JSON.parse(metadata) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  return typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
+}
+
+function normalizeCourseQuizQuestions(meta: Record<string, unknown>): Array<{
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+}> {
+  const raw = meta.questions;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((q, i) => {
+    const o = q as Record<string, unknown>;
+    const options = Array.isArray(o.options) ? o.options.map((x) => String(x ?? "")) : [];
+    let ci = typeof o.correctIndex === "number" ? o.correctIndex : 0;
+    if (Number.isNaN(ci)) ci = 0;
+    ci = Math.min(Math.max(0, ci), Math.max(0, options.length - 1));
+    return {
+      id: String(o.id ?? `q-${i}`),
+      question: String(o.question ?? ""),
+      options,
+      correctIndex: ci,
+    };
+  });
+}
+
 export default function CoursePlayerPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const { t } = useI18n();
   const { user } = useUser();
   const learnerNav = useMemo(() => globalLearnerNavItems(t, user), [t, user]);
   const courseId = params?.id as string;
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [course, setCourse] = useState<CourseInfo | null>(null);
   const [sections, setSections] = useState<CourseSection[]>([]);
@@ -99,6 +136,7 @@ export default function CoursePlayerPage() {
     domainName: string;
   } | null>(null);
   const startTime = useRef(Date.now());
+  const [passedQuizItemIds, setPassedQuizItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
@@ -109,10 +147,28 @@ export default function CoursePlayerPage() {
   }, []);
 
   useEffect(() => {
+    if (searchParams?.get("fullscreen") === "true" && !isFullscreen) {
+      const el = document.documentElement;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  useEffect(() => {
     if (!courseId) return;
     Promise.all([
-      apiFetch(`/content/${courseId}`).then((r) => r.json()),
-      apiFetch(`/curriculum/courses/${courseId}`).then((r) => r.json()),
+      apiFetch(`/content/${courseId}`).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+      apiFetch(`/curriculum/courses/${courseId}`).then((r) => r.ok ? r.json() : []),
     ])
       .then(([courseData, curriculumData]) => {
         setCourse(courseData);
@@ -120,9 +176,10 @@ export default function CoursePlayerPage() {
         setSections(secs);
         if (secs.length > 0) {
           setExpandedSections(new Set([secs[0].id]));
-          if (secs[0].items.length > 0) {
-            setActiveItemId(secs[0].items[0].id);
-            setVisitedItems(new Set([secs[0].items[0].id]));
+          const firstItems = Array.isArray(secs[0]?.items) ? secs[0].items : [];
+          if (firstItems.length > 0) {
+            setActiveItemId(firstItems[0].id);
+            setVisitedItems(new Set([firstItems[0].id]));
           }
         }
       })
@@ -243,6 +300,21 @@ export default function CoursePlayerPage() {
     0,
   );
   const isLastItem = activeIndex === totalItems - 1;
+
+  const activeQuizQuestionCount = useMemo(() => {
+    if (activeItem?.itemType !== "QUIZ") return 0;
+    const meta = parseLessonMetadata(activeItem.metadata);
+    return normalizeCourseQuizQuestions(meta).length;
+  }, [activeItem]);
+
+  const quizBlocksNext = useMemo(
+    () =>
+      activeItem?.itemType === "QUIZ" &&
+      activeQuizQuestionCount > 0 &&
+      activeItemId != null &&
+      !passedQuizItemIds.has(activeItemId),
+    [activeItem?.itemType, activeQuizQuestionCount, activeItemId, passedQuizItemIds],
+  );
 
   const goToItem = useCallback((itemId: string) => {
     setActiveItemId(itemId);
@@ -389,7 +461,7 @@ export default function CoursePlayerPage() {
       );
     }
 
-    const meta = (activeItem.metadata ?? {}) as Record<string, unknown>;
+    const meta = parseLessonMetadata(activeItem.metadata);
     const url = activeItem.contentUrl ?? "";
 
     switch (activeItem.itemType) {
@@ -438,14 +510,18 @@ export default function CoursePlayerPage() {
       }
 
       case "QUIZ": {
-        const questions = (meta.questions ?? []) as Array<{
-          id: string;
-          question: string;
-          options: string[];
-          correctIndex: number;
-        }>;
+        const questions = normalizeCourseQuizQuestions(meta);
         return questions.length > 0 ? (
-          <QuizPlayer questions={questions} title={activeItem.title} onCompleted={handleContentCompleted} />
+          <QuizPlayer
+            key={activeItem.id}
+            questions={questions}
+            title={activeItem.title}
+            initialPassed={passedQuizItemIds.has(activeItem.id)}
+            onQuizFullyPassed={() => {
+              setPassedQuizItemIds((prev) => new Set(prev).add(activeItem.id));
+            }}
+            onCompleted={handleContentCompleted}
+          />
         ) : (
           <EmptyState label="No quiz questions" />
         );
@@ -510,14 +586,30 @@ export default function CoursePlayerPage() {
           </div>
         }
         beforeMenu={
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey shrink-0"
-            title={t("content.courseContents")}
-          >
-            ☰
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (isFullscreen) {
+                  document.exitFullscreen?.();
+                } else {
+                  document.documentElement.requestFullscreen?.().catch(() => {});
+                }
+              }}
+              className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey"
+              title={isFullscreen ? t("content.fullscreenExit") : t("content.fullscreenEnter")}
+            >
+              {isFullscreen ? "⊠" : "⊡"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg hover:bg-brand-grey-light/50 text-brand-grey"
+              title={t("content.courseContents")}
+            >
+              ☰
+            </button>
+          </div>
         }
       />
 
@@ -553,6 +645,9 @@ export default function CoursePlayerPage() {
                       {activeIndex + 1} / {totalItems}
                       {totalDuration > 0 && ` · ${totalDuration} min`}
                     </p>
+                    {quizBlocksNext && (
+                      <p className="text-xs text-amber-700 mt-1">{t("content.quizNextLocked")}</p>
+                    )}
                   </div>
 
               {isLastItem && enrollCtx && !courseCompleted ? (
@@ -560,7 +655,7 @@ export default function CoursePlayerPage() {
                   variant="primary"
                   size="sm"
                   onClick={completeCourse}
-                  disabled={completing}
+                  disabled={completing || quizBlocksNext}
                 >
                   {completing ? t("common.loading") : t("content.completeCourse")}
                 </Button>
@@ -608,7 +703,7 @@ export default function CoursePlayerPage() {
                   variant="ghost"
                   size="sm"
                   onClick={goNext}
-                  disabled={activeIndex >= totalItems - 1}
+                  disabled={activeIndex >= totalItems - 1 || quizBlocksNext}
                 >
                   <span className="hidden sm:inline">{t("content.next")}</span> →
                 </Button>
@@ -781,6 +876,8 @@ function QuizPlayer({
   questions,
   title,
   onCompleted,
+  initialPassed = false,
+  onQuizFullyPassed,
 }: {
   questions: Array<{
     id: string;
@@ -790,97 +887,130 @@ function QuizPlayer({
   }>;
   title: string;
   onCompleted?: () => void;
+  initialPassed?: boolean;
+  onQuizFullyPassed?: () => void;
 }) {
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const { t } = useI18n();
+  const [finished, setFinished] = useState(initialPassed);
+  const [step, setStep] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
 
-  const score = questions.reduce((acc, q) => {
-    return acc + (answers[q.id] === q.correctIndex ? 1 : 0);
-  }, 0);
+  useEffect(() => {
+    setFinished(initialPassed);
+    setStep(0);
+    setSelected(null);
+    setChecked(false);
+    setFeedback(null);
+  }, [initialPassed]);
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    if (onCompleted) {
-      setTimeout(() => onCompleted(), 2500);
+  if (questions.length === 0) {
+    return (
+      <EmptyState label="No quiz questions" />
+    );
+  }
+
+  if (finished) {
+    return (
+      <div className="rounded-lg border border-brand-grey-light bg-white p-6 space-y-3">
+        <h3 className="text-lg font-semibold text-brand-grey-dark">{title}</h3>
+        <p className="text-green-600 font-medium">{t("content.quizCompleted")}</p>
+      </div>
+    );
+  }
+
+  const q = questions[step];
+  const correctIdx = q.correctIndex;
+
+  const handleCheck = () => {
+    if (selected === null) return;
+    const ok = selected === correctIdx;
+    setChecked(true);
+    setFeedback(ok ? "correct" : "wrong");
+  };
+
+  const handleNextInQuiz = () => {
+    if (step >= questions.length - 1) {
+      onQuizFullyPassed?.();
+      setFinished(true);
+      if (onCompleted) setTimeout(() => onCompleted(), 900);
+      return;
     }
+    setStep((s) => s + 1);
+    setSelected(null);
+    setChecked(false);
+    setFeedback(null);
   };
 
   return (
     <div className="rounded-lg border border-brand-grey-light bg-white p-6 space-y-6">
       <h3 className="text-lg font-semibold text-brand-grey-dark">{title}</h3>
+      <p className="text-xs text-brand-grey">
+        {step + 1} / {questions.length}
+      </p>
 
-      {questions.map((q, qIdx) => {
-        const selected = answers[q.id];
-        return (
-          <div key={q.id} className="space-y-3">
-            <p className="font-medium text-brand-grey-dark">
-              {qIdx + 1}. {q.question}
-            </p>
-            <div className="space-y-2 pl-4">
-              {q.options.map((opt, oIdx) => {
-                const isCorrect = oIdx === q.correctIndex;
-                const isSelected = selected === oIdx;
-                let optClass =
-                  "border-brand-grey-light hover:border-brand-purple/50";
-                if (submitted) {
-                  if (isCorrect) optClass = "border-green-500 bg-green-50";
-                  else if (isSelected && !isCorrect)
-                    optClass = "border-red-500 bg-red-50";
-                } else if (isSelected) {
-                  optClass = "border-brand-purple bg-brand-purple/5";
-                }
-
-                return (
-                  <label
-                    key={oIdx}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${optClass}`}
-                  >
-                    <input
-                      type="radio"
-                      name={`quiz-${q.id}`}
-                      checked={isSelected}
-                      onChange={() => {
-                        if (!submitted)
-                          setAnswers((prev) => ({ ...prev, [q.id]: oIdx }));
-                      }}
-                      disabled={submitted}
-                      className="shrink-0"
-                    />
-                    <span className="text-sm text-brand-grey-dark">{opt}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-
-      {!submitted ? (
-        <Button
-          onClick={handleSubmit}
-          disabled={Object.keys(answers).length < questions.length}
-        >
-          Submit Quiz
-        </Button>
-      ) : (
-        <div className="p-4 rounded-lg bg-brand-grey-light/30 border border-brand-grey-light">
-          <p className="font-semibold text-brand-grey-dark">
-            Score: {score} / {questions.length} (
-            {Math.round((score / questions.length) * 100)}%)
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            onClick={() => {
-              setAnswers({});
-              setSubmitted(false);
-            }}
-          >
-            Retry
-          </Button>
+      <div className="space-y-3">
+        <p className="font-medium text-brand-grey-dark">{q.question}</p>
+        <div className="space-y-2 pl-1">
+          {q.options.map((opt, oIdx) => {
+            const isSel = selected === oIdx;
+            let optClass = "border-brand-grey-light hover:border-brand-purple/50";
+            if (checked && feedback === "correct") {
+              if (oIdx === correctIdx) optClass = "border-green-500 bg-green-50";
+            } else if (checked && feedback === "wrong") {
+              if (oIdx === correctIdx) optClass = "border-green-500 bg-green-50";
+              else if (isSel) optClass = "border-red-500 bg-red-50";
+            } else if (isSel) {
+              optClass = "border-brand-purple bg-brand-purple/5";
+            }
+            return (
+              <label
+                key={oIdx}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${optClass}`}
+              >
+                <input
+                  type="radio"
+                  name={`quiz-${q.id}`}
+                  checked={isSel}
+                  onChange={() => {
+                    setSelected(oIdx);
+                    if (checked) {
+                      setChecked(false);
+                      setFeedback(null);
+                    }
+                  }}
+                  disabled={checked && feedback === "correct"}
+                  className="shrink-0"
+                />
+                <span className="text-sm text-brand-grey-dark">{opt}</span>
+              </label>
+            );
+          })}
         </div>
+      </div>
+
+      {feedback === "wrong" && (
+        <p className="text-sm text-red-600 font-medium">{t("content.quizIncorrect")}</p>
       )}
+      {feedback === "correct" && (
+        <p className="text-sm text-green-600 font-medium">{t("content.quizCorrect")}</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {!checked && (
+          <Button onClick={handleCheck} disabled={selected === null}>
+            {t("content.quizCheckAnswer")}
+          </Button>
+        )}
+        {checked && feedback === "correct" && (
+          <Button onClick={handleNextInQuiz}>
+            {step >= questions.length - 1
+              ? t("content.quizContinueNext")
+              : t("content.quizNextQuestion")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

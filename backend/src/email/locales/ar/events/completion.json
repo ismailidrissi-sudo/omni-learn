@@ -1,0 +1,10 @@
+{
+  "subject": "تهانينا! أكملت {{content_title}}",
+  "heading": "تهانينا!",
+  "body": "لقد أكملت {{content_title}} بنجاح.",
+  "certificate_note": "شهادتك جاهزة. استخدم الرابط أدناه لتحميلها.",
+  "download_cta": "تحميل الشهادة",
+  "verify_label": "رمز التحقق:",
+  "verify_link_text": "التحقق من الشهادة عبر الإنترنت",
+  "next_steps": "واصل تقدمك — اكتشف ما هو التالي لك على {{platform_name}}."
+}

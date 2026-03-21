@@ -1,0 +1,10 @@
+{
+  "new_content_subject": "جديد على {{platform_name}}: {{content_title}}",
+  "new_content_heading": "محتوى جديد متاح",
+  "new_content_body": "مسار تعلم جديد متاح الآن: {{content_title}} في {{domain_name}}.",
+  "new_content_cta": "عرض التفاصيل",
+  "admin_review_subject": "تسجيل جديد يحتاج مراجعتك: {{user_name}}",
+  "admin_review_heading": "مراجعة التسجيل الجديد",
+  "admin_review_body": "{{user_name}} ({{user_email}}) سجل وينتظر موافقتك.",
+  "admin_review_cta": "مراجعة"
+}

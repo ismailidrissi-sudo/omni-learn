@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Domain, Prisma } from '@prisma/client';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { EnrollmentStatus } from '../constants/db.constant';
+import { CertificatePdfService } from './certificate-pdf.service';
 
 /**
  * Certificate Service — Progress tracking + certificate issuance
@@ -16,7 +19,48 @@ export class CertificateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainsService: DomainsService,
+    private readonly certificatePdfService: CertificatePdfService,
   ) {}
+
+  private get storagePath(): string {
+    return process.env.CERTIFICATE_STORAGE_PATH || './data/certificates';
+  }
+
+  private async generateAndStorePdf(
+    certificateId: string,
+    userName: string,
+    contentTitle: string,
+    contentType: 'course' | 'path',
+    completionDate: Date,
+    verifyCode: string,
+    tenantId?: string | null,
+  ): Promise<string> {
+    const year = completionDate.getFullYear().toString();
+    const month = String(completionDate.getMonth() + 1).padStart(2, '0');
+    const dir = join(this.storagePath, year, month);
+    mkdirSync(dir, { recursive: true });
+
+    const pdfBuffer = await this.certificatePdfService.generatePdf({
+      userName,
+      contentTitle,
+      contentType,
+      completionDate,
+      verifyCode,
+      tenantId,
+    });
+
+    const filePath = join(dir, `${certificateId}.pdf`);
+    writeFileSync(filePath, pdfBuffer);
+
+    const relativePath = join(year, month, `${certificateId}.pdf`);
+    await this.prisma.issuedCertificate.update({
+      where: { id: certificateId },
+      data: { pdfUrl: relativePath },
+    });
+
+    this.logger.log(`PDF stored: ${filePath}`);
+    return relativePath;
+  }
 
   /** Get or create domain-themed certificate template (template derived from Domain entity) */
   async getOrCreateTemplate(tenantId: string, domainId: string) {
@@ -46,7 +90,7 @@ export class CertificateService {
     );
     const verifyCode = `LC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    return this.prisma.issuedCertificate.create({
+    const cert = await this.prisma.issuedCertificate.create({
       data: {
         templateId: template.id,
         enrollmentId,
@@ -54,6 +98,26 @@ export class CertificateService {
         grade: (grade as 'PASS' | 'MERIT' | 'DISTINCTION') ?? undefined,
       },
     });
+
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: enrollment.userId },
+        select: { name: true },
+      });
+      await this.generateAndStorePdf(
+        cert.id,
+        user?.name || 'Learner',
+        enrollment.path.name,
+        'path',
+        cert.issuedAt,
+        verifyCode,
+        enrollment.path.tenantId,
+      );
+    } catch (err) {
+      this.logger.error(`Failed to generate PDF for path certificate ${cert.id}: ${err}`);
+    }
+
+    return cert;
   }
 
   /**
@@ -152,7 +216,7 @@ export class CertificateService {
     );
     const verifyCode = `CC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    return this.prisma.issuedCertificate.create({
+    const cert = await this.prisma.issuedCertificate.create({
       data: {
         templateId: template.id,
         courseEnrollmentId,
@@ -160,6 +224,26 @@ export class CertificateService {
         grade: (grade as 'PASS' | 'MERIT' | 'DISTINCTION') ?? undefined,
       },
     });
+
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: enrollment.userId },
+        select: { name: true },
+      });
+      await this.generateAndStorePdf(
+        cert.id,
+        user?.name || 'Learner',
+        enrollment.course.title,
+        'course',
+        cert.issuedAt,
+        verifyCode,
+        tenantId,
+      );
+    } catch (err) {
+      this.logger.error(`Failed to generate PDF for course certificate ${cert.id}: ${err}`);
+    }
+
+    return cert;
   }
 
   /** Verify certificate by code */

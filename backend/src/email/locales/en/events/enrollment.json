@@ -1,0 +1,13 @@
+{
+  "confirmed_subject": "You're enrolled in {{content_title}}",
+  "confirmed_heading": "Enrollment confirmed",
+  "confirmed_body": "You've been enrolled in {{content_title}}. Start learning now!",
+  "confirmed_cta": "Start Learning",
+  "assigned_subject": "You've been assigned {{content_title}}",
+  "assigned_heading": "New assignment",
+  "assigned_body": "{{assigner_name}} has assigned you to {{content_title}}.",
+  "assigned_cta": "Start Learning",
+  "manager_subject": "{{user_name}} was enrolled in {{content_title}}",
+  "manager_heading": "Enrollment notification",
+  "manager_body": "{{user_name}} has been enrolled in {{content_title}}."
+}

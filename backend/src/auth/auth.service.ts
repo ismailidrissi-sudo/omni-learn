@@ -3,10 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { OrgApprovalStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { EmailService } from '../email/email.service';
-import { EmailPriority } from '../email/constants';
-import { verificationEmailHtml, verificationEmailSubject } from '../email/templates';
+import { TransactionalEmailService } from '../email/transactional-email.service';
 import { RbacRole } from '../constants/rbac.constant';
 
 /**
@@ -26,54 +25,148 @@ export interface JwtPayload {
 @Injectable()
 export class AuthService {
   private readonly googleClient: OAuth2Client;
+  /** In-memory rate limit for password reset requests (per process) */
+  private readonly passwordResetBuckets = new Map<string, number[]>();
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-    private readonly emailService: EmailService,
+    private readonly transactionalEmail: TransactionalEmailService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
   }
 
-  /** Sign up with email/password — sends verification email. trainerRequested: user wants to be a trainer (content creator), pending admin approval. */
-  async signUp(email: string, password: string, name: string, trainerRequested = false): Promise<{ message: string; userId: string }> {
-    const existing = await this.prisma.user.findUnique({ where: { email } });
+  /**
+   * Sign up with email/password — sends verification email.
+   * Optional `tenantSlug`: join branded academy with org approval pending after verification.
+   */
+  async signUp(
+    email: string,
+    password: string,
+    name: string,
+    trainerRequested = false,
+    tenantSlug?: string,
+  ): Promise<{ message: string; userId: string }> {
+    const emailNorm = email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email: emailNorm } });
     if (existing) {
       throw new ConflictException('An account with this email already exists');
     }
     if (password.length < 8) {
       throw new BadRequestException('Password must be at least 8 characters');
     }
+    let tenantId: string | undefined;
+    let orgStatus: OrgApprovalStatus = OrgApprovalStatus.NONE;
+    if (tenantSlug) {
+      const tenant = await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (!tenant) {
+        throw new BadRequestException('Unknown academy');
+      }
+      tenantId = tenant.id;
+      orgStatus = OrgApprovalStatus.PENDING;
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const token = this.generateVerifyToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     const user = await this.prisma.user.create({
       data: {
-        email,
+        email: emailNorm,
         name: name || email.split('@')[0],
         passwordHash,
         emailVerified: false,
         emailVerifyToken: token,
         emailVerifyExpiresAt: expiresAt,
         trainerRequested: !!trainerRequested,
+        tenantId,
+        orgApprovalStatus: orgStatus,
       },
     });
 
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
-    await this.emailService.enqueue({
-      toEmail: email,
+    await this.transactionalEmail.sendEmailVerification({
+      toEmail: emailNorm,
       toName: user.name,
-      subject: verificationEmailSubject(),
-      htmlBody: verificationEmailHtml(user.name, verifyUrl),
-      emailType: 'verification',
-      priority: EmailPriority.CRITICAL,
-      triggeredBy: 'user_signup',
       userId: user.id,
+      verifyToken: token,
     });
 
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
+  }
+
+  /** Always returns generic message (no email enumeration). Max 3 requests per email per hour. */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const generic = { message: 'If this email exists, a reset link has been sent.' };
+    const normalized = email.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: normalized, mode: 'insensitive' } },
+    });
+    if (!user?.passwordHash) {
+      return generic;
+    }
+    const now = Date.now();
+    const windowMs = 3600_000;
+    const bucket = (this.passwordResetBuckets.get(normalized) || []).filter((t) => now - t < windowMs);
+    if (bucket.length >= 3) {
+      return generic;
+    }
+    bucket.push(now);
+    this.passwordResetBuckets.set(normalized, bucket);
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const passwordResetTokenHash = await bcrypt.hash(rawToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash,
+        passwordResetExpiresAt: new Date(now + 3600_000),
+      },
+    });
+
+    await this.transactionalEmail.sendPasswordResetRequest({
+      toEmail: user.email,
+      toName: user.name,
+      userId: user.id,
+      rawToken,
+    });
+
+    return generic;
+  }
+
+  async confirmPasswordReset(email: string, token: string, newPassword: string): Promise<{ message: string }> {
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
+    });
+    if (!user?.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+    if (user.passwordResetExpiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+    const match = await bcrypt.compare(token, user.passwordResetTokenHash);
+    if (!match) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+        emailVerifyToken: null,
+        emailVerifyExpiresAt: null,
+      },
+    });
+    await this.transactionalEmail.sendPasswordResetSuccess({
+      userId: user.id,
+      toEmail: user.email,
+      toName: user.name,
+    });
+    return { message: 'Password updated. You can sign in with your new password.' };
   }
 
   /** Auto-promote user to admin if their email matches ADMIN_EMAIL env var */
@@ -180,7 +273,9 @@ export class AuthService {
       };
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -216,7 +311,9 @@ export class AuthService {
 
   /** Resend email verification link for unverified accounts */
   async resendVerification(email: string): Promise<{ message: string }> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
+    });
     if (!user || user.emailVerified) {
       return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
     }
@@ -226,17 +323,11 @@ export class AuthService {
       where: { id: user.id },
       data: { emailVerifyToken: token, emailVerifyExpiresAt: expiresAt },
     });
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
-    await this.emailService.enqueue({
-      toEmail: email,
+    await this.transactionalEmail.sendEmailVerification({
+      toEmail: user.email,
       toName: user.name,
-      subject: verificationEmailSubject(),
-      htmlBody: verificationEmailHtml(user.name, verifyUrl),
-      emailType: 'verification',
-      priority: EmailPriority.CRITICAL,
-      triggeredBy: 'resend_verification',
       userId: user.id,
+      verifyToken: token,
     });
     return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
   }

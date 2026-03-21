@@ -4,13 +4,17 @@ import { config } from 'dotenv';
 config({ path: path.resolve(__dirname, '../.env') });
 
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 async function bootstrap() {
   try {
-    const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      rawBody: true,
+      logger: ['error', 'warn', 'log'],
+    });
 
     app.useGlobalPipes(
       new ValidationPipe({

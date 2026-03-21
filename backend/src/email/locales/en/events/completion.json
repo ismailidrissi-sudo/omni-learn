@@ -1,0 +1,10 @@
+{
+  "subject": "Congratulations! You completed {{content_title}}",
+  "heading": "Congratulations!",
+  "body": "You've successfully completed {{content_title}}.",
+  "certificate_note": "Your certificate is ready. Use the link below to download it.",
+  "download_cta": "Download Certificate",
+  "verify_label": "Verification code:",
+  "verify_link_text": "Verify certificate online",
+  "next_steps": "Keep up the momentum — check out what's next for you on {{platform_name}}."
+}

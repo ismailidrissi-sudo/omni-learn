@@ -1,0 +1,10 @@
+{
+  "new_content_subject": "New on {{platform_name}}: {{content_title}}",
+  "new_content_heading": "New content available",
+  "new_content_body": "A new learning path is now available: {{content_title}} in {{domain_name}}.",
+  "new_content_cta": "View Details",
+  "admin_review_subject": "New signup requires your review: {{user_name}}",
+  "admin_review_heading": "New signup review",
+  "admin_review_body": "{{user_name}} ({{user_email}}) has signed up and is awaiting your approval.",
+  "admin_review_cta": "Review Signup"
+}

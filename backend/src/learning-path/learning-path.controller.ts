@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { StepProgressStatus } from '../constants/db.constant';
 import { LearningPathService } from './learning-path.service';
@@ -21,11 +21,13 @@ export class LearningPathController {
   async enroll(
     @Param('pathId') pathId: string,
     @Body() body: EnrollDto,
+    @Req() req: { user?: { sub?: string } },
   ) {
     return this.learningPathService.enrollUser(
       body.userId,
       pathId,
       body.deadline ? new Date(body.deadline) : undefined,
+      { actorUserId: req.user?.sub },
     );
   }
 
