@@ -38,10 +38,12 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN chown -R nestjs:nestjs node_modules/.prisma node_modules/prisma node_modules/@prisma
+RUN chown -R nestjs:nestjs node_modules/.prisma node_modules/prisma node_modules/@prisma && \
+    chmod +x docker-entrypoint.sh
 
 USER nestjs
 EXPOSE 4000
 
-CMD ["node", "dist/src/main.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
