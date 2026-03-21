@@ -1,5 +1,17 @@
+-- CreateEnum: EnrollmentStatus
+DO $$ BEGIN
+  CREATE TYPE "EnrollmentStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'DROPPED', 'EXPIRED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- CreateEnum: StepProgressStatus
+DO $$ BEGIN
+  CREATE TYPE "StepProgressStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- CreateTable: CourseEnrollment
-CREATE TABLE "CourseEnrollment" (
+CREATE TABLE IF NOT EXISTS "CourseEnrollment" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
@@ -14,7 +26,7 @@ CREATE TABLE "CourseEnrollment" (
 );
 
 -- CreateTable: CourseSectionItemProgress
-CREATE TABLE "CourseSectionItemProgress" (
+CREATE TABLE IF NOT EXISTS "CourseSectionItemProgress" (
     "id" TEXT NOT NULL,
     "enrollmentId" TEXT NOT NULL,
     "sectionItemId" TEXT NOT NULL,
@@ -30,29 +42,41 @@ CREATE TABLE "CourseSectionItemProgress" (
 
 -- AlterTable: IssuedCertificate — make enrollmentId nullable, add courseEnrollmentId
 ALTER TABLE "IssuedCertificate" ALTER COLUMN "enrollmentId" DROP NOT NULL;
-ALTER TABLE "IssuedCertificate" ADD COLUMN "courseEnrollmentId" TEXT;
+ALTER TABLE "IssuedCertificate" ADD COLUMN IF NOT EXISTS "courseEnrollmentId" TEXT;
 
 -- CreateIndex: CourseEnrollment
-CREATE UNIQUE INDEX "CourseEnrollment_userId_courseId_key" ON "CourseEnrollment"("userId", "courseId");
-CREATE INDEX "CourseEnrollment_userId_idx" ON "CourseEnrollment"("userId");
-CREATE INDEX "CourseEnrollment_courseId_idx" ON "CourseEnrollment"("courseId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CourseEnrollment_userId_courseId_key" ON "CourseEnrollment"("userId", "courseId");
+CREATE INDEX IF NOT EXISTS "CourseEnrollment_userId_idx" ON "CourseEnrollment"("userId");
+CREATE INDEX IF NOT EXISTS "CourseEnrollment_courseId_idx" ON "CourseEnrollment"("courseId");
 
 -- CreateIndex: CourseSectionItemProgress
-CREATE UNIQUE INDEX "CourseSectionItemProgress_enrollmentId_sectionItemId_key" ON "CourseSectionItemProgress"("enrollmentId", "sectionItemId");
-CREATE INDEX "CourseSectionItemProgress_enrollmentId_idx" ON "CourseSectionItemProgress"("enrollmentId");
-CREATE INDEX "CourseSectionItemProgress_sectionItemId_idx" ON "CourseSectionItemProgress"("sectionItemId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CourseSectionItemProgress_enrollmentId_sectionItemId_key" ON "CourseSectionItemProgress"("enrollmentId", "sectionItemId");
+CREATE INDEX IF NOT EXISTS "CourseSectionItemProgress_enrollmentId_idx" ON "CourseSectionItemProgress"("enrollmentId");
+CREATE INDEX IF NOT EXISTS "CourseSectionItemProgress_sectionItemId_idx" ON "CourseSectionItemProgress"("sectionItemId");
 
 -- CreateIndex: IssuedCertificate courseEnrollmentId
-CREATE INDEX "IssuedCertificate_courseEnrollmentId_idx" ON "IssuedCertificate"("courseEnrollmentId");
+CREATE INDEX IF NOT EXISTS "IssuedCertificate_courseEnrollmentId_idx" ON "IssuedCertificate"("courseEnrollmentId");
 
 -- AddForeignKey: CourseEnrollment -> ContentItem
-ALTER TABLE "CourseEnrollment" ADD CONSTRAINT "CourseEnrollment_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "ContentItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CourseEnrollment" ADD CONSTRAINT "CourseEnrollment_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "ContentItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey: CourseSectionItemProgress -> CourseEnrollment
-ALTER TABLE "CourseSectionItemProgress" ADD CONSTRAINT "CourseSectionItemProgress_enrollmentId_fkey" FOREIGN KEY ("enrollmentId") REFERENCES "CourseEnrollment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CourseSectionItemProgress" ADD CONSTRAINT "CourseSectionItemProgress_enrollmentId_fkey" FOREIGN KEY ("enrollmentId") REFERENCES "CourseEnrollment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey: CourseSectionItemProgress -> CourseSectionItem
-ALTER TABLE "CourseSectionItemProgress" ADD CONSTRAINT "CourseSectionItemProgress_sectionItemId_fkey" FOREIGN KEY ("sectionItemId") REFERENCES "CourseSectionItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CourseSectionItemProgress" ADD CONSTRAINT "CourseSectionItemProgress_sectionItemId_fkey" FOREIGN KEY ("sectionItemId") REFERENCES "CourseSectionItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- AddForeignKey: IssuedCertificate -> CourseEnrollment
-ALTER TABLE "IssuedCertificate" ADD CONSTRAINT "IssuedCertificate_courseEnrollmentId_fkey" FOREIGN KEY ("courseEnrollmentId") REFERENCES "CourseEnrollment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "IssuedCertificate" ADD CONSTRAINT "IssuedCertificate_courseEnrollmentId_fkey" FOREIGN KEY ("courseEnrollmentId") REFERENCES "CourseEnrollment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
