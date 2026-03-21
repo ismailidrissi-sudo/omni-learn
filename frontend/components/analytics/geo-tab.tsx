@@ -38,7 +38,7 @@ export function GeoTab({ data, filters }: Props) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      import("leaflet/dist/leaflet.css");
+      require("leaflet/dist/leaflet.css");
       setLeafletReady(true);
     }
   }, []);
