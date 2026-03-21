@@ -89,29 +89,20 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build postgres redis
             sleep 5
 
-            echo "==> Running database schema sync (before backend starts)..."
-            docker compose -f docker-compose.prod.yml run --rm -T backend node node_modules/prisma/build/index.js db push --skip-generate || true
-
-            echo "==> Rolling update: backend services..."
+            echo "==> Rolling update: backend services (entrypoint runs migrations automatically)..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build backend video-proxy recommendations
-            sleep 10
+            sleep 5
 
             echo "==> Rolling update: frontend..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
-            sleep 10
+            sleep 5
 
-            echo "==> Reloading nginx (force restart to pick up new container IPs)..."
+            echo "==> Reloading nginx..."
             docker compose -f docker-compose.prod.yml up -d --no-deps --no-build nginx
             docker compose -f docker-compose.prod.yml restart nginx
 
             echo "==> Container status..."
             docker compose -f docker-compose.prod.yml ps
-
-            echo "==> Backend logs (last 30 lines)..."
-            docker compose -f docker-compose.prod.yml logs --tail=30 backend
-
-            echo "==> Frontend logs (last 15 lines)..."
-            docker compose -f docker-compose.prod.yml logs --tail=15 frontend
 
             echo "==> Cleaning up old images..."
             docker image prune -f
