@@ -3,6 +3,7 @@ import { Jost } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { BrandingProvider } from "@/components/providers/branding-provider";
 import { GoogleAuthProvider } from "@/components/providers/google-auth-provider";
+import { GoogleOneTapGlobal } from "@/components/auth/GoogleOneTapGlobal";
 import { I18nProvider } from "@/lib/i18n/context";
 import { LandingFooter } from "@/components/landing";
 import { ScrollToHash } from "@/components/ui/scroll-to-hash";
@@ -38,6 +39,7 @@ export default function RootLayout({
       <body className="min-h-screen font-sans bg-[#F5F5DC] text-[#1a1212] dark:bg-[#0f1510] dark:text-[#F5F5DC]">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="omnilearn-theme">
           <GoogleAuthProvider>
+            <GoogleOneTapGlobal />
             <I18nProvider>
               <BrandingProvider>
                 <ScrollToHash />
