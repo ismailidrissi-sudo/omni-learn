@@ -94,6 +94,20 @@ enum OrgApprovalStatus {
   REJECTED
 }
 
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  UNKNOWN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
 // ── INDUSTRIES (seed reference) ──
 
 model Industry {
@@ -159,6 +173,11 @@ model User {
   orgApprovalStatus  OrgApprovalStatus @default(NONE) // Org affiliation approval by company admin
   companyAdminRequested  Boolean  @default(false)  // User requested company admin role (pending platform admin approval)
   companyAdminApprovedAt DateTime?  // When set, user has COMPANY_ADMIN role
+  gender        Gender?
+  dateOfBirth   DateTime?
+  country       String?
+  city          String?
+  phoneNumber   String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -176,6 +195,7 @@ model User {
   emailLogs                EmailLog[]
   userEmailPreferences     UserEmailPreference[]
   userContentInteractions  UserContentInteraction[]
+  sessions                 UserSession[]
 }
 
 // ── TENANTS (rich company profile) ──
@@ -838,6 +858,65 @@ model AnalyticsEvent {
   @@index([userId])
   @@index([tenantId])
   @@index([createdAt])
+}
+
+// ── DEEP ANALYTICS: USER SESSIONS ──
+
+model UserSession {
+  id               String     @id @default(uuid())
+  userId           String
+  tenantId         String?
+  fingerprint      String?
+  ipAddress        String?
+  userAgent        String?    @db.Text
+  deviceType       DeviceType @default(DESKTOP)
+  browserName      String?
+  browserVersion   String?
+  osName           String?
+  osVersion        String?
+  screenResolution String?
+  language         String?
+  country          String?
+  countryCode      String?
+  city             String?
+  region           String?
+  latitude         Float?
+  longitude        Float?
+  startedAt        DateTime   @default(now())
+  endedAt          DateTime?
+  durationSeconds  Int        @default(0)
+  isActive         Boolean    @default(true)
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageViews PageView[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([startedAt])
+  @@index([deviceType])
+  @@index([country])
+  @@index([isActive])
+  @@map("user_sessions")
+}
+
+model PageView {
+  id              String   @id @default(uuid())
+  sessionId       String
+  userId          String
+  path            String
+  title           String?
+  contentId       String?
+  contentType     String?
+  durationSeconds Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  session UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([contentId])
+  @@index([createdAt])
+  @@map("page_views")
 }
 
 // ── MICROLEARNING SOCIAL (LinkedIn-style short videos) ──

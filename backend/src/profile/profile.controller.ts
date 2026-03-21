@@ -58,6 +58,18 @@ export class ProfileController {
     return this.profile.getUserProfile(userId);
   }
 
+  /** Update demographics (gender, date of birth, country, city, phone) */
+  @Patch('me')
+  @UseGuards(AuthGuard('jwt'))
+  async updateDemographics(
+    @Req() req: { user?: { sub?: string } },
+    @Body() body: { gender?: string; dateOfBirth?: string; country?: string; city?: string; phoneNumber?: string },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.updateDemographics(userId, body);
+  }
+
   /** Get full user profile with enrollments, certificates, gamification */
   @Get('full')
   @UseGuards(AuthGuard('jwt'))

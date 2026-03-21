@@ -102,6 +102,31 @@ export class ProfileService {
     return { user, message: 'Profile completed' };
   }
 
+  async updateDemographics(
+    userId: string,
+    data: {
+      gender?: string;
+      dateOfBirth?: string;
+      country?: string;
+      city?: string;
+      phoneNumber?: string;
+    },
+  ) {
+    const updateData: Record<string, unknown> = {};
+    if (data.gender !== undefined) updateData.gender = data.gender || null;
+    if (data.dateOfBirth !== undefined) updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+    if (data.country !== undefined) updateData.country = data.country || null;
+    if (data.city !== undefined) updateData.city = data.city || null;
+    if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber || null;
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: { id: true, gender: true, dateOfBirth: true, country: true, city: true, phoneNumber: true },
+    });
+    return { user, message: 'Demographics updated' };
+  }
+
   async getUserProfile(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -227,6 +252,11 @@ export class ProfileService {
         orgApprovalStatus: user.orgApprovalStatus,
         companyAdminRequested: user.companyAdminRequested,
         companyAdminApprovedAt: user.companyAdminApprovedAt,
+        gender: user.gender,
+        dateOfBirth: user.dateOfBirth,
+        country: user.country,
+        city: user.city,
+        phoneNumber: user.phoneNumber,
         createdAt: user.createdAt,
       },
       department: user.department,

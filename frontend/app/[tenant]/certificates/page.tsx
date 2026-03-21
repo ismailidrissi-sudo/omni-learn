@@ -59,7 +59,7 @@ export default function UserCertificatesPage() {
   const params = useParams();
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { tenant, branding, isLoading: tenantLoading } = useTenant();
   const { user, loading: userLoading } = useUser();
 
@@ -120,9 +120,10 @@ export default function UserCertificatesPage() {
         signatories,
         tenantName: academyName,
         certType: isCourseCert ? 'course' : 'path',
+        locale,
       };
 
-      downloadCertificatePdf(certData);
+      await downloadCertificatePdf(certData);
     } catch {
       // silently fail
     } finally {

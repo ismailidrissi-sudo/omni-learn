@@ -2,6 +2,47 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import { BrandingResolverService } from '../email/templates/branding-resolver.service';
 
+type Locale = 'en' | 'fr' | 'ar';
+
+const CERT_LABELS: Record<Locale, Record<string, string>> = {
+  en: {
+    title: 'CERTIFICATE',
+    ofCompletion: 'OF COMPLETION',
+    certifiesThat: 'This is to certify that',
+    completedPath: 'has successfully completed the learning path',
+    completedCourse: 'has successfully completed the course',
+    issuedOn: 'Issued on {date}',
+    verifyCode: 'Verification Code',
+    afflatus: 'Omnilearn is a product of Afflatus Consulting Group',
+  },
+  fr: {
+    title: 'CERTIFICAT',
+    ofCompletion: 'DE RÉUSSITE',
+    certifiesThat: 'Ceci certifie que',
+    completedPath: 'a complété avec succès le parcours d\'apprentissage',
+    completedCourse: 'a complété avec succès le cours',
+    issuedOn: 'Délivré le {date}',
+    verifyCode: 'Code de vérification',
+    afflatus: 'Omnilearn est un produit d\'Afflatus Consulting Group',
+  },
+  ar: {
+    title: 'شهادة',
+    ofCompletion: 'إتمام',
+    certifiesThat: 'يُشهد بأن',
+    completedPath: 'قد أتم بنجاح مسار التعلم',
+    completedCourse: 'قد أتم بنجاح الدورة التدريبية',
+    issuedOn: 'صدر بتاريخ {date}',
+    verifyCode: 'رمز التحقق',
+    afflatus: 'Omnilearn هو منتج من Afflatus Consulting Group',
+  },
+};
+
+const LOCALE_BCP47: Record<Locale, string> = {
+  en: 'en-US',
+  fr: 'fr-FR',
+  ar: 'ar-SA',
+};
+
 export interface CertificatePdfData {
   userName: string;
   contentTitle: string;
@@ -9,6 +50,7 @@ export interface CertificatePdfData {
   completionDate: Date;
   verifyCode: string;
   tenantId?: string | null;
+  locale?: Locale;
 }
 
 @Injectable()
@@ -17,7 +59,19 @@ export class CertificatePdfService {
 
   constructor(private readonly brandingResolver: BrandingResolverService) {}
 
+  private t(locale: Locale, key: string, params?: Record<string, string>): string {
+    const labels = CERT_LABELS[locale] ?? CERT_LABELS.en;
+    let value = labels[key] ?? CERT_LABELS.en[key] ?? key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        value = value.replace(`{${k}}`, v);
+      }
+    }
+    return value;
+  }
+
   async generatePdf(data: CertificatePdfData): Promise<Buffer> {
+    const locale: Locale = data.locale ?? 'en';
     const branding = await this.brandingResolver.resolveForTenant(
       data.tenantId ?? null,
     );
@@ -73,7 +127,7 @@ export class CertificatePdfService {
       .rect(borderInset, pageHeight - borderInset - 8, pageWidth - borderInset * 2, 8)
       .fill(primaryColor);
 
-    // Corner ornaments (small squares)
+    // Corner ornaments
     const ornamentSize = 14;
     const corners = [
       [borderInset, borderInset],
@@ -99,13 +153,13 @@ export class CertificatePdfService {
       .font('Helvetica-Bold')
       .fontSize(34)
       .fillColor(primaryColor)
-      .text('CERTIFICATE', 0, 85, { align: 'center', width: pageWidth });
+      .text(this.t(locale, 'title'), 0, 85, { align: 'center', width: pageWidth });
 
     doc
       .font('Helvetica')
       .fontSize(14)
       .fillColor(textColor)
-      .text('OF COMPLETION', 0, 125, { align: 'center', width: pageWidth });
+      .text(this.t(locale, 'ofCompletion'), 0, 125, { align: 'center', width: pageWidth });
 
     // Decorative line under title
     const lineY = 152;
@@ -120,7 +174,7 @@ export class CertificatePdfService {
       .font('Helvetica')
       .fontSize(12)
       .fillColor(textColor)
-      .text('This certifies that', 0, 175, { align: 'center', width: pageWidth });
+      .text(this.t(locale, 'certifiesThat'), 0, 175, { align: 'center', width: pageWidth });
 
     // --- User name ---
     doc
@@ -139,11 +193,12 @@ export class CertificatePdfService {
       .stroke(accentColor);
 
     // --- "has successfully completed" ---
+    const completionKey = data.contentType === 'course' ? 'completedCourse' : 'completedPath';
     doc
       .font('Helvetica')
       .fontSize(12)
       .fillColor(textColor)
-      .text('has successfully completed the following ' + data.contentType, 0, 252, {
+      .text(this.t(locale, completionKey), 0, 252, {
         align: 'center',
         width: pageWidth,
       });
@@ -158,8 +213,8 @@ export class CertificatePdfService {
         width: pageWidth - 120,
       });
 
-    // --- Completion date ---
-    const formattedDate = data.completionDate.toLocaleDateString('en-US', {
+    // --- Completion date (locale-aware) ---
+    const formattedDate = data.completionDate.toLocaleDateString(LOCALE_BCP47[locale], {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -169,7 +224,7 @@ export class CertificatePdfService {
       .font('Helvetica')
       .fontSize(11)
       .fillColor(textColor)
-      .text(`Completed on ${formattedDate}`, 0, 340, {
+      .text(this.t(locale, 'issuedOn', { date: formattedDate }), 0, 340, {
         align: 'center',
         width: pageWidth,
       });
@@ -215,7 +270,17 @@ export class CertificatePdfService {
       .font('Helvetica')
       .fontSize(8)
       .fillColor('#9CA3AF')
-      .text(`Verification Code: ${data.verifyCode}`, 0, pageHeight - 50, {
+      .text(`${this.t(locale, 'verifyCode')}: ${data.verifyCode}`, 0, pageHeight - 50, {
+        align: 'center',
+        width: pageWidth,
+      });
+
+    // --- Afflatus footer ---
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#9CA3AF')
+      .text(this.t(locale, 'afflatus'), 0, pageHeight - 38, {
         align: 'center',
         width: pageWidth,
       });

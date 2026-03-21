@@ -21,7 +21,7 @@ export function CompletionCelebration({
   domainName,
   onClose,
 }: CompletionCelebrationProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [certData, setCertData] = useState<CertificateData | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -61,17 +61,18 @@ export function CompletionCelebration({
           signatories,
           tenantName: detail.template?.domain?.name,
           certType: isCourseCert ? 'course' : 'path',
+          locale,
         });
       })
       .catch(() => setCertData(null))
       .finally(() => setLoading(false));
   }, [certificateId, pathName, domainName]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!certData) return;
     setDownloading(true);
     try {
-      downloadCertificatePdf(certData);
+      await downloadCertificatePdf(certData);
     } finally {
       setDownloading(false);
     }

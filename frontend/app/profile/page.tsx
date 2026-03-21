@@ -45,6 +45,11 @@ type ProfileData = {
     profileComplete: boolean;
     isAdmin: boolean;
     trainerApprovedAt?: string | null;
+    gender?: string | null;
+    dateOfBirth?: string | null;
+    country?: string | null;
+    city?: string | null;
+    phoneNumber?: string | null;
     createdAt: string;
   };
   department: { id: string; name: string; code: string } | null;
@@ -177,6 +182,13 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "courses" | "certificates" | "achievements">("overview");
+  const [demoGender, setDemoGender] = useState("");
+  const [demoDob, setDemoDob] = useState("");
+  const [demoCountry, setDemoCountry] = useState("");
+  const [demoCity, setDemoCity] = useState("");
+  const [demoPhone, setDemoPhone] = useState("");
+  const [demoSaving, setDemoSaving] = useState(false);
+  const [demoSaved, setDemoSaved] = useState(false);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -190,6 +202,13 @@ export default function ProfilePage() {
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
+        if (data.user) {
+          setDemoGender(data.user.gender || "");
+          setDemoDob(data.user.dateOfBirth ? data.user.dateOfBirth.slice(0, 10) : "");
+          setDemoCountry(data.user.country || "");
+          setDemoCity(data.user.city || "");
+          setDemoPhone(data.user.phoneNumber || "");
+        }
       }
     } catch {
       // silently fail
@@ -232,10 +251,10 @@ export default function ProfilePage() {
   const totalCerts = p?.certificates?.length ?? 0;
 
   const TABS = [
-    { key: "overview" as const, label: "Overview", icon: "👤" },
-    { key: "courses" as const, label: "Learning", icon: "📚" },
-    { key: "certificates" as const, label: "Certificates", icon: "🎓" },
-    { key: "achievements" as const, label: "Achievements", icon: "🏆" },
+    { key: "overview" as const, label: t("profile.tabOverview"), icon: "👤" },
+    { key: "courses" as const, label: t("profile.tabLearning"), icon: "📚" },
+    { key: "certificates" as const, label: t("profile.tabCertificates"), icon: "🎓" },
+    { key: "achievements" as const, label: t("profile.tabAchievements"), icon: "🏆" },
   ];
 
   return (
@@ -272,12 +291,12 @@ export default function ProfilePage() {
                     </span>
                     {p?.user?.isAdmin && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-                        Admin
+                        {t("profile.admin")}
                       </span>
                     )}
                     {p?.user?.trainerApprovedAt && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                        Trainer
+                        {t("profile.trainer")}
                       </span>
                     )}
                   </div>
@@ -289,7 +308,7 @@ export default function ProfilePage() {
                         <svg className="w-3.5 h-3.5 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        Verified
+                        {t("profile.verified")}
                       </span>
                     )}
                   </p>
@@ -315,12 +334,12 @@ export default function ProfilePage() {
                         className="flex items-center gap-1.5 text-[#0077B5] hover:underline"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                        LinkedIn
+                        {t("profile.linkedin")}
                       </a>
                     )}
                     <span className="flex items-center gap-1.5">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                      Member since {memberSince}
+                      {t("profile.memberSince", { date: memberSince })}
                     </span>
                   </div>
 
@@ -341,7 +360,7 @@ export default function ProfilePage() {
                 {/* Quick stats */}
                 <div className="flex flex-col gap-2 flex-shrink-0">
                   <Link href="/complete-profile">
-                    <Button variant="outline" size="sm" className="w-full">Edit Profile</Button>
+                    <Button variant="outline" size="sm" className="w-full">{t("profile.editProfile")}</Button>
                   </Link>
                 </div>
               </div>
@@ -349,14 +368,14 @@ export default function ProfilePage() {
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <StatBadge icon="⭐" label="Points" value={p?.gamification?.points ?? 0} />
+              <StatBadge icon="⭐" label={t("profile.points")} value={p?.gamification?.points ?? 0} />
               <StatBadge
                 icon="🔥"
-                label="Streak"
-                value={`${p?.gamification?.streak?.currentStreak ?? 0} days`}
+                label={t("profile.streak")}
+                value={t("profile.streakDays", { count: p?.gamification?.streak?.currentStreak ?? 0 })}
               />
-              <StatBadge icon="📚" label="Completed" value={totalCompleted} />
-              <StatBadge icon="🎓" label="Certificates" value={totalCerts} />
+              <StatBadge icon="📚" label={t("profile.completed")} value={totalCompleted} />
+              <StatBadge icon="🎓" label={t("profile.certificates")} value={totalCerts} />
             </div>
 
             {/* Tabs */}
@@ -381,7 +400,7 @@ export default function ProfilePage() {
             {activeTab === "overview" && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Company Affiliation */}
-                <SectionCard title="Company Affiliation" icon="🏢">
+                <SectionCard title={t("profile.companyAffiliation")} icon="🏢">
                   {p?.company ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
@@ -413,31 +432,116 @@ export default function ProfilePage() {
                           className="inline-flex items-center gap-1.5 text-sm text-[#0077B5] hover:underline"
                         >
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                          Company LinkedIn
+                          {t("profile.companyLinkedin")}
                         </a>
                       )}
                     </div>
                   ) : (
-                    <EmptyState icon="🏢" message="No company affiliation yet. Complete your profile to connect with your organization." />
+                    <EmptyState icon="🏢" message={t("profile.noCompany")} />
                   )}
                 </SectionCard>
 
                 {/* Role & Department */}
-                <SectionCard title="Professional Info" icon="💼">
+                <SectionCard title={t("profile.professionalInfo")} icon="💼">
                   <div className="space-y-3">
-                    <InfoRow label="Position" value={p?.position?.name} />
-                    <InfoRow label="Department" value={p?.department?.name} />
-                    <InfoRow label="Sector Focus" value={p?.user?.sectorFocus} />
-                    <InfoRow label="Subscription" value={plan.label} />
+                    <InfoRow label={t("profile.position")} value={p?.position?.name} />
+                    <InfoRow label={t("profile.department")} value={p?.department?.name} />
+                    <InfoRow label={t("profile.sectorFocus")} value={p?.user?.sectorFocus} />
+                    <InfoRow label={t("profile.subscription")} value={plan.label} />
                     <InfoRow
-                      label="Billing"
-                      value={p?.user?.billingCycle ? p.user.billingCycle.charAt(0) + p.user.billingCycle.slice(1).toLowerCase() : "Free"}
+                      label={t("profile.billing")}
+                      value={p?.user?.billingCycle ? p.user.billingCycle.charAt(0) + p.user.billingCycle.slice(1).toLowerCase() : t("profile.free")}
                     />
                   </div>
                 </SectionCard>
 
+                {/* Demographics */}
+                <SectionCard title={t("profile.demographics") || "Demographics"} icon="🌍" className="lg:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">{t("profile.gender") || "Gender"}</label>
+                      <select
+                        value={demoGender}
+                        onChange={(e) => setDemoGender(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-bg-secondary)] rounded-lg bg-white dark:bg-[#1a1e18]"
+                      >
+                        <option value="">Not specified</option>
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="OTHER">Other</option>
+                        <option value="PREFER_NOT_TO_SAY">Prefer not to say</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">{t("profile.dateOfBirth") || "Date of Birth"}</label>
+                      <input
+                        type="date"
+                        value={demoDob}
+                        onChange={(e) => setDemoDob(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-bg-secondary)] rounded-lg bg-white dark:bg-[#1a1e18]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">{t("profile.country") || "Country"}</label>
+                      <input
+                        type="text"
+                        value={demoCountry}
+                        onChange={(e) => setDemoCountry(e.target.value)}
+                        placeholder="e.g. France"
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-bg-secondary)] rounded-lg bg-white dark:bg-[#1a1e18]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">{t("profile.city") || "City"}</label>
+                      <input
+                        type="text"
+                        value={demoCity}
+                        onChange={(e) => setDemoCity(e.target.value)}
+                        placeholder="e.g. Paris"
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-bg-secondary)] rounded-lg bg-white dark:bg-[#1a1e18]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">{t("profile.phone") || "Phone"}</label>
+                      <input
+                        type="tel"
+                        value={demoPhone}
+                        onChange={(e) => setDemoPhone(e.target.value)}
+                        placeholder="+33..."
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-bg-secondary)] rounded-lg bg-white dark:bg-[#1a1e18]"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        onClick={async () => {
+                          setDemoSaving(true);
+                          setDemoSaved(false);
+                          try {
+                            await apiFetch("/profile/me", {
+                              method: "PATCH",
+                              body: JSON.stringify({
+                                gender: demoGender || undefined,
+                                dateOfBirth: demoDob || undefined,
+                                country: demoCountry || undefined,
+                                city: demoCity || undefined,
+                                phoneNumber: demoPhone || undefined,
+                              }),
+                            });
+                            setDemoSaved(true);
+                            setTimeout(() => setDemoSaved(false), 3000);
+                          } catch {} finally { setDemoSaving(false); }
+                        }}
+                        disabled={demoSaving}
+                        className="px-4 py-2 text-sm font-medium bg-brand-green text-white rounded-lg hover:bg-brand-green/90 transition-colors disabled:opacity-50"
+                      >
+                        {demoSaving ? "Saving..." : demoSaved ? "Saved!" : "Save Demographics"}
+                      </button>
+                    </div>
+                  </div>
+                </SectionCard>
+
                 {/* Academic Background / Education */}
-                <SectionCard title="Education & Diplomas" icon="🎓">
+                <SectionCard title={t("profile.educationDiplomas")} icon="🎓">
                   {p?.trainerProfile?.education &&
                   Array.isArray(p.trainerProfile.education) &&
                   (p.trainerProfile.education as { institution: string; degree: string; field: string; year?: number }[]).length > 0 ? (
@@ -456,12 +560,12 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon="🎓" message="No education data yet. Become a trainer to add your academic background." />
+                    <EmptyState icon="🎓" message={t("profile.noEducation")} />
                   )}
                 </SectionCard>
 
                 {/* External Certifications */}
-                <SectionCard title="Professional Certifications" icon="📜">
+                <SectionCard title={t("profile.professionalCerts")} icon="📜">
                   {p?.trainerProfile?.certifications &&
                   Array.isArray(p.trainerProfile.certifications) &&
                   (p.trainerProfile.certifications as string[]).length > 0 ? (
@@ -476,13 +580,13 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon="📜" message="No professional certifications listed yet." />
+                    <EmptyState icon="📜" message={t("profile.noProfessionalCerts")} />
                   )}
                 </SectionCard>
 
                 {/* Trainer Profile */}
                 {p?.trainerProfile && (
-                  <SectionCard title="Trainer Profile" icon="🎙️" className="lg:col-span-2">
+                  <SectionCard title={t("profile.trainerProfile")} icon="🎙️" className="lg:col-span-2">
                     <div className="space-y-4">
                       {p.trainerProfile.headline && (
                         <p className="text-base font-medium text-[var(--color-text-primary)] italic">
@@ -495,14 +599,14 @@ export default function ProfilePage() {
                         </p>
                       )}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <MiniStat label="Students" value={p.trainerProfile.totalStudents} />
-                        <MiniStat label="Courses" value={p.trainerProfile.totalCourses} />
+                        <MiniStat label={t("profile.students")} value={p.trainerProfile.totalStudents} />
+                        <MiniStat label={t("profile.courses")} value={p.trainerProfile.totalCourses} />
                         <MiniStat
-                          label="Rating"
-                          value={p.trainerProfile.avgRating ? `${p.trainerProfile.avgRating.toFixed(1)}/5` : "N/A"}
+                          label={t("profile.rating")}
+                          value={p.trainerProfile.avgRating ? `${p.trainerProfile.avgRating.toFixed(1)}/5` : t("profile.na")}
                         />
                         <MiniStat
-                          label="Status"
+                          label={t("profile.status")}
                           value={p.trainerProfile.status.charAt(0) + p.trainerProfile.status.slice(1).toLowerCase()}
                         />
                       </div>
@@ -511,7 +615,7 @@ export default function ProfilePage() {
                         (p.trainerProfile.specializations as string[]).length > 0 && (
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-                              Specializations
+                              {t("profile.specializations")}
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {(p.trainerProfile.specializations as string[]).map((s, i) => (
@@ -530,7 +634,7 @@ export default function ProfilePage() {
                         (p.trainerProfile.languages as string[]).length > 0 && (
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-                              Languages
+                              {t("profile.languages")}
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {(p.trainerProfile.languages as string[]).map((lang, i) => (
@@ -553,7 +657,7 @@ export default function ProfilePage() {
             {activeTab === "courses" && (
               <div className="space-y-6">
                 {/* In Progress */}
-                <SectionCard title="In Progress" icon="📖" count={totalActive}>
+                <SectionCard title={t("profile.inProgress")} icon="📖" count={totalActive}>
                   {totalActive > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {p?.activePaths?.map((item) => (
@@ -561,7 +665,7 @@ export default function ProfilePage() {
                           <div className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
                             <div className="flex items-center gap-1.5 mb-1">
                               <span className="text-xs">🛤️</span>
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Path</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{t("profile.path")}</span>
                             </div>
                             {item.domainName && (
                               <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
@@ -572,7 +676,7 @@ export default function ProfilePage() {
                               {item.pathName}
                             </p>
                             <div className="flex items-center justify-between text-[11px] text-[var(--color-text-secondary)] mb-2">
-                              <span>{item.stepCount} steps</span>
+                              <span>{t("profile.stepsCount", { count: item.stepCount })}</span>
                               <span className="font-semibold text-brand-green">{item.progressPct}%</span>
                             </div>
                             <div className="h-1.5 bg-brand-green/10 rounded-full overflow-hidden">
@@ -586,7 +690,7 @@ export default function ProfilePage() {
                           <div className="p-4 rounded-xl border border-[var(--color-bg-secondary)] hover:border-brand-green/30 transition-colors">
                             <div className="flex items-center gap-1.5 mb-1">
                               <span className="text-xs">📚</span>
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Course</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{t("profile.course")}</span>
                             </div>
                             {item.domainName && (
                               <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
@@ -607,19 +711,19 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon="📖" message="No courses in progress." />
+                    <EmptyState icon="📖" message={t("profile.noInProgress")} />
                   )}
                 </SectionCard>
 
                 {/* Completed */}
-                <SectionCard title="Completed" icon="✅" count={totalCompleted}>
+                <SectionCard title={t("profile.completed")} icon="✅" count={totalCompleted}>
                   {totalCompleted > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {p?.completedPaths?.map((item) => (
                         <div key={`path-${item.id}`} className="p-4 rounded-xl border border-brand-green/20 bg-brand-green/5">
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-xs">🛤️</span>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Path</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{t("profile.path")}</span>
                           </div>
                           {item.domainName && (
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
@@ -630,9 +734,9 @@ export default function ProfilePage() {
                             {item.pathName}
                           </p>
                           <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                            <span>{item.stepCount} steps</span>
+                            <span>{t("profile.stepsCount", { count: item.stepCount })}</span>
                             <span className="text-brand-green font-medium">
-                              Completed {formatDate(item.completedAt)}
+                              {t("profile.completedOn", { date: formatDate(item.completedAt) })}
                             </span>
                           </div>
                           <div className="h-1.5 bg-brand-green/20 rounded-full overflow-hidden mt-2">
@@ -644,7 +748,7 @@ export default function ProfilePage() {
                         <div key={`course-${item.id}`} className="p-4 rounded-xl border border-brand-green/20 bg-brand-green/5">
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-xs">📚</span>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Course</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{t("profile.course")}</span>
                           </div>
                           {item.domainName && (
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-green mb-1 block">
@@ -656,7 +760,7 @@ export default function ProfilePage() {
                           </p>
                           <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
                             <span className="text-brand-green font-medium">
-                              Completed {formatDate(item.completedAt)}
+                              {t("profile.completedOn", { date: formatDate(item.completedAt) })}
                             </span>
                           </div>
                           <div className="h-1.5 bg-brand-green/20 rounded-full overflow-hidden mt-2">
@@ -666,14 +770,14 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon="✅" message="No completed courses yet. Keep learning!" />
+                    <EmptyState icon="✅" message={t("profile.noCompleted")} />
                   )}
                 </SectionCard>
               </div>
             )}
 
             {activeTab === "certificates" && (
-              <SectionCard title="Issued Certificates" icon="🎓" count={totalCerts}>
+              <SectionCard title={t("profile.issuedCertificates")} icon="🎓" count={totalCerts}>
                 {totalCerts > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {p?.certificates?.map((cert) => (
@@ -700,23 +804,23 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <p className="font-semibold text-[var(--color-text-primary)] mb-1">
-                          {cert.templateName ?? cert.pathName ?? cert.courseName ?? "Certificate"}
+                          {cert.templateName ?? cert.pathName ?? cert.courseName ?? t("profile.certificate")}
                         </p>
                         {cert.certType && (
                           <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
-                            {cert.certType === "path" ? "🛤️ Path" : "📚 Course"} Certificate
+                            {cert.certType === "path" ? `🛤️ ${t("profile.pathCertificate")}` : `📚 ${t("profile.courseCertificate")}`}
                           </span>
                         )}
                         {cert.domainName && (
                           <p className="text-xs text-brand-green font-medium mb-2">{cert.domainName}</p>
                         )}
                         <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                          <span>Issued {formatDate(cert.issuedAt)}</span>
+                          <span>{t("profile.issuedOn", { date: formatDate(cert.issuedAt) })}</span>
                           <Link
                             href={`/certificates/verify/${cert.verifyCode}`}
                             className="text-brand-green font-semibold hover:underline"
                           >
-                            Verify
+                            {t("profile.verify")}
                           </Link>
                         </div>
                         {cert.pdfUrl && (
@@ -727,14 +831,14 @@ export default function ProfilePage() {
                             className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-brand-green hover:underline"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            Download PDF
+                            {t("profile.downloadPdf")}
                           </a>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState icon="🎓" message="No certificates issued yet. Complete learning paths or courses to earn certificates." />
+                  <EmptyState icon="🎓" message={t("profile.noCertificates")} />
                 )}
               </SectionCard>
             )}
@@ -746,7 +850,7 @@ export default function ProfilePage() {
                   <div className="card-brand p-6 text-center">
                     <span className="text-4xl mb-2 block">⭐</span>
                     <p className="text-3xl font-bold text-brand-green">{p?.gamification?.points ?? 0}</p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">Total Points</p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">{t("profile.totalPoints")}</p>
                   </div>
                   <div className="card-brand p-6 text-center">
                     <span className="text-4xl mb-2 block">🔥</span>
@@ -754,11 +858,11 @@ export default function ProfilePage() {
                       {p?.gamification?.streak?.currentStreak ?? 0}
                     </p>
                     <p className="text-sm text-[var(--color-text-secondary)]">
-                      Day Streak (Best: {p?.gamification?.streak?.longestStreak ?? 0})
+                      {t("profile.dayStreak", { best: p?.gamification?.streak?.longestStreak ?? 0 })}
                     </p>
                     {p?.gamification?.streak?.lastActivityAt && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                        Last active {formatDate(p.gamification.streak.lastActivityAt)}
+                        {t("profile.lastActive", { date: formatDate(p.gamification.streak.lastActivityAt) })}
                       </p>
                     )}
                   </div>
@@ -767,13 +871,13 @@ export default function ProfilePage() {
                     <p className="text-3xl font-bold text-brand-green">
                       {p?.gamification?.badges?.length ?? 0}
                     </p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">Badges Earned</p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">{t("profile.badgesEarned")}</p>
                   </div>
                 </div>
 
                 {/* Badges */}
                 <SectionCard
-                  title="Badges"
+                  title={t("profile.badges")}
                   icon="🏅"
                   count={p?.gamification?.badges?.length ?? 0}
                 >
@@ -798,7 +902,7 @@ export default function ProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon="🏅" message="No badges earned yet. Keep learning to unlock achievements!" />
+                    <EmptyState icon="🏅" message={t("profile.noBadges")} />
                   )}
                 </SectionCard>
               </div>

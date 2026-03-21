@@ -8,6 +8,7 @@ import { I18nProvider } from "@/lib/i18n/context";
 import { LandingFooter } from "@/components/landing";
 import { ScrollToHash } from "@/components/ui/scroll-to-hash";
 import { ToastContainer } from "@/components/ui/toast";
+import { SessionTracker } from "@/components/providers/session-tracker";
 import "./globals.css";
 
 const jost = Jost({
@@ -44,6 +45,7 @@ export default function RootLayout({
               <BrandingProvider>
                 <ScrollToHash />
                 <ToastContainer />
+                <SessionTracker />
                 <div className="flex min-h-screen flex-col">
                   <main className="flex-1">{children}</main>
                   <LandingFooter />

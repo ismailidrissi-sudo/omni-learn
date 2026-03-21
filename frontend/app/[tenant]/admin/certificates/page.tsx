@@ -36,6 +36,7 @@ interface ElementsConfig {
 interface Signatory {
   name: string;
   title: string;
+  signatureImage?: string;
 }
 
 interface CertTemplate {
@@ -180,7 +181,7 @@ export default function TenantCertificatesAdminPage() {
   }
 
   function addSignatory() {
-    setEditSignatories([...editSignatories, { name: "", title: "" }]);
+    setEditSignatories([...editSignatories, { name: "", title: "", signatureImage: "" }]);
   }
 
   function removeSignatory(idx: number) {
@@ -450,16 +451,23 @@ export default function TenantCertificatesAdminPage() {
                       <div className="space-y-3">
                         {editSignatories.map((sig, idx) => (
                           <div key={idx} className="flex gap-3 items-start">
-                            <div className="flex-1 grid gap-3 sm:grid-cols-2">
+                            <div className="flex-1 space-y-2">
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <Input
+                                  placeholder={t("adminTenant.certSignatoryName")}
+                                  value={sig.name}
+                                  onChange={(e) => updateSignatory(idx, "name", e.target.value)}
+                                />
+                                <Input
+                                  placeholder={t("adminTenant.certSignatoryTitle")}
+                                  value={sig.title}
+                                  onChange={(e) => updateSignatory(idx, "title", e.target.value)}
+                                />
+                              </div>
                               <Input
-                                placeholder={t("adminTenant.certSignatoryName")}
-                                value={sig.name}
-                                onChange={(e) => updateSignatory(idx, "name", e.target.value)}
-                              />
-                              <Input
-                                placeholder={t("adminTenant.certSignatoryTitle")}
-                                value={sig.title}
-                                onChange={(e) => updateSignatory(idx, "title", e.target.value)}
+                                placeholder={t("adminTenant.certSignatoryImage")}
+                                value={sig.signatureImage || ""}
+                                onChange={(e) => updateSignatory(idx, "signatureImage", e.target.value)}
                               />
                             </div>
                             <Button variant="ghost" size="sm" onClick={() => removeSignatory(idx)} className="text-red-500 mt-1">
