@@ -54,7 +54,7 @@ export function DemographicsTab({ data, filters }: Props) {
                     outerRadius={90}
                     dataKey="count"
                     nameKey="gender"
-                    label={({ name, count }: { name: string; count: number }) => `${name}: ${count}`}
+                    label={({ name, value }) => `${name}: ${value}`}
                   >
                     {data.gender.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
