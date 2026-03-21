@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -93,7 +94,13 @@ export class CompanyService {
   async updateTenant(id: string, data: { name?: string; slug?: string; settings?: Record<string, unknown> }) {
     return this.prisma.tenant.update({
       where: { id },
-      data,
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.slug !== undefined && { slug: data.slug }),
+        ...(data.settings !== undefined && {
+          settings: data.settings as Prisma.InputJsonValue,
+        }),
+      },
     });
   }
 
