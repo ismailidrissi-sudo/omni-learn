@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Domain, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { EnrollmentStatus } from '../constants/db.constant';
@@ -56,6 +56,79 @@ export class CertificateService {
     });
   }
 
+  /**
+   * Resolve tenant + domain for course certificates. ContentItem may omit tenantId/domainId;
+   * we derive tenant from the domain row, content assignments, or the learner's tenant.
+   */
+  private async resolveCourseCertificateDomain(
+    course: {
+      id: string;
+      tenantId: string | null;
+      domainId: string | null;
+      domain: Domain | null;
+    },
+    userId: string,
+  ): Promise<{ tenantId: string; domain: Domain }> {
+    if (course.domainId && course.domain) {
+      const tenantId = course.tenantId ?? course.domain.tenantId;
+      return { tenantId, domain: course.domain };
+    }
+
+    if (course.domainId) {
+      const domain = await this.prisma.domain.findUniqueOrThrow({
+        where: { id: course.domainId },
+      });
+      const tenantId = course.tenantId ?? domain.tenantId;
+      return { tenantId, domain };
+    }
+
+    if (course.tenantId) {
+      const domain = await this.prisma.domain.findFirst({
+        where: { tenantId: course.tenantId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
+      if (domain) return { tenantId: course.tenantId, domain };
+    }
+
+    const assignment = await this.prisma.contentTenantAssignment.findFirst({
+      where: { contentId: course.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (assignment) {
+      const domain = await this.prisma.domain.findFirst({
+        where: { tenantId: assignment.tenantId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
+      if (domain) return { tenantId: assignment.tenantId, domain };
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tenantId: true },
+    });
+    if (user?.tenantId) {
+      const domain = await this.prisma.domain.findFirst({
+        where: { tenantId: user.tenantId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
+      if (domain) return { tenantId: user.tenantId, domain };
+    }
+
+    const fallback = await this.prisma.domain.findFirst({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    if (!fallback) {
+      throw new Error(
+        'No certificate domain available — add a training domain in Admin (Domains)',
+      );
+    }
+    this.logger.warn(
+      `Course ${course.id} has no domain/tenant; using fallback domain ${fallback.id} for certificate`,
+    );
+    return { tenantId: fallback.tenantId, domain: fallback };
+  }
+
   /** Issue certificate when course enrollment is completed */
   async issueCourseEnrollmentCertificate(courseEnrollmentId: string, grade?: string) {
     const enrollment = await this.prisma.courseEnrollment.findUniqueOrThrow({
@@ -66,20 +139,16 @@ export class CertificateService {
       throw new Error('Course enrollment must be completed to issue certificate');
     }
 
-    if (!enrollment.course.domainId || !enrollment.course.domain) {
-      throw new Error('Course must belong to a domain to issue certificate');
-    }
-
-    const tenantId = enrollment.course.tenantId;
-    if (!tenantId) {
-      throw new Error('Course must belong to a tenant to issue certificate');
-    }
+    const { tenantId, domain } = await this.resolveCourseCertificateDomain(
+      enrollment.course,
+      enrollment.userId,
+    );
 
     const template = await this.domainsService.ensureCertificateTemplate(
       tenantId,
-      enrollment.course.domainId,
-      enrollment.course.domain.color,
-      enrollment.course.domain.name,
+      domain.id,
+      domain.color,
+      domain.name,
     );
     const verifyCode = `CC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 

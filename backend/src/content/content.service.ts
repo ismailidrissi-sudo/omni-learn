@@ -1,6 +1,12 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessService } from '../subscription/access.service';
+import { RbacRole } from '../constants/rbac.constant';
 
 /**
  * Content Service — Course builder, SCORM/xAPI metadata, tier-based access
@@ -41,6 +47,24 @@ export interface ScormMetadata {
   version?: '1.2' | '2004';
 }
 
+export type ContentEditor = { userId: string; roles: string[] };
+
+function canManageAnyContent(roles: string[]): boolean {
+  return roles.includes(RbacRole.SUPER_ADMIN) || roles.includes(RbacRole.COMPANY_ADMIN);
+}
+
+function isInstructorScoped(roles: string[]): boolean {
+  return roles.includes(RbacRole.INSTRUCTOR) && !canManageAnyContent(roles);
+}
+
+function canUseAdminContentApi(roles: string[]): boolean {
+  return (
+    roles.includes(RbacRole.SUPER_ADMIN) ||
+    roles.includes(RbacRole.COMPANY_ADMIN) ||
+    roles.includes(RbacRole.INSTRUCTOR)
+  );
+}
+
 @Injectable()
 export class ContentService {
   constructor(
@@ -48,14 +72,35 @@ export class ContentService {
     private readonly accessService: AccessService,
   ) {}
 
-  async create(data: CreateContentDto) {
+  private assertCanMutateContent(editor: ContentEditor, content: { createdById: string | null }) {
+    if (canManageAnyContent(editor.roles)) {
+      return;
+    }
+    if (isInstructorScoped(editor.roles)) {
+      if (content.createdById === editor.userId) {
+        return;
+      }
+      throw new ForbiddenException('You can only modify content you created');
+    }
+    throw new ForbiddenException('Not allowed to modify this content');
+  }
+
+  async create(data: CreateContentDto, opts?: { createdById?: string | null }) {
     const metadata = data.metadata ?? {};
     const metadataVal =
       typeof metadata === 'string' ? JSON.parse(metadata || '{}') : metadata;
     const plans = data.availablePlans ?? ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'];
     const content = await this.prisma.contentItem.create({
       data: {
-        type: data.type as 'COURSE' | 'VIDEO' | 'MICRO_LEARNING' | 'PODCAST' | 'DOCUMENT' | 'IMPLEMENTATION_GUIDE' | 'QUIZ_ASSESSMENT' | 'GAME',
+        type: data.type as
+          | 'COURSE'
+          | 'VIDEO'
+          | 'MICRO_LEARNING'
+          | 'PODCAST'
+          | 'DOCUMENT'
+          | 'IMPLEMENTATION_GUIDE'
+          | 'QUIZ_ASSESSMENT'
+          | 'GAME',
         title: data.title,
         description: data.description,
         domainId: data.domainId,
@@ -68,6 +113,7 @@ export class ContentService {
         isFoundational: data.isFoundational ?? plans.includes('EXPLORER'),
         availablePlans: plans,
         availableInEnterprise: data.availableInEnterprise ?? false,
+        ...(opts?.createdById != null ? { createdById: opts.createdById } : {}),
       },
     });
     await this.setAssignments(content.id, data.tenantIds ?? [], data.userIds ?? []);
@@ -81,32 +127,59 @@ export class ContentService {
     });
   }
 
-  /** Find all content with tier-based access filtering (adminMode skips filtering) */
-  async findAll(type?: string, userId?: string | null, adminMode = false) {
+  /** Find all content with tier-based access filtering (adminMode skips learner filtering, not trainer isolation) */
+  async findAll(
+    type?: string,
+    userId?: string | null,
+    adminMode = false,
+    roles: string[] = [],
+  ) {
     const typeFilter = type
-      ? { type: type as 'COURSE' | 'VIDEO' | 'MICRO_LEARNING' | 'PODCAST' | 'DOCUMENT' | 'IMPLEMENTATION_GUIDE' | 'QUIZ_ASSESSMENT' | 'GAME' }
+      ? {
+          type: type as
+            | 'COURSE'
+            | 'VIDEO'
+            | 'MICRO_LEARNING'
+            | 'PODCAST'
+            | 'DOCUMENT'
+            | 'IMPLEMENTATION_GUIDE'
+            | 'QUIZ_ASSESSMENT'
+            | 'GAME',
+        }
       : {};
 
     if (adminMode) {
+      if (!userId) {
+        throw new UnauthorizedException('Authentication required for admin content list');
+      }
+      if (!canUseAdminContentApi(roles)) {
+        throw new ForbiddenException('Not allowed to list admin content');
+      }
+      const where = isInstructorScoped(roles)
+        ? { ...typeFilter, createdById: userId }
+        : typeFilter;
       return this.prisma.contentItem.findMany({
-        where: typeFilter,
+        where,
         orderBy: { createdAt: 'desc' },
       });
     }
 
     const ctx = await this.accessService.getAccessContext(userId ?? null);
     const accessWhere = this.accessService.buildContentWhere(ctx);
-    const where = type
-      ? { AND: [typeFilter, accessWhere] }
-      : accessWhere;
+    const where = type ? { AND: [typeFilter, accessWhere] } : accessWhere;
     return this.prisma.contentItem.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string, userId?: string | null, adminMode = false) {
-    const content = await this.prisma.contentItem.findUniqueOrThrow({
+  async findOne(
+    id: string,
+    userId?: string | null,
+    adminMode = false,
+    roles: string[] = [],
+  ) {
+    const content = await this.prisma.contentItem.findUnique({
       where: { id },
       include: {
         domain: true,
@@ -114,7 +187,20 @@ export class ContentService {
         userAssignments: { include: { user: true } },
       },
     });
+    if (!content) {
+      throw new NotFoundException('Content not found');
+    }
+
     if (adminMode) {
+      if (!userId) {
+        throw new UnauthorizedException('Authentication required for admin content');
+      }
+      if (!canUseAdminContentApi(roles)) {
+        throw new ForbiddenException('Not allowed to view admin content');
+      }
+      if (isInstructorScoped(roles) && content.createdById !== userId) {
+        throw new NotFoundException('Content not found');
+      }
       return { ...content, adsEnabled: false };
     }
     const ctx = await this.accessService.getAccessContext(userId ?? null);
@@ -125,7 +211,13 @@ export class ContentService {
     return { ...content, adsEnabled: this.accessService.shouldShowAds(ctx) };
   }
 
-  async update(id: string, data: Partial<CreateContentDto>) {
+  async update(id: string, data: Partial<CreateContentDto>, editor: ContentEditor) {
+    const existing = await this.prisma.contentItem.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Content not found');
+    }
+    this.assertCanMutateContent(editor, existing);
+
     const updateData: Record<string, unknown> = {};
     if (data.type) updateData.type = data.type;
     if (data.title) updateData.title = data.title;
@@ -134,7 +226,8 @@ export class ContentService {
     if (data.mediaId !== undefined) updateData.mediaId = data.mediaId;
     if (data.durationMinutes !== undefined) updateData.durationMinutes = data.durationMinutes;
     if (data.metadata) {
-      updateData.metadata = typeof data.metadata === 'string' ? data.metadata : JSON.stringify(data.metadata);
+      updateData.metadata =
+        typeof data.metadata === 'string' ? data.metadata : JSON.stringify(data.metadata);
     }
     if (data.accessLevel !== undefined) updateData.accessLevel = data.accessLevel;
     if (data.sectorTag !== undefined) updateData.sectorTag = data.sectorTag;
@@ -144,7 +237,9 @@ export class ContentService {
       updateData.availablePlans = data.availablePlans;
       updateData.isFoundational = data.availablePlans.includes('EXPLORER');
     }
-    if (data.availableInEnterprise !== undefined) updateData.availableInEnterprise = data.availableInEnterprise;
+    if (data.availableInEnterprise !== undefined) {
+      updateData.availableInEnterprise = data.availableInEnterprise;
+    }
     await this.prisma.contentItem.update({
       where: { id },
       data: updateData,
@@ -156,7 +251,7 @@ export class ContentService {
         data.userIds ?? (await this.getUserIds(id)),
       );
     }
-    return this.findOne(id);
+    return this.findOne(id, editor.userId, true, editor.roles);
   }
 
   private async setAssignments(contentId: string, tenantIds: string[], userIds: string[]) {
@@ -190,7 +285,13 @@ export class ContentService {
     return rows.map((r) => r.userId);
   }
 
-  async remove(id: string) {
+  async remove(id: string, editor: ContentEditor) {
+    const existing = await this.prisma.contentItem.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Content not found');
+    }
+    this.assertCanMutateContent(editor, existing);
+
     return this.prisma.$transaction(async (tx) => {
       await tx.learningPathStep.deleteMany({
         where: { contentItemId: id },
@@ -215,20 +316,24 @@ export class ContentService {
       isFoundational?: boolean;
       availablePlans?: string[];
       availableInEnterprise?: boolean;
+      createdById?: string | null;
     },
   ) {
-    return this.create({
-      type: 'COURSE',
-      title,
-      description: opts?.description,
-      domainId: opts?.domainId,
-      durationMinutes: durationMinutes ?? scormMetadata.totalDuration,
-      metadata: scormMetadata as unknown as Record<string, unknown>,
-      tenantIds: opts?.tenantIds,
-      userIds: opts?.userIds,
-      isFoundational: opts?.isFoundational,
-      availablePlans: opts?.availablePlans,
-      availableInEnterprise: opts?.availableInEnterprise,
-    });
+    return this.create(
+      {
+        type: 'COURSE',
+        title,
+        description: opts?.description,
+        domainId: opts?.domainId,
+        durationMinutes: durationMinutes ?? scormMetadata.totalDuration,
+        metadata: scormMetadata as unknown as Record<string, unknown>,
+        tenantIds: opts?.tenantIds,
+        userIds: opts?.userIds,
+        isFoundational: opts?.isFoundational,
+        availablePlans: opts?.availablePlans,
+        availableInEnterprise: opts?.availableInEnterprise,
+      },
+      { createdById: opts?.createdById },
+    );
   }
 }

@@ -48,7 +48,7 @@ export class CourseEnrollmentService {
   }
 
   async getEnrollment(userId: string, courseId: string) {
-    return this.prisma.courseEnrollment.findUnique({
+    const enrollment = await this.prisma.courseEnrollment.findUnique({
       where: { userId_courseId: { userId, courseId } },
       include: {
         course: {
@@ -79,6 +79,46 @@ export class CourseEnrollmentService {
         certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
       },
     });
+
+    if (
+      enrollment?.status === EnrollmentStatus.COMPLETED &&
+      !enrollment.certificates?.length
+    ) {
+      await this.ensureCertificateIfMissing(enrollment.id);
+      return this.prisma.courseEnrollment.findUnique({
+        where: { userId_courseId: { userId, courseId } },
+        include: {
+          course: {
+            include: {
+              domain: true,
+              courseSections: {
+                orderBy: { sortOrder: 'asc' },
+                include: {
+                  items: {
+                    orderBy: { sortOrder: 'asc' },
+                    include: {
+                      progress: {
+                        where: { enrollment: { userId } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          itemProgress: {
+            include: {
+              sectionItem: {
+                include: { section: true },
+              },
+            },
+          },
+          certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+        },
+      });
+    }
+
+    return enrollment;
   }
 
   async updateItemProgress(
@@ -208,6 +248,17 @@ export class CourseEnrollmentService {
     }
   }
 
+  /** If enrollment is completed but issuance failed earlier, issue now (idempotent). */
+  private async ensureCertificateIfMissing(enrollmentId: string) {
+    const row = await this.prisma.courseEnrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { status: true, certificates: { select: { id: true }, take: 1 } },
+    });
+    if (!row || row.status !== EnrollmentStatus.COMPLETED) return;
+    if (row.certificates.length > 0) return;
+    await this.retryIssueCertificate(enrollmentId);
+  }
+
   async findEnrollmentForCourse(userId: string, courseId: string) {
     const enrollment = await this.prisma.courseEnrollment.findUnique({
       where: { userId_courseId: { userId, courseId } },
@@ -218,6 +269,27 @@ export class CourseEnrollmentService {
     });
 
     if (!enrollment) return null;
+
+    if (enrollment.status === EnrollmentStatus.COMPLETED && !enrollment.certificates?.length) {
+      await this.ensureCertificateIfMissing(enrollment.id);
+      const refreshed = await this.prisma.courseEnrollment.findUnique({
+        where: { userId_courseId: { userId, courseId } },
+        include: {
+          course: { include: { domain: true } },
+          certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+        },
+      });
+      if (!refreshed) return null;
+      return {
+        enrollmentId: refreshed.id,
+        enrollmentType: 'course' as const,
+        courseTitle: refreshed.course.title,
+        domainName: refreshed.course.domain?.name ?? '',
+        progressPct: refreshed.progressPct,
+        status: refreshed.status,
+        certificate: refreshed.certificates?.[0] ?? null,
+      };
+    }
 
     return {
       enrollmentId: enrollment.id,

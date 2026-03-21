@@ -168,6 +168,7 @@ model User {
   userTags                 UserTag[]
   seatAssignments          SeatAssignment[]
   contentUserAssignments   ContentUserAssignment[]
+  createdContentItems        ContentItem[]            @relation("ContentCreatedBy")
   trainerProfile           TrainerProfile?
   videoWatchProgress       VideoWatchProgress[]
 }
@@ -310,9 +311,11 @@ model ContentItem {
   videoIsMicrolearning Boolean  @default(false)
   videoDurationSeconds Int?     // Precise duration in seconds for video content
 
+  createdById    String?     // Trainer / author who created this item (admin isolation)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
+  createdBy              User?                    @relation("ContentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   domain                 Domain?                  @relation(fields: [domainId], references: [id])
   tenant                 Tenant?                  @relation(fields: [tenantId], references: [id])
   pathSteps              LearningPathStep[]
@@ -322,6 +325,7 @@ model ContentItem {
   userAssignments        ContentUserAssignment[]   // When empty = all users
 
   @@index([tenantId])
+  @@index([createdById])
   @@index([sectorTag])
   @@index([isFoundational])
 }

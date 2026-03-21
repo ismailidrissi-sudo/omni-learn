@@ -205,7 +205,7 @@ export default function DiscoverPage() {
 
   const sourceLabel =
     recSource === "lightfm"
-      ? "Powered by LightFM"
+      ? "Recommendations optimized with machine learning"
       : recSource === "cold_start"
         ? "Popular picks for new learners"
         : recSource === "embedding"

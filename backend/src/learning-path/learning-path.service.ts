@@ -208,6 +208,17 @@ export class LearningPathService {
     }
   }
 
+  /** If path enrollment is completed but issuance failed earlier, issue now (idempotent). */
+  private async ensurePathCertificateIfMissing(enrollmentId: string) {
+    const row = await this.prisma.pathEnrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { status: true, certificates: { select: { id: true }, take: 1 } },
+    });
+    if (!row || row.status !== EnrollmentStatus.COMPLETED) return;
+    if (row.certificates.length > 0) return;
+    await this.retryIssueCertificate(enrollmentId);
+  }
+
   /** Find the user's enrollment context for a given content item (ACTIVE preferred, then COMPLETED) */
   async findEnrollmentForContent(userId: string, contentItemId: string) {
     const rows = await this.prisma.pathStepProgress.findMany({
@@ -229,6 +240,31 @@ export class LearningPathService {
 
     const stepProgress = rows[0];
     if (!stepProgress) return null;
+
+    if (
+      stepProgress.enrollment.status === EnrollmentStatus.COMPLETED &&
+      !stepProgress.enrollment.certificates?.length
+    ) {
+      await this.ensurePathCertificateIfMissing(stepProgress.enrollmentId);
+      const refreshed = await this.prisma.pathEnrollment.findUnique({
+        where: { id: stepProgress.enrollmentId },
+        include: {
+          path: { include: { domain: true } },
+          certificates: { orderBy: { issuedAt: 'desc' }, take: 1 },
+        },
+      });
+      if (refreshed) {
+        return {
+          enrollmentId: stepProgress.enrollmentId,
+          stepId: stepProgress.stepId,
+          stepStatus: stepProgress.status,
+          pathName: refreshed.path.name,
+          domainName: refreshed.path.domain?.name ?? '',
+          progressPct: refreshed.progressPct,
+          certificate: refreshed.certificates?.[0] ?? null,
+        };
+      }
+    }
 
     return {
       enrollmentId: stepProgress.enrollmentId,

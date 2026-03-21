@@ -90,11 +90,15 @@ export class CompanyService {
     });
   }
 
-  async updateTenant(id: string, data: { name?: string; slug?: string; settings?: string }) {
+  async updateTenant(id: string, data: { name?: string; slug?: string; settings?: Record<string, unknown> }) {
     return this.prisma.tenant.update({
       where: { id },
       data,
     });
+  }
+
+  async deleteTenant(id: string) {
+    return this.prisma.tenant.delete({ where: { id } });
   }
 
   async getBranding(tenantId: string) {

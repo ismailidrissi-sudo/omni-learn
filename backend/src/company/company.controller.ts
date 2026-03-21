@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CompanyService, BrandingDto, EnterpriseLeadDto } from './company.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
@@ -62,8 +62,15 @@ export class CompanyController {
   @Put('tenants/:id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  updateTenant(@Param('id') id: string, @Body() body: { name?: string; slug?: string; settings?: string }) {
+  updateTenant(@Param('id') id: string, @Body() body: { name?: string; slug?: string; settings?: Record<string, unknown> }) {
     return this.company.updateTenant(id, body);
+  }
+
+  @Delete('tenants/:id')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  deleteTenant(@Param('id') id: string) {
+    return this.company.deleteTenant(id);
   }
 
   @Get('tenants/:tenantId/branding')

@@ -84,9 +84,7 @@ export default function TrainerPage() {
     }
   }, [isApprovedTrainer]);
 
-  // Public content = no tenant assignments (available to all)
-  const publicContent = content.filter((c) => !c.tenantAssignments?.length);
-  const filteredContent = publicContent.filter(
+  const filteredContent = content.filter(
     (c) =>
       (!search || c.title.toLowerCase().includes(search.toLowerCase())) &&
       (!filterType || c.type === filterType)

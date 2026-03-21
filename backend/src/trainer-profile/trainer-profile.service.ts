@@ -88,6 +88,7 @@ export class TrainerProfileService {
 
     const content = await this.prisma.contentItem.findMany({
       where: {
+        createdById: profile.userId,
         tenantId: null,
         tenantAssignments: { none: {} },
       },
@@ -137,7 +138,11 @@ export class TrainerProfileService {
 
   async refreshStats(userId: string) {
     const contentCount = await this.prisma.contentItem.count({
-      where: { tenantId: null, tenantAssignments: { none: {} } },
+      where: {
+        createdById: userId,
+        tenantId: null,
+        tenantAssignments: { none: {} },
+      },
     });
 
     return this.prisma.trainerProfile.update({

@@ -75,6 +75,7 @@ model User {
   position              Position?              @relation(fields: [positionId], references: [id])
   tenant                Tenant?                @relation(fields: [tenantId], references: [id])
   contentUserAssignments ContentUserAssignment[]
+  createdContentItems    ContentItem[]            @relation("ContentCreatedBy")
   trainerProfile         TrainerProfile?
 }
 
@@ -194,9 +195,11 @@ model ContentItem {
   durationMinutes Int?
   metadata        String?  @default("{}")
   embeddingJson   String?  // JSON array [0.1,0.2,...] for cosine similarity (SQLite)
+  createdById     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  createdBy              User?                    @relation("ContentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   domain                 Domain?                  @relation(fields: [domainId], references: [id])
   pathSteps              LearningPathStep[]
   courseSections         CourseSection[]

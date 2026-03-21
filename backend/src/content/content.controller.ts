@@ -4,7 +4,7 @@ import { ContentService, CreateContentDto, ScormMetadata } from './content.servi
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { RbacRole } from '../constants/rbac.constant';
 import { detectProvider } from '../utils/video-provider';
 import { CreateContentBodyDto, CreateCourseBodyDto, ValidateUrlDto } from '../dto/content.dto';
@@ -18,10 +18,10 @@ export class ContentController {
   async findAll(
     @Query('type') type?: string,
     @Query('admin') admin?: string,
-    @CurrentUser('sub') userId?: string,
+    @CurrentUser() user?: CurrentUserPayload | null,
   ) {
     const adminMode = admin === 'true';
-    return this.contentService.findAll(type, userId, adminMode);
+    return this.contentService.findAll(type, user?.sub ?? null, adminMode, user?.roles ?? []);
   }
 
   @Post('validate-url')
@@ -36,23 +36,23 @@ export class ContentController {
   async findOne(
     @Param('id') id: string,
     @Query('admin') admin?: string,
-    @CurrentUser('sub') userId?: string,
+    @CurrentUser() user?: CurrentUserPayload | null,
   ) {
     const adminMode = admin === 'true';
-    return this.contentService.findOne(id, userId, adminMode);
+    return this.contentService.findOne(id, user?.sub ?? null, adminMode, user?.roles ?? []);
   }
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async create(@Body() body: CreateContentBodyDto) {
-    return this.contentService.create(body);
+  async create(@Body() body: CreateContentBodyDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.contentService.create(body, { createdById: user.sub });
   }
 
   @Post('courses')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async createCourse(@Body() body: CreateCourseBodyDto) {
+  async createCourse(@Body() body: CreateCourseBodyDto, @CurrentUser() user: CurrentUserPayload) {
     return this.contentService.createCourse(
       body.title,
       body.scormMetadata,
@@ -65,6 +65,7 @@ export class ContentController {
         isFoundational: body.isFoundational,
         availablePlans: body.availablePlans,
         availableInEnterprise: body.availableInEnterprise,
+        createdById: user.sub,
       },
     );
   }
@@ -72,14 +73,18 @@ export class ContentController {
   @Put(':id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async update(@Param('id') id: string, @Body() body: Partial<CreateContentDto>) {
-    return this.contentService.update(id, body);
+  async update(
+    @Param('id') id: string,
+    @Body() body: Partial<CreateContentDto>,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.contentService.update(id, body, { userId: user.sub, roles: user.roles });
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
-  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async remove(@Param('id') id: string) {
-    return this.contentService.remove(id);
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
+  async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.contentService.remove(id, { userId: user.sub, roles: user.roles });
   }
 }
