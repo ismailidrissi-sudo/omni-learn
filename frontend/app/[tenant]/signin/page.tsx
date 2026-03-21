@@ -202,105 +202,164 @@ function TenantSignInContent() {
             Sign in to {academyName}
           </h1>
           <p className="mt-2 text-gray-600 dark:text-[var(--color-text-secondary)]">
-            {verified ? "Email verified! Sign in to continue." : `Access your ${academyName} learning portal.`}
+            {passwordResetDone
+              ? "Password reset successful! Sign in with your new password."
+              : verified
+                ? "Email verified! Sign in to continue."
+                : `Access your ${academyName} learning portal.`}
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <GoogleSignInButton useOneTap={false} />
-            <LinkedInSignInButton />
-            {hasSso && (
+          {resetToken ? (
+            <form onSubmit={handlePasswordResetConfirm} className="mt-8 space-y-5">
+              {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
+                  {t("auth.email")}
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t("auth.emailPlaceholder")}
+                  className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                  style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min 8 characters)"
+                  className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                  style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                  style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                />
+              </div>
               <button
-                type="button"
-                onClick={handleSsoClick}
-                className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-lg px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                {t("auth.signInWithSso")}
+                {loading ? "Resetting…" : "Reset Password"}
               </button>
-            )}
-          </div>
+            </form>
+          ) : (
+            <>
+              <div className="mt-8 flex flex-col items-center gap-3">
+                <GoogleSignInButton useOneTap={false} />
+                <LinkedInSignInButton />
+                {hasSso && (
+                  <button
+                    type="button"
+                    onClick={handleSsoClick}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    {t("auth.signInWithSso")}
+                  </button>
+                )}
+              </div>
 
-          <div className="my-6 flex items-center gap-4">
-            <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}30` }} />
-            <span className="text-sm text-gray-600 dark:text-[var(--color-text-secondary)]">{t("auth.or")}</span>
-            <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}30` }} />
-          </div>
+              <div className="my-6 flex items-center gap-4">
+                <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}30` }} />
+                <span className="text-sm text-gray-600 dark:text-[var(--color-text-secondary)]">{t("auth.or")}</span>
+                <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}30` }} />
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
-                {t("auth.email")}
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t("auth.emailPlaceholder")}
-                className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
-                style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
-                {t("auth.password")}
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("auth.passwordPlaceholder")}
-                className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
-                style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
-              />
-              <button
-                type="button"
-                onClick={() => { setShowForgot(!showForgot); setForgotEmail(email); }}
-                className="mt-1.5 text-xs hover:underline"
-                style={{ color: primaryColor }}
-              >
-                {t("auth.forgotPassword")}
-              </button>
-            </div>
-
-            {showForgot && (
-              <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: `${primaryColor}33`, backgroundColor: `${primaryColor}08` }}>
-                <p className="text-sm text-gray-700 dark:text-[var(--color-text-secondary)]">
-                  {t("auth.forgotPasswordHint")}
-                </p>
-                <form onSubmit={handleForgotPassword} className="flex gap-2">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
+                    {t("auth.email")}
+                  </label>
                   <input
                     type="email"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder={t("auth.emailPlaceholder")}
-                    className="flex-1 rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-white dark:bg-[var(--color-bg-primary)]/50 px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                    className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                    style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-[var(--color-text-secondary)]">
+                    {t("auth.password")}
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("auth.passwordPlaceholder")}
+                    className="w-full rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-gray-50 dark:bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
                     style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
                   />
                   <button
-                    type="submit"
-                    disabled={forgotSending || !forgotEmail}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                    style={{ backgroundColor: primaryColor }}
+                    type="button"
+                    onClick={() => { setShowForgot(!showForgot); setForgotEmail(email); }}
+                    className="mt-1.5 text-xs hover:underline"
+                    style={{ color: primaryColor }}
                   >
-                    {forgotSending ? "Sending…" : "Send"}
+                    {t("auth.forgotPassword")}
                   </button>
-                </form>
-                {forgotMessage && (
-                  <p className="text-xs" style={{ color: primaryColor }}>{forgotMessage}</p>
-                )}
-              </div>
-            )}
+                </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}
-            >
-              {loading ? t("auth.signingIn") : t("auth.signIn")}
-            </button>
-          </form>
+                {showForgot && (
+                  <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: `${primaryColor}33`, backgroundColor: `${primaryColor}08` }}>
+                    <p className="text-sm text-gray-700 dark:text-[var(--color-text-secondary)]">
+                      {t("auth.forgotPasswordHint")}
+                    </p>
+                    <form onSubmit={handleForgotPassword} className="flex gap-2">
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder={t("auth.emailPlaceholder")}
+                        className="flex-1 rounded-lg border border-gray-200 dark:border-[var(--color-accent)]/30 bg-white dark:bg-[var(--color-bg-primary)]/50 px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-1"
+                        style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
+                      />
+                      <button
+                        type="submit"
+                        disabled={forgotSending || !forgotEmail}
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {forgotSending ? "Sending…" : "Send"}
+                      </button>
+                    </form>
+                    {forgotMessage && (
+                      <p className="text-xs" style={{ color: primaryColor }}>{forgotMessage}</p>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-lg px-4 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}
+                >
+                  {loading ? t("auth.signingIn") : t("auth.signIn")}
+                </button>
+              </form>
+            </>
+          )}
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-[var(--color-text-secondary)]">
             {t("auth.noAccount")}{" "}
