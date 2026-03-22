@@ -38,7 +38,8 @@ export function LinkedInSignInButton({ referralCode }: { referralCode?: string }
       client_id: CLIENT_ID,
       redirect_uri: redirectUri,
       scope: "openid profile email",
-      state: encodeURIComponent(state),
+      // Let URLSearchParams encode once — double-encoding breaks `ref` on callback parse
+      state,
     });
 
     window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;

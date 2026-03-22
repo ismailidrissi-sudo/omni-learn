@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UnauthorizedException, UseGuards, Req, Res, BadRequestException, Inject, Optional } from '@nestjs/common';
+import { Controller, Post, Get, Body, UnauthorizedException, UseGuards, Req, Res, BadRequestException, Inject, Optional, Logger } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -15,6 +15,8 @@ import { ReferralService } from '../referral/referral.service';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
@@ -34,7 +36,9 @@ export class AuthController {
     if (body.referralCode && this.referralService) {
       try {
         await this.referralService.trackSignup(body.referralCode, body.email, result.userId, 'signup_form');
-      } catch {}
+      } catch (err) {
+        this.logger.warn(`Referral trackSignup failed (signup_form): ${err}`);
+      }
     }
 
     return result;
@@ -47,7 +51,14 @@ export class AuthController {
 
   @Post('google')
   async googleSignIn(@Body() body: GoogleSignInDto) {
-    const { accessToken, user } = await this.authService.verifyGoogleToken(body.credential);
+    const { accessToken, user, isNewUser } = await this.authService.verifyGoogleToken(body.credential);
+    if (body.referralCode && isNewUser && this.referralService) {
+      try {
+        await this.referralService.trackSignup(body.referralCode, user.email, user.id, 'google_sso');
+      } catch (err) {
+        this.logger.warn(`Referral trackSignup failed (google_sso): ${err}`);
+      }
+    }
     return { accessToken, user };
   }
 
@@ -56,10 +67,12 @@ export class AuthController {
   async linkedInSignIn(@Body() body: LinkedInSignInDto) {
     const result = await this.authService.verifyLinkedInCode(body.code);
 
-    if (body.referralCode && this.referralService) {
+    if (body.referralCode && result.isNewUser && this.referralService) {
       try {
         await this.referralService.trackSignup(body.referralCode, result.user.email, result.user.id, 'linkedin_sso');
-      } catch {}
+      } catch (err) {
+        this.logger.warn(`Referral trackSignup failed (linkedin_sso): ${err}`);
+      }
     }
 
     return {

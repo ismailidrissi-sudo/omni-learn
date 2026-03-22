@@ -38,10 +38,16 @@ function LinkedInCallbackContent() {
     let referralCode = "";
     let redirect = "/learn";
     try {
-      const parsed = JSON.parse(decodeURIComponent(stateRaw || "{}"));
+      const raw = stateRaw || "{}";
+      const parsed = JSON.parse(raw.startsWith("{") ? raw : decodeURIComponent(raw)) as {
+        ref?: string;
+        redirect?: string;
+      };
       referralCode = parsed.ref || "";
       redirect = parsed.redirect || "/learn";
-    } catch {}
+    } catch {
+      /* ignore */
+    }
 
     (async () => {
       try {

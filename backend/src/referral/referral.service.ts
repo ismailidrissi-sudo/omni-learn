@@ -63,8 +63,9 @@ export class ReferralService {
   }
 
   async resolveCode(code: string) {
+    const normalized = code.trim().toUpperCase();
     const referralCode = await this.prisma.referralCode.findUnique({
-      where: { code },
+      where: { code: normalized },
       select: { id: true, userId: true, isActive: true, code: true },
     });
     if (!referralCode || !referralCode.isActive) return null;
@@ -77,8 +78,9 @@ export class ReferralService {
 
     if (referralCode.userId === referredUserId) return null;
 
+    const emailNorm = referredEmail.trim().toLowerCase();
     const existing = await this.prisma.referral.findUnique({
-      where: { referralCodeId_referredEmail: { referralCodeId: referralCode.id, referredEmail } },
+      where: { referralCodeId_referredEmail: { referralCodeId: referralCode.id, referredEmail: emailNorm } },
     });
 
     if (existing) {
@@ -86,6 +88,7 @@ export class ReferralService {
         where: { id: existing.id },
         data: {
           referredUserId,
+          referredEmail: emailNorm,
           status: 'SIGNED_UP',
           signedUpAt: new Date(),
         },
@@ -97,7 +100,7 @@ export class ReferralService {
         referralCodeId: referralCode.id,
         referrerId: referralCode.userId,
         referredUserId,
-        referredEmail,
+        referredEmail: emailNorm,
         status: 'SIGNED_UP',
         signedUpAt: new Date(),
         channel: channel ?? 'link',
@@ -189,8 +192,9 @@ export class ReferralService {
 
     for (const contact of contacts) {
       try {
+        const emailNorm = contact.email.trim().toLowerCase();
         const existingUser = await this.prisma.user.findUnique({
-          where: { email: contact.email },
+          where: { email: emailNorm },
         });
         if (existingUser) {
           results.skipped++;
@@ -201,7 +205,7 @@ export class ReferralService {
           where: {
             referralCodeId_recipientEmail: {
               referralCodeId: code.id,
-              recipientEmail: contact.email,
+              recipientEmail: emailNorm,
             },
           },
         });
@@ -214,7 +218,7 @@ export class ReferralService {
           data: {
             referralCodeId: code.id,
             senderUserId: userId,
-            recipientEmail: contact.email,
+            recipientEmail: emailNorm,
             recipientName: contact.name ?? null,
             source: 'bulk_import',
           },
@@ -224,13 +228,13 @@ export class ReferralService {
           where: {
             referralCodeId_referredEmail: {
               referralCodeId: code.id,
-              referredEmail: contact.email,
+              referredEmail: emailNorm,
             },
           },
           create: {
             referralCodeId: code.id,
             referrerId: userId,
-            referredEmail: contact.email,
+            referredEmail: emailNorm,
             status: 'PENDING',
             channel: 'email_invite',
           },
@@ -239,7 +243,7 @@ export class ReferralService {
 
         const referralUrl = `${baseUrl}/signup?ref=${code.code}`;
         await this.emailService.enqueue({
-          toEmail: contact.email,
+          toEmail: emailNorm,
           toName: contact.name ?? 'there',
           subject: referralInvitationSubject(user.name),
           htmlBody: referralInvitationHtml(contact.name ?? 'there', user.name, referralUrl),

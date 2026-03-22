@@ -23,7 +23,8 @@ function SignUpContent() {
   const [trainerRequested, setTrainerRequested] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [referralCode] = useState(searchParams.get("ref") ?? "");
+  /** Read on each render — `ref` must not be snapshotted in `useState` or it can stay empty when params hydrate. */
+  const referralCode = searchParams.get("ref") ?? "";
   const [referrerValid, setReferrerValid] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -126,7 +127,7 @@ function SignUpContent() {
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3">
-            <GoogleSignInButton useOneTap={false} />
+            <GoogleSignInButton useOneTap={false} referralCode={referralCode} />
             <LinkedInSignInButton referralCode={referralCode} />
           </div>
 

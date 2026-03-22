@@ -425,7 +425,11 @@ export class AuthService {
   }
 
   /** Verify Google ID token and create/update user, return our JWT */
-  async verifyGoogleToken(idToken: string): Promise<{ accessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
+  async verifyGoogleToken(idToken: string): Promise<{
+    accessToken: string;
+    user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean };
+    isNewUser: boolean;
+  }> {
     if (!process.env.GOOGLE_CLIENT_ID) {
       throw new UnauthorizedException('Google Sign-In not configured (GOOGLE_CLIENT_ID)');
     }
@@ -441,8 +445,10 @@ export class AuthService {
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ externalId }, { email: payload.email }] },
     });
+    let isNewUser = false;
     let resolved: NonNullable<typeof existing>;
     if (!existing) {
+      isNewUser = true;
       resolved = await this.prisma.user.create({
         data: {
           email: payload.email,
@@ -475,6 +481,7 @@ export class AuthService {
     return {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
+      isNewUser,
     };
   }
 
@@ -482,7 +489,12 @@ export class AuthService {
    * Exchange LinkedIn authorization code for tokens, fetch profile, and
    * create/update user. Returns our JWT.
    */
-  async verifyLinkedInCode(code: string): Promise<{ accessToken: string; linkedinAccessToken: string; user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean } }> {
+  async verifyLinkedInCode(code: string): Promise<{
+    accessToken: string;
+    linkedinAccessToken: string;
+    user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean };
+    isNewUser: boolean;
+  }> {
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
     const redirectUri = process.env.LINKEDIN_CALLBACK_URL || 'http://localhost:3000/auth/linkedin/callback';
@@ -544,8 +556,10 @@ export class AuthService {
       where: { OR: [{ externalId }, { email: profile.email }] },
     });
 
+    let isNewUser = false;
     let resolved: NonNullable<typeof existing>;
     if (!existing) {
+      isNewUser = true;
       resolved = await this.prisma.user.create({
         data: {
           email: profile.email,
@@ -587,6 +601,7 @@ export class AuthService {
         profileComplete: user.profileComplete,
         needsProfileCompletion: !user.profileComplete,
       },
+      isNewUser,
     };
   }
 

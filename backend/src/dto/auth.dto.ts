@@ -59,6 +59,10 @@ export class LoginDto {
 export class GoogleSignInDto {
   @IsString()
   credential: string;
+
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
 
 export class LinkedInSignInDto {

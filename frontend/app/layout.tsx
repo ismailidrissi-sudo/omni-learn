@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Jost } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { BrandingProvider } from "@/components/providers/branding-provider";
@@ -37,7 +38,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${jost.variable} antialiased`} suppressHydrationWarning>
+      <head>
+        <Script
+          id="google-tag-manager"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TKWB89XQ');`,
+          }}
+        />
+      </head>
       <body className="min-h-screen font-sans bg-[#F5F5DC] text-[#1a1212] dark:bg-[#0f1510] dark:text-[#F5F5DC]">
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-TKWB89XQ"
+            height={0}
+            width={0}
+            style={{ display: "none", visibility: "hidden" }}
+            title="Google Tag Manager"
+          />
+        </noscript>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="omnilearn-theme">
           <GoogleAuthProvider>
             <GoogleOneTapGlobal />

@@ -20,6 +20,7 @@ function SignInPageContent() {
   const passwordResetDone = searchParams.get("passwordReset") === "1";
   const resetToken = searchParams.get("resetToken");
   const redirect = searchParams.get("redirect") ?? "/learn";
+  const referralCode = searchParams.get("ref") ?? "";
   const { t } = useI18n();
   const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const [email, setEmail] = useState("");
@@ -264,8 +265,8 @@ function SignInPageContent() {
           ) : (
             <>
           <div className="mt-8 flex flex-col items-center gap-3">
-            <GoogleSignInButton useOneTap={false} />
-            <LinkedInSignInButton />
+            <GoogleSignInButton useOneTap={false} referralCode={referralCode} />
+            <LinkedInSignInButton referralCode={referralCode} />
           </div>
 
           <div className="my-6 flex items-center gap-4">

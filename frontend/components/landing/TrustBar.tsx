@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 
@@ -41,6 +41,7 @@ function formatUserCount(count: number): string {
 export function TrustBar() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [brokenLogos, setBrokenLogos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     apiFetch("/company/stats")
@@ -50,6 +51,10 @@ export function TrustBar() {
       })
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
+  }, []);
+
+  const handleImgError = useCallback((id: string) => {
+    setBrokenLogos((prev) => new Set(prev).add(id));
   }, []);
 
   const companies = stats?.trustedCompanies ?? [];
@@ -101,13 +106,14 @@ export function TrustBar() {
               transition={{ duration: 0.4 }}
               className="flex items-center justify-center h-20 flex-shrink-0"
             >
-              {item.logoUrl ? (
+              {item.logoUrl && !brokenLogos.has(item.id) ? (
                 <img
                   src={item.logoUrl}
                   alt={item.name}
                   title={item.name}
                   className="h-14 w-auto max-w-[160px] object-contain object-center transition-all duration-300 mix-blend-multiply dark:brightness-0 dark:invert dark:opacity-80 hover:scale-105"
                   loading="lazy"
+                  onError={() => handleImgError(item.id)}
                 />
               ) : (
                 <span

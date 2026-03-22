@@ -6,7 +6,14 @@ import { GoogleLogin, useGoogleOneTapLogin } from "@react-oauth/google";
 import { apiFetch, setToken } from "@/lib/api";
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
-export function GoogleSignInButton({ useOneTap = false }: { useOneTap?: boolean }) {
+export function GoogleSignInButton({
+  useOneTap = false,
+  referralCode,
+}: {
+  useOneTap?: boolean;
+  /** From `?ref=` on signup/signin — attributed only when the Google account is new in OmniLearn. */
+  referralCode?: string;
+}) {
   const router = useRouter();
 
   const handleSuccess = useCallback(
@@ -16,7 +23,10 @@ export function GoogleSignInButton({ useOneTap = false }: { useOneTap?: boolean 
       try {
         const res = await apiFetch("/auth/google", {
           method: "POST",
-          body: JSON.stringify({ credential }),
+          body: JSON.stringify({
+            credential,
+            ...(referralCode ? { referralCode } : {}),
+          }),
         });
         if (!res.ok) throw new Error("Auth failed");
         const { accessToken, user } = await res.json();
@@ -30,7 +40,7 @@ export function GoogleSignInButton({ useOneTap = false }: { useOneTap?: boolean 
         console.error("Google sign-in error:", err);
       }
     },
-    [router]
+    [router, referralCode]
   );
 
   const handleError = useCallback(() => {
