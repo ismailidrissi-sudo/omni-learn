@@ -191,7 +191,7 @@ export default function DeepAnalyticsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0f1510]">
+    <div className="min-h-screen bg-[var(--color-bg-primary)]">
       <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={adminNav} />
 
       <AnalyticsFilters
@@ -204,12 +204,12 @@ export default function DeepAnalyticsPage() {
       />
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        <h1 className="text-2xl font-bold text-brand-grey-dark mb-6">Deep Analytics</h1>
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-6">Deep Analytics</h1>
 
         {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-brand-grey-light/30 overflow-x-auto">
+        <div className="flex gap-0.5 mb-6 border-b border-[var(--color-bg-secondary)] overflow-x-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -217,10 +217,10 @@ export default function DeepAnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
                   active
                     ? "border-brand-purple text-brand-purple"
-                    : "border-transparent text-brand-grey hover:text-brand-purple/70 hover:border-brand-purple/30"
+                    : "border-transparent text-[var(--color-text-muted)] hover:text-brand-purple hover:border-brand-purple/30"
                 }`}
               >
                 <Icon size={16} />
@@ -232,10 +232,10 @@ export default function DeepAnalyticsPage() {
 
         {/* Loading state */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
+          <div className="flex items-center justify-center py-24">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-purple border-t-transparent" />
-              <p className="text-sm text-brand-grey">Loading analytics...</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Loading analytics...</p>
             </div>
           </div>
         )}
