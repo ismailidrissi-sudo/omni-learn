@@ -19,11 +19,14 @@ export class MicrolearningController {
     @Query('userId') userId: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    /** When opening /micro/:id, pass seed so that clip is first and the rest follow ML ranking */
+    @Query('seed') seed?: string,
   ) {
     return this.microlearning.getFeed(
       userId || 'anonymous',
       limit ? +limit : 20,
       offset ? +offset : 0,
+      seed?.trim() || undefined,
     );
   }
 

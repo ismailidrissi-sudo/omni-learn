@@ -60,9 +60,15 @@ export default function MicrolearningReels({
 
   const playerRef = useRef<Player | null>(null);
   const videoRef = useRef<HTMLDivElement>(null);
+  const scrollRootRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
 
   const currentItem = items[currentIndex];
+
+  /** Parent loads feed async and passes the correct initialIndex when ready — keep scroll position in sync */
+  useEffect(() => {
+    setCurrentIndex(initialIndex);
+  }, [initialIndex]);
 
   useEffect(() => {
     const initial: Record<string, { liked: boolean; saved: boolean; likeCount: number }> = {};
@@ -92,7 +98,10 @@ export default function MicrolearningReels({
       ...VIDEOJS_DEFAULT_OPTIONS,
       controls: false,
       loop: true,
-      autoplay: true,
+      autoplay: 'any',
+      muted: false,
+      playsinline: true,
+      preload: 'auto',
       fluid: false,
       fill: true,
       responsive: false,
@@ -106,9 +115,30 @@ export default function MicrolearningReels({
     });
 
     playerRef.current = player;
-    setIsPlaying(true);
     setIsCompleted(false);
     setProgress(0);
+
+    /** Browsers often block unmuted autoplay — try with sound first, then muted so each clip starts after open or swipe */
+    const runAutoplay = () => {
+      if (player.isDisposed()) return;
+      void player
+        .play()
+        ?.catch(() => {
+          player.muted(true);
+          return player.play()?.catch(() => {});
+        })
+        ?.catch(() => {});
+    };
+
+    const onPlaying = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    player.on('playing', onPlaying);
+    player.on('pause', onPause);
+
+    player.ready(() => {
+      runAutoplay();
+    });
+    player.one('canplay', runAutoplay);
 
     let watchedSeconds = 0;
     let lastTime = 0;
@@ -151,6 +181,8 @@ export default function MicrolearningReels({
 
     return () => {
       if (playerRef.current && !playerRef.current.isDisposed()) {
+        playerRef.current.off('playing', onPlaying);
+        playerRef.current.off('pause', onPause);
         playerRef.current.dispose();
         playerRef.current = null;
       }
@@ -170,6 +202,19 @@ export default function MicrolearningReels({
     }
   }, [currentIndex]);
 
+  useEffect(() => {
+    const el = scrollRootRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 28) return;
+      e.preventDefault();
+      if (e.deltaY > 0) goToNext();
+      else goToPrev();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [goToNext, goToPrev]);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
   };
@@ -181,6 +226,21 @@ export default function MicrolearningReels({
       else goToPrev();
     }
   };
+
+  const togglePlayPause = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (player.paused()) {
+      if (player.muted()) {
+        player.muted(false);
+      }
+      void player.play()?.catch(() => {});
+      setIsPlaying(true);
+    } else {
+      player.pause();
+      setIsPlaying(false);
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -204,19 +264,7 @@ export default function MicrolearningReels({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNext, goToPrev, onClose]);
-
-  const togglePlayPause = () => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (player.paused()) {
-      player.play();
-      setIsPlaying(true);
-    } else {
-      player.pause();
-      setIsPlaying(false);
-    }
-  };
+  }, [goToNext, goToPrev, onClose, togglePlayPause]);
 
   const handleLike = async () => {
     if (!currentItem) return;
@@ -288,6 +336,7 @@ export default function MicrolearningReels({
 
   return (
     <div
+      ref={scrollRootRef}
       className="fixed inset-0 z-50 bg-black flex items-center justify-center"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -389,6 +438,21 @@ export default function MicrolearningReels({
             </span>
           </button>
 
+          {/* Share — grouped with like & comment as primary social actions */}
+          <button onClick={handleShare} className="flex flex-col items-center gap-1 group">
+            <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center group-hover:bg-black/50 transition-colors">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                />
+              </svg>
+            </div>
+            <span className="text-white text-xs font-medium">Share</span>
+          </button>
+
           {/* Save */}
           <button onClick={handleSave} className="flex flex-col items-center gap-1 group">
             <div
@@ -415,21 +479,6 @@ export default function MicrolearningReels({
               </svg>
             </div>
             <span className="text-white text-xs font-medium">Save</span>
-          </button>
-
-          {/* Share */}
-          <button onClick={handleShare} className="flex flex-col items-center gap-1 group">
-            <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center group-hover:bg-black/50 transition-colors">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                />
-              </svg>
-            </div>
-            <span className="text-white text-xs font-medium">Share</span>
           </button>
         </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/use-user';
 import { apiFetch, API_URL } from '@/lib/api';
@@ -82,11 +82,12 @@ export default function MicroPlayerPage() {
   const [initialIndex, setInitialIndex] = useState(0);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  const initialIdRef = useRef(id);
-
   useEffect(() => {
-    const targetId = initialIdRef.current;
-    apiFetch(`/microlearning/feed?userId=${userId}&limit=50&offset=0`)
+    setLoading(true);
+    setError('');
+    const targetId = id;
+    const seed = encodeURIComponent(targetId);
+    apiFetch(`/microlearning/feed?userId=${encodeURIComponent(userId)}&limit=50&offset=0&seed=${seed}`)
       .then((r) => r.json())
       .then(async (data: MicroItem[]) => {
         const arr = Array.isArray(data) ? data : [];
@@ -107,7 +108,7 @@ export default function MicroPlayerPage() {
       })
       .catch(() => setError('Content not found'))
       .finally(() => setLoading(false));
-  }, [userId]);
+  }, [userId, id]);
 
   const reelsItems: MicrolearningItem[] = items.map((item) => ({
     id: item.id,
@@ -126,7 +127,7 @@ export default function MicroPlayerPage() {
   }));
 
   const handleLike = useCallback(
-    async (contentId: string) => {
+    async (contentId: string, _liked?: boolean) => {
       if (userId === 'anonymous') {
         setAuthModalOpen(true);
         return;

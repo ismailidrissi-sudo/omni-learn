@@ -188,6 +188,66 @@ export class IntelligenceService {
     return scored.map((s) => ({ ...s.item, relevance: s.score }));
   }
 
+  /**
+   * Order MICRO_LEARNING ids for a vertical feed: optional seed first, then ML-ranked
+   * (LightFM when configured, else embedding + profile similarity via getContentRecommendations).
+   */
+  async getMicrolearningFeedOrder(
+    userId: string,
+    seedContentId: string | undefined,
+    limit: number,
+  ): Promise<string[]> {
+    const microItems = await this.prisma.contentItem.findMany({
+      where: { type: 'MICRO_LEARNING' },
+      select: { id: true, title: true, description: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    if (microItems.length === 0) return [];
+
+    const microIds = new Set(microItems.map((m) => m.id));
+    let seedQuery = '';
+    if (seedContentId) {
+      const seed = microItems.find((m) => m.id === seedContentId);
+      if (seed) {
+        seedQuery = `${seed.title} ${seed.description ?? ''}`.trim();
+      }
+    }
+
+    const recs = await this.getContentRecommendations(
+      userId,
+      seedQuery || undefined,
+      Math.max(limit * 4, 40),
+      seedContentId && microIds.has(seedContentId) ? [seedContentId] : [],
+    );
+
+    const ordered: string[] = [];
+    const seen = new Set<string>();
+
+    if (seedContentId && microIds.has(seedContentId)) {
+      ordered.push(seedContentId);
+      seen.add(seedContentId);
+    }
+
+    for (const r of recs) {
+      if ((r as { type?: string }).type !== 'MICRO_LEARNING') continue;
+      if (seen.has(r.id)) continue;
+      ordered.push(r.id);
+      seen.add(r.id);
+      if (ordered.length >= limit) break;
+    }
+
+    for (const m of microItems) {
+      if (ordered.length >= limit) break;
+      if (!seen.has(m.id)) {
+        ordered.push(m.id);
+        seen.add(m.id);
+      }
+    }
+
+    return ordered.slice(0, limit);
+  }
+
   /** Trending content based on real engagement signals */
   async getTrendingContent(limit = 10) {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

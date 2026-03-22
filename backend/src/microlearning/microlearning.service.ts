@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { IntelligenceService } from '../intelligence/intelligence.service';
 
 /**
  * Microlearning Service — TikTok/Reels-style feed, likes, comments, share
@@ -8,7 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MicrolearningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly intelligence: IntelligenceService,
+  ) {}
 
   /** Get all content assigned to a user (from enrollments + MICRO_LEARNING) */
   async getAssignedContent(userId: string) {
@@ -84,14 +88,21 @@ export class MicrolearningService {
     };
   }
 
-  /** Get microlearning feed for user (assigned + recommended) */
-  async getFeed(userId: string, limit = 20, offset = 0) {
-    const items = await this.prisma.contentItem.findMany({
-      where: { type: 'MICRO_LEARNING' },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
+  /** Get microlearning feed for user — ML-ranked; optional seed puts that clip first for deep links */
+  async getFeed(userId: string, limit = 20, offset = 0, seedContentId?: string) {
+    const orderedIds = await this.intelligence.getMicrolearningFeedOrder(
+      userId,
+      seedContentId,
+      limit + offset,
+    );
+    const slice = orderedIds.slice(offset, offset + limit);
+    if (slice.length === 0) return [];
+
+    const rows = await this.prisma.contentItem.findMany({
+      where: { id: { in: slice } },
     });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const items = slice.map((id) => byId.get(id)).filter((c): c is NonNullable<typeof c> => c != null);
 
     const contentIds = items.map((c) => c.id);
 
