@@ -12,6 +12,8 @@ import { ToastContainer } from "@/components/ui/toast";
 import { SessionTracker } from "@/components/providers/session-tracker";
 import "./globals.css";
 
+const GA_MEASUREMENT_ID = "G-F5378K8LEG";
+
 const jost = Jost({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
@@ -61,6 +63,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             title="Google Tag Manager"
           />
         </noscript>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics-gtag" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="omnilearn-theme">
           <GoogleAuthProvider>
             <GoogleOneTapGlobal />
