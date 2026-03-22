@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailPriority, PRIORITY_TO_ENUM } from './constants';
 import { BrandingResolverService } from './templates/branding-resolver.service';
@@ -167,6 +168,19 @@ export class EmailService {
 
       return entry.id;
     } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        params.idempotencyKey
+      ) {
+        const existing = await this.db.emailQueue.findUnique({
+          where: { idempotencyKey: params.idempotencyKey },
+        });
+        if (existing) {
+          this.logger.log(`Idempotent skip (unique conflict): ${params.idempotencyKey}`);
+          return existing.id;
+        }
+      }
       this.logger.error(
         `Failed to enqueue email to=${params.toEmail} type=${params.emailType}: ${error}`,
       );

@@ -4,9 +4,10 @@ import { CourseEnrollmentService } from './course-enrollment.service';
 import { AuthModule } from '../auth/auth.module';
 import { CertificateModule } from '../certificate/certificate.module';
 import { NotificationModule } from '../notification/notification.module';
+import { ReferralModule } from '../referral/referral.module';
 
 @Module({
-  imports: [AuthModule, CertificateModule, NotificationModule],
+  imports: [AuthModule, CertificateModule, NotificationModule, ReferralModule],
   controllers: [CourseEnrollmentController],
   providers: [CourseEnrollmentService],
   exports: [CourseEnrollmentService],

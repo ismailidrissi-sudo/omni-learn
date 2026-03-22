@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -16,6 +16,7 @@ function VerifyContent() {
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
+  const verifyStarted = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -23,6 +24,8 @@ function VerifyContent() {
       setMessage("Missing verification token");
       return;
     }
+    if (verifyStarted.current) return;
+    verifyStarted.current = true;
     apiFetch(`/profile/verify-email?token=${encodeURIComponent(token)}`)
       .then((r) => r.json())
       .then((data) => {

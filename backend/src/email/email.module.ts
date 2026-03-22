@@ -1,5 +1,4 @@
 import { Module, Global } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
 import { EmailService } from './email.service';
 import { EmailProcessorService } from './email-processor.service';
 import { EmailConfigService } from './email-config.service';
@@ -37,7 +36,6 @@ import { UnsubscribeController } from './unsubscribe.controller';
 
 @Global()
 @Module({
-  imports: [ScheduleModule.forRoot()],
   controllers: [
     EmailAdminController,
     EmailCampaignAdminController,

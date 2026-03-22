@@ -343,23 +343,23 @@ export class ProfileService {
   }
 
   async verifyEmail(token: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        emailVerifyToken: token,
-        emailVerifyExpiresAt: { gt: new Date() },
-      },
-      include: { tenant: true },
-    });
-    if (!user) {
+    const now = new Date();
+    // Single atomic UPDATE so concurrent verify requests cannot both enqueue welcome/activation emails.
+    const applied = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      UPDATE "User"
+      SET "emailVerified" = true,
+          "emailVerifyToken" = null,
+          "emailVerifyExpiresAt" = null
+      WHERE "emailVerifyToken" = ${token}
+        AND "emailVerifyExpiresAt" > ${now}
+      RETURNING id
+    `;
+    if (!applied.length) {
       throw new BadRequestException('Invalid or expired verification link');
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        emailVerifyToken: null,
-        emailVerifyExpiresAt: null,
-      },
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: applied[0].id },
+      include: { tenant: true },
     });
 
     if (user.tenantId && user.orgApprovalStatus === OrgApprovalStatus.PENDING) {

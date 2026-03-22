@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CertificateService } from '../certificate/certificate.service';
 import { NotificationService } from '../notification/notification.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
+import { ReferralService } from '../referral/referral.service';
 import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class CourseEnrollmentService {
     private readonly certificateService: CertificateService,
     private readonly notificationService: NotificationService,
     private readonly transactionalEmail: TransactionalEmailService,
+    private readonly referralService: ReferralService,
   ) {}
 
   async enrollUser(userId: string, courseId: string, deadline?: Date, opts?: { actorUserId?: string }) {
@@ -56,6 +58,11 @@ export class CourseEnrollmentService {
 
     void this.notifyEnrollmentEmail(userId, courseId, course.title, opts?.actorUserId).catch((err) =>
       this.logger.warn(`Enrollment email failed: ${err}`),
+    );
+
+    /** Referral "converted" = referred user enrolled in at least one course (free or paid). */
+    void this.referralService.convertReferral(userId).catch((err) =>
+      this.logger.warn(`Referral convertReferral after course enrollment failed: ${err}`),
     );
 
     return enrollment;

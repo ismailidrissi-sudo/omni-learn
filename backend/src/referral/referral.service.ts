@@ -108,6 +108,7 @@ export class ReferralService {
     });
   }
 
+  /** Mark converted when the referred user completes their first course enrollment (free or paid). See CourseEnrollmentService.enrollUser. */
   async convertReferral(referredUserId: string) {
     const referral = await this.prisma.referral.findFirst({
       where: { referredUserId, status: 'SIGNED_UP' },
