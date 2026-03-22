@@ -12,6 +12,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚" },
@@ -137,6 +138,25 @@ export default function AdminPathsPage() {
     setView("builder");
   };
 
+  const handleDeletePath = async (path: PathItem) => {
+    if (!confirm(t("admin.pathDeleteConfirm", { name: path.name }))) return;
+    try {
+      const res = await apiFetch(`/learning-paths/${path.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPaths((prev) => prev.filter((p) => p.id !== path.id));
+        if (editingPath?.id === path.id) {
+          setEditingPath(null);
+          setView("list");
+        }
+        toast(t("admin.pathDeleted", { name: path.name }), "success");
+      } else {
+        toast(t("admin.pathDeleteFailed"), "error");
+      }
+    } catch {
+      toast(t("admin.pathDeleteFailed"), "error");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <AppBurgerHeader logoHref="/" logo={<LearnLogo size="md" variant="purple" />} items={adminNav} />
@@ -213,6 +233,13 @@ export default function AdminPathsPage() {
                         onClick={() => handleEditPath(path)}
                       >
                         {t("common.edit")}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeletePath(path)}
+                      >
+                        {t("common.delete")}
                       </Button>
                     </div>
                   </Card>

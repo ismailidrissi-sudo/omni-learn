@@ -49,6 +49,26 @@ const DEFAULT_FILTERS: Filters = {
   search: "",
 };
 
+async function parseAnalyticsJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error("Invalid response from server.");
+  }
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    if (body && typeof body === "object" && body !== null && "message" in body) {
+      const m = (body as { message: unknown }).message;
+      if (Array.isArray(m)) msg = m.join(", ");
+      else if (typeof m === "string") msg = m;
+    }
+    throw new Error(msg);
+  }
+  return body as T;
+}
+
 export default function DeepAnalyticsPage() {
   const { t } = useI18n();
   const adminNav = useMemo(() => adminHubNavItems(t), [t]);
@@ -69,6 +89,16 @@ export default function DeepAnalyticsPage() {
     avgSessionDuration: number; totalPageViews: number; totalEnrollments: number;
     totalCompletions: number; completionRate: number; totalLearningHours: number;
   };
+  type TimelinePoint = { date: string; sessions: number };
+  type BrowsersBreakdown = {
+    browsers: { name: string; count: number }[];
+    operatingSystems: { name: string; count: number }[];
+  };
+  type DeviceRow = { deviceType: string; count: number; percentage: number };
+  type FunnelStage = { stage: string; count: number };
+  type VelocityRow = { courseId: string; title: string; avgDaysToComplete: number; completions: number };
+  type RetentionRow = { cohort: string; months: { month: string; users: number }[] };
+  type GeoAnalytics = { countries?: { country: string }[] };
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [timeline, setTimeline] = useState<{ date: string; sessions: number }[]>([]);
@@ -131,11 +161,11 @@ export default function DeepAnalyticsPage() {
     try {
       if (activeTab === "overview") {
         const [ov, tl, hm, dv, br] = await Promise.all([
-          apiFetch(`/analytics/deep/overview?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/timeline?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/heatmap?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/devices?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/browsers?${filtersQuery}`).then((r) => r.json()),
+          apiFetch(`/analytics/deep/overview?${filtersQuery}`).then((r) => parseAnalyticsJson<OverviewData>(r)),
+          apiFetch(`/analytics/deep/timeline?${filtersQuery}`).then((r) => parseAnalyticsJson<TimelinePoint[]>(r)),
+          apiFetch(`/analytics/deep/heatmap?${filtersQuery}`).then((r) => parseAnalyticsJson<number[][]>(r)),
+          apiFetch(`/analytics/deep/devices?${filtersQuery}`).then((r) => parseAnalyticsJson<DeviceRow[]>(r)),
+          apiFetch(`/analytics/deep/browsers?${filtersQuery}`).then((r) => parseAnalyticsJson<BrowsersBreakdown>(r)),
         ]);
         setOverview(ov);
         setTimeline(tl);
@@ -144,33 +174,34 @@ export default function DeepAnalyticsPage() {
         setBrowsers(br);
       } else if (activeTab === "users") {
         const q = `${filtersQuery}&page=${usersPage}&limit=25&sortBy=${sortBy}&sortOrder=${sortOrder}`;
-        const data = await apiFetch(`/analytics/deep/users?${q}`).then((r) => r.json());
+        const data = await apiFetch(`/analytics/deep/users?${q}`).then((r) => parseAnalyticsJson<unknown>(r));
         setUsersData(data);
       } else if (activeTab === "content") {
         const q = `${filtersQuery}&page=${contentPage}&limit=25`;
-        const data = await apiFetch(`/analytics/deep/content?${q}`).then((r) => r.json());
+        const data = await apiFetch(`/analytics/deep/content?${q}`).then((r) => parseAnalyticsJson<unknown>(r));
         setContentData(data);
       } else if (activeTab === "geo") {
-        const data = await apiFetch(`/analytics/deep/geo?${filtersQuery}`).then((r) => r.json());
+        const data = await apiFetch(`/analytics/deep/geo?${filtersQuery}`).then((r) => parseAnalyticsJson<GeoAnalytics>(r));
         setGeoData(data);
         if (data.countries) {
-          setCountries(data.countries.map((c: { country: string }) => c.country).filter(Boolean));
+          setCountries(data.countries.map((c) => c.country).filter(Boolean));
         }
       } else if (activeTab === "demographics") {
-        const data = await apiFetch(`/analytics/deep/demographics?${filtersQuery}`).then((r) => r.json());
+        const data = await apiFetch(`/analytics/deep/demographics?${filtersQuery}`).then((r) => parseAnalyticsJson<unknown>(r));
         setDemographics(data);
       } else if (activeTab === "engagement") {
         const [fn, vel, ret] = await Promise.all([
-          apiFetch(`/analytics/deep/funnel?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/velocity?${filtersQuery}`).then((r) => r.json()),
-          apiFetch(`/analytics/deep/retention?${filtersQuery}`).then((r) => r.json()),
+          apiFetch(`/analytics/deep/funnel?${filtersQuery}`).then((r) => parseAnalyticsJson<FunnelStage[]>(r)),
+          apiFetch(`/analytics/deep/velocity?${filtersQuery}`).then((r) => parseAnalyticsJson<VelocityRow[]>(r)),
+          apiFetch(`/analytics/deep/retention?${filtersQuery}`).then((r) => parseAnalyticsJson<RetentionRow[]>(r)),
         ]);
         setFunnel(fn);
         setVelocity(vel);
         setRetention(ret);
       }
-    } catch {
-      setError("Failed to load analytics data. Please try again.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load analytics data. Please try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

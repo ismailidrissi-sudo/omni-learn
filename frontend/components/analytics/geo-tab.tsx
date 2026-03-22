@@ -58,8 +58,12 @@ export function GeoTab({ data, filters }: Props) {
           </button>
         </CardHeader>
         <CardContent>
-          {leafletReady && data.locations.length > 0 ? (
-            <div className="h-[420px] rounded-lg overflow-hidden border border-[var(--color-bg-secondary)]">
+          {!leafletReady ? (
+            <div className="h-[420px] flex items-center justify-center bg-[var(--color-bg-secondary)]/30 rounded-lg border border-[var(--color-bg-secondary)]">
+              <p className="text-sm text-[var(--color-text-muted)]">Loading map...</p>
+            </div>
+          ) : (
+            <div className="relative h-[420px] rounded-lg overflow-hidden border border-[var(--color-bg-secondary)]">
               <MapContainer center={[30, 10]} zoom={2} style={{ height: "100%", width: "100%" }} scrollWheelZoom={true}>
                 <TileLayer attribution={tileAttr} url={tileUrl} />
                 {data.locations.map((loc, i) => (
@@ -75,12 +79,14 @@ export function GeoTab({ data, filters }: Props) {
                   </CircleMarker>
                 ))}
               </MapContainer>
-            </div>
-          ) : (
-            <div className="h-[420px] flex items-center justify-center bg-[var(--color-bg-secondary)]/30 rounded-lg">
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {data.locations.length === 0 ? "No location data available yet" : "Loading map..."}
-              </p>
+              {data.locations.length === 0 && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--color-bg-primary)]/55 backdrop-blur-[1px]">
+                  <p className="pointer-events-auto max-w-md px-4 text-center text-sm text-[var(--color-text-muted)]">
+                    No location pins yet. Pins are added from IP geolocation when users start a session (local dev and
+                    some proxy setups often have no coordinates).
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

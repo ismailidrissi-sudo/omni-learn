@@ -232,36 +232,77 @@ export class DeepAnalyticsService {
       this.prisma.contentItem.count({ where }),
     ]);
 
-    const enriched = await Promise.all(
-      items.map(async (item) => {
-        const [pageViews, uniqueViewers, videoProgress, courseEnrollments] = await Promise.all([
-          this.prisma.pageView.count({ where: { contentId: item.id } }),
-          this.prisma.pageView.groupBy({ by: ['userId'], where: { contentId: item.id } }).then((r) => r.length),
-          this.prisma.videoWatchProgress.aggregate({
-            where: { contentId: item.id },
-            _avg: { watchedSeconds: true, watchPercentage: true },
-            _sum: { watchedSeconds: true },
-          }),
-          this.prisma.courseEnrollment.findMany({
-            where: { courseId: item.id },
-            select: { status: true },
-          }),
-        ]);
+    const ids = items.map((i) => i.id);
+    if (ids.length === 0) {
+      return { content: [], total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
 
-        const completed = courseEnrollments.filter((e) => e.status === 'COMPLETED').length;
-        const completionRate = courseEnrollments.length > 0 ? Math.round((completed / courseEnrollments.length) * 100) : 0;
-
-        return {
-          ...item,
-          domainName: item.domain?.name || null,
-          views: pageViews,
-          uniqueViewers,
-          avgDurationSeconds: Math.round(videoProgress._avg.watchedSeconds || 0),
-          completionRate,
-          totalWatchHours: Math.round((videoProgress._sum.watchedSeconds || 0) / 3600 * 10) / 10,
-        };
+    const [viewCounts, uniquePairs, videoAggs, enrollGroups] = await Promise.all([
+      this.prisma.pageView.groupBy({
+        by: ['contentId'],
+        where: { contentId: { in: ids } },
+        _count: true,
       }),
+      this.prisma.pageView.groupBy({
+        by: ['contentId', 'userId'],
+        where: { contentId: { in: ids } },
+        _count: true,
+      }),
+      this.prisma.videoWatchProgress.groupBy({
+        by: ['contentId'],
+        where: { contentId: { in: ids } },
+        _avg: { watchedSeconds: true, watchPercentage: true },
+        _sum: { watchedSeconds: true },
+      }),
+      this.prisma.courseEnrollment.groupBy({
+        by: ['courseId', 'status'],
+        where: { courseId: { in: ids } },
+        _count: true,
+      }),
+    ]);
+
+    const viewsByContent = new Map<string, number>();
+    for (const row of viewCounts) {
+      if (row.contentId) viewsByContent.set(row.contentId, row._count);
+    }
+
+    const uniqueByContent = new Map<string, number>();
+    for (const row of uniquePairs) {
+      if (!row.contentId) continue;
+      uniqueByContent.set(row.contentId, (uniqueByContent.get(row.contentId) || 0) + 1);
+    }
+
+    const videoByContent = new Map(
+      videoAggs
+        .filter((v): v is typeof v & { contentId: string } => v.contentId != null)
+        .map((v) => [v.contentId, v] as const),
     );
+
+    const enrollByCourse = new Map<string, { total: number; completed: number }>();
+    for (const row of enrollGroups) {
+      if (!row.courseId) continue;
+      const cur = enrollByCourse.get(row.courseId) || { total: 0, completed: 0 };
+      cur.total += row._count;
+      if (row.status === 'COMPLETED') cur.completed += row._count;
+      enrollByCourse.set(row.courseId, cur);
+    }
+
+    const enriched = items.map((item) => {
+      const v = videoByContent.get(item.id);
+      const enroll = enrollByCourse.get(item.id);
+      const completionRate =
+        enroll && enroll.total > 0 ? Math.round((enroll.completed / enroll.total) * 100) : 0;
+      const sumWatched = v?._sum?.watchedSeconds ?? 0;
+      return {
+        ...item,
+        domainName: item.domain?.name || null,
+        views: viewsByContent.get(item.id) ?? 0,
+        uniqueViewers: uniqueByContent.get(item.id) ?? 0,
+        avgDurationSeconds: Math.round(v?._avg?.watchedSeconds || 0),
+        completionRate,
+        totalWatchHours: Math.round(((Number(sumWatched) || 0) / 3600) * 10) / 10,
+      };
+    });
 
     return { content: enriched, total, page, limit, totalPages: Math.ceil(total / limit) };
   }

@@ -50,6 +50,8 @@ services:
       LIGHTFM_SERVICE_URL: http://recommendations:5000
       VIDEO_PROXY_SERVICE_URL: http://video-proxy:5001
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+    volumes:
+      - backend_data:/app/data
     networks:
       - omnilearn-net
 
@@ -143,6 +145,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backend_data:
   recommendations_data:
 
 networks:
