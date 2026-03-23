@@ -150,6 +150,7 @@ export default function MicroPlayerPage() {
     id: item.id,
     contentId: item.id,
     streamEndpoint: item.resolvedStreamUrl ?? getVideoUrl(item),
+    sourceUrl: getVideoUrl(item),
     title: item.title,
     description: item.description || '',
     authorName: '',

@@ -9,11 +9,35 @@ import '@/styles/videojs-reels.css';
 import { VIDEOJS_DEFAULT_OPTIONS, COMPLETION_CONFIG } from '@/lib/videojs/config';
 import { inferVideoJsMimeType } from '@/lib/videojs/infer-source-type';
 import { apiFetch } from '@/lib/api';
+import { detectProvider } from '@/lib/video-provider';
+import { absolutePlaybackUrl } from '@/lib/video-playback-url';
+
+/** If streamEndpoint is still a YouTube/Vimeo page URL (e.g. resolve timed out), we embed instead of Video.js */
+function iframeSrcForPageUrl(streamUrl: string): string | null {
+  const u = streamUrl.trim();
+  if (!u) return null;
+  const d = detectProvider(u);
+  if (d.provider === 'youtube' && d.videoId) {
+    return `https://www.youtube-nocookie.com/embed/${d.videoId}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`;
+  }
+  if (d.provider === 'vimeo' && d.videoId) {
+    return `https://player.vimeo.com/video/${d.videoId}?autoplay=1&muted=1&playsinline=1`;
+  }
+  if (d.provider === 'dailymotion' && d.videoId) {
+    return `https://www.dailymotion.com/embed/video/${d.videoId}?autoplay=1&mute=1`;
+  }
+  if (d.provider === 'wistia' && d.embedUrl) {
+    return `${d.embedUrl}${d.embedUrl.includes('?') ? '&' : '?'}autoplay=1&muted=1`;
+  }
+  return null;
+}
 
 export interface MicrolearningItem {
   id: string;
   contentId: string;
   streamEndpoint: string;
+  /** Original URL from content metadata (optional; reserved for future fallbacks) */
+  sourceUrl?: string;
   title: string;
   description: string;
   authorName: string;
@@ -85,14 +109,49 @@ export default function MicrolearningReels({
   useEffect(() => {
     if (!videoRef.current || !currentItem) return;
 
+    const mount = videoRef.current;
+
     if (playerRef.current && !playerRef.current.isDisposed()) {
       playerRef.current.dispose();
+      playerRef.current = null;
+    }
+    mount.innerHTML = '';
+
+    const stream = (currentItem.streamEndpoint || '').trim();
+    const pageEmbed = iframeSrcForPageUrl(stream);
+    const absSrc = absolutePlaybackUrl(stream);
+
+    /** YouTube/Vimeo page URLs are not playable in Video.js — use official embed (works when resolve timed out or proxy is down) */
+    if (pageEmbed) {
+      const iframe = document.createElement('iframe');
+      iframe.src = pageEmbed;
+      iframe.className = 'absolute inset-0 w-full h-full min-h-full border-0';
+      iframe.setAttribute(
+        'allow',
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen',
+      );
+      iframe.setAttribute('allowFullScreen', '');
+      iframe.title = currentItem.title;
+      mount.appendChild(iframe);
+      setIsPlaying(true);
+      setIsCompleted(false);
+      setProgress(0);
+      return () => {
+        mount.innerHTML = '';
+      };
+    }
+
+    if (!absSrc) {
+      setIsPlaying(false);
+      setProgress(0);
+      return () => {
+        mount.innerHTML = '';
+      };
     }
 
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-reels-player');
-    videoRef.current.innerHTML = '';
-    videoRef.current.appendChild(videoElement);
+    mount.appendChild(videoElement);
 
     const player = videojs(videoElement, {
       ...VIDEOJS_DEFAULT_OPTIONS,
@@ -108,8 +167,8 @@ export default function MicrolearningReels({
       playbackRates: [1],
       sources: [
         {
-          src: currentItem.streamEndpoint,
-          type: inferVideoJsMimeType(currentItem.streamEndpoint),
+          src: absSrc,
+          type: inferVideoJsMimeType(absSrc),
         },
       ],
     });
@@ -118,7 +177,6 @@ export default function MicrolearningReels({
     setIsCompleted(false);
     setProgress(0);
 
-    /** Browsers often block unmuted autoplay — try with sound first, then muted so each clip starts after open or swipe */
     const runAutoplay = () => {
       if (player.isDisposed()) return;
       void player
@@ -179,16 +237,48 @@ export default function MicrolearningReels({
       }
     });
 
+    const onError = () => {
+      const fallback = (currentItem.sourceUrl || '').trim();
+      const fbEmbed = iframeSrcForPageUrl(fallback);
+      if (!fbEmbed) return;
+      try {
+        if (playerRef.current && !playerRef.current.isDisposed()) {
+          playerRef.current.off('playing', onPlaying);
+          playerRef.current.off('pause', onPause);
+          playerRef.current.off('error', onError);
+          playerRef.current.dispose();
+          playerRef.current = null;
+        }
+        mount.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.src = fbEmbed;
+        iframe.className = 'absolute inset-0 w-full h-full min-h-full border-0';
+        iframe.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen',
+        );
+        iframe.setAttribute('allowFullScreen', '');
+        iframe.title = currentItem.title;
+        mount.appendChild(iframe);
+        setIsPlaying(true);
+      } catch {
+        /* keep Video.js error UI if swap fails */
+      }
+    };
+    player.on('error', onError);
+
     return () => {
       if (playerRef.current && !playerRef.current.isDisposed()) {
         playerRef.current.off('playing', onPlaying);
         playerRef.current.off('pause', onPause);
+        playerRef.current.off('error', onError);
         playerRef.current.dispose();
         playerRef.current = null;
       }
+      mount.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, currentItem?.streamEndpoint]);
+  }, [currentIndex, currentItem?.streamEndpoint, currentItem?.sourceUrl]);
 
   const goToNext = useCallback(() => {
     if (currentIndex < items.length - 1) {

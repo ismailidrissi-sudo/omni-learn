@@ -8,6 +8,7 @@ import '@/styles/videojs-omnilearn.css';
 import { VIDEOJS_DEFAULT_OPTIONS, COMPLETION_CONFIG } from '@/lib/videojs/config';
 import { inferVideoJsMimeType } from '@/lib/videojs/infer-source-type';
 import { apiFetch } from '@/lib/api';
+import { absolutePlaybackUrl } from '@/lib/video-playback-url';
 import { CompletionBadge } from './CompletionBadge';
 
 export interface WatchProgress {
@@ -147,14 +148,16 @@ export default function OmniLearnPlayer({
     if (!allowSeeking) videoElement.classList.add('vjs-seeking-disabled');
     videoRef.current.appendChild(videoElement);
 
+    const playUrl = absolutePlaybackUrl(streamEndpoint);
+
     const options: Record<string, unknown> = {
       ...VIDEOJS_DEFAULT_OPTIONS,
       autoplay,
       poster,
       sources: [
         {
-          src: streamEndpoint,
-          type: inferVideoJsMimeType(streamEndpoint),
+          src: playUrl,
+          type: inferVideoJsMimeType(playUrl),
         },
       ],
     };
