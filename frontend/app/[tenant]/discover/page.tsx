@@ -11,6 +11,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 type ContentItem = {
   id: string;
@@ -108,7 +109,7 @@ export default function TenantDiscoverPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {content.map((item) => (
-              <Link key={item.id} href={`/${slug}/content/${item.id}`}>
+              <Link key={item.id} href={learnerContentHref(item.type, item.id, { tenantSlug: slug })}>
                 <div className="card-brand p-5 h-full hover:shadow-md transition-shadow cursor-pointer">
                   <div className="flex items-center gap-2 mb-3">
                     <span

@@ -12,22 +12,25 @@ import { apiFetch } from '@/lib/api';
 import { detectProvider } from '@/lib/video-provider';
 import { absolutePlaybackUrl } from '@/lib/video-playback-url';
 
-/** If streamEndpoint is still a YouTube/Vimeo page URL (e.g. resolve timed out), we embed instead of Video.js */
+/**
+ * If streamEndpoint is still a YouTube/Vimeo page URL (e.g. resolve timed out), we embed instead of Video.js.
+ * Embeds omit mute so audio plays when the browser allows (learners open /micro via tap, which unlocks autoplay with sound on many devices).
+ */
 function iframeSrcForPageUrl(streamUrl: string): string | null {
   const u = streamUrl.trim();
   if (!u) return null;
   const d = detectProvider(u);
   if (d.provider === 'youtube' && d.videoId) {
-    return `https://www.youtube-nocookie.com/embed/${d.videoId}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`;
+    return `https://www.youtube-nocookie.com/embed/${d.videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
   }
   if (d.provider === 'vimeo' && d.videoId) {
-    return `https://player.vimeo.com/video/${d.videoId}?autoplay=1&muted=1&playsinline=1`;
+    return `https://player.vimeo.com/video/${d.videoId}?autoplay=1&muted=0&playsinline=1`;
   }
   if (d.provider === 'dailymotion' && d.videoId) {
-    return `https://www.dailymotion.com/embed/video/${d.videoId}?autoplay=1&mute=1`;
+    return `https://www.dailymotion.com/embed/video/${d.videoId}?autoplay=1&mute=0`;
   }
   if (d.provider === 'wistia' && d.embedUrl) {
-    return `${d.embedUrl}${d.embedUrl.includes('?') ? '&' : '?'}autoplay=1&muted=1`;
+    return `${d.embedUrl}${d.embedUrl.includes('?') ? '&' : '?'}autoplay=1`;
   }
   return null;
 }
@@ -128,7 +131,7 @@ export default function MicrolearningReels({
       iframe.className = 'absolute inset-0 w-full h-full min-h-full border-0';
       iframe.setAttribute(
         'allow',
-        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen',
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share',
       );
       iframe.setAttribute('allowFullScreen', '');
       iframe.title = currentItem.title;
@@ -179,13 +182,11 @@ export default function MicrolearningReels({
 
     const runAutoplay = () => {
       if (player.isDisposed()) return;
-      void player
-        .play()
-        ?.catch(() => {
-          player.muted(true);
-          return player.play()?.catch(() => {});
-        })
-        ?.catch(() => {});
+      player.muted(false);
+      if (typeof player.volume === 'function') {
+        player.volume(1);
+      }
+      void player.play()?.catch(() => {});
     };
 
     const onPlaying = () => setIsPlaying(true);
@@ -255,7 +256,7 @@ export default function MicrolearningReels({
         iframe.className = 'absolute inset-0 w-full h-full min-h-full border-0';
         iframe.setAttribute(
           'allow',
-          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share',
         );
         iframe.setAttribute('allowFullScreen', '');
         iframe.title = currentItem.title;

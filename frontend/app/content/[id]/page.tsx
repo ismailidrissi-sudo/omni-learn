@@ -16,6 +16,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 type ContentItem = {
   id: string;
@@ -67,6 +68,10 @@ export default function ContentPage() {
       })
       .then((c) => {
         if (!c?.type) throw new Error("Invalid content");
+        if (c.type === "MICRO_LEARNING") {
+          router.replace(learnerContentHref("MICRO_LEARNING", id));
+          return;
+        }
         setContent(c);
         track("CONTENT_VIEW", { contentId: id });
         if (c.type === "COURSE") {

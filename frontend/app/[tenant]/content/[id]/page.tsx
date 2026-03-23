@@ -10,6 +10,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 import { SmartVideo } from "@/components/media/smart-video";
 import { CourseReviews } from "@/components/learning/course-reviews";
 
@@ -57,6 +58,10 @@ export default function TenantContentPage() {
         return r.json();
       })
       .then((c) => {
+        if (c?.type === "MICRO_LEARNING" && slug) {
+          router.replace(learnerContentHref("MICRO_LEARNING", contentId, { tenantSlug: slug }));
+          return;
+        }
         setContent(c);
         if (c?.type === "COURSE") {
           apiFetch(`/curriculum/courses/${contentId}`)

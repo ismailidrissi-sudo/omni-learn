@@ -11,6 +11,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { discoverNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 type ContentItem = {
   id: string;
@@ -68,7 +69,7 @@ function ContentCard({ item, rank }: { item: ContentItem; rank?: number }) {
   const thumbUrl = landingMeta?.thumbnailUrl;
 
   return (
-    <Link href={`/content/${item.id}`} className="block group">
+    <Link href={learnerContentHref(item.type, item.id)} className="block group">
       <div className="relative h-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:shadow-lg hover:shadow-brand-purple/5 hover:border-brand-purple/30 dark:hover:border-brand-purple/40 transition-all duration-200 overflow-hidden">
         {rank != null && (
           <div className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-brand-purple text-white text-xs font-bold flex items-center justify-center shadow-md">

@@ -9,6 +9,7 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 type PathStep = {
   id: string;
@@ -201,7 +202,7 @@ export default function PathDetailPage() {
                       return (
                         <Link
                           key={step.id}
-                          href={`/content/${ci.id}`}
+                          href={learnerContentHref(ci?.type, ci.id)}
                           className="flex items-start gap-4 p-4 rounded-xl border border-brand-grey-light dark:border-gray-700 hover:border-brand-purple/40 hover:shadow-md transition-all group"
                         >
                           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-purple/10 text-brand-purple font-bold text-sm flex items-center justify-center">

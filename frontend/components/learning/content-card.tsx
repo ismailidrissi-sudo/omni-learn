@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 const TYPE_META: Record<string, { icon: string; label: string; color: string }> = {
   COURSE: { icon: "📚", label: "Course", color: "#059669" },
@@ -40,7 +41,8 @@ export function ContentCard({
 }: ContentCardProps) {
   const meta = TYPE_META[type] ?? { icon: "📎", label: type, color: "#C4A574" };
   const isCourse = type === "COURSE";
-  const link = href ?? (isCourse && enrolled ? `/course/${id}` : `/content/${id}`);
+  const link =
+    href ?? (isCourse && enrolled ? `/course/${id}` : learnerContentHref(type, id));
 
   return (
     <Link

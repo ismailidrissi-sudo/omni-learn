@@ -102,9 +102,13 @@ export function TrendingContent() {
     return () => { cancelled = true; };
   }, [userId]);
 
-  const handleContentClick = (id: string, type: "course" | "podcast") => {
+  const handleContentClick = (id: string, kind: "course" | "podcast" | "micro") => {
     if (!isSignedIn) {
-      setAuthModal({ open: true, type });
+      setAuthModal({ open: true, type: kind === "micro" ? "micro" : kind });
+      return;
+    }
+    if (kind === "micro") {
+      window.location.href = `/micro/${id}`;
       return;
     }
     window.location.href = `/content/${id}`;
@@ -292,7 +296,16 @@ export function TrendingContent() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => handleContentClick(item.id, "course")}
+                    onClick={() =>
+                      handleContentClick(
+                        item.id,
+                        item.type === "MICRO_LEARNING"
+                          ? "micro"
+                          : item.type === "PODCAST"
+                            ? "podcast"
+                            : "course",
+                      )
+                    }
                     className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] overflow-hidden hover:border-[#059669] hover:shadow-lg transition group"
                   >
                     {recThumb ? (

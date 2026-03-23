@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
 import { SmartVideo } from "@/components/media/smart-video";
 import { apiFetch } from "@/lib/api";
+import { learnerContentHref } from "@/lib/learner-content-href";
 
 interface ContentItem {
   id: string;
@@ -213,7 +214,11 @@ export default function PublicTrainerProfilePage() {
                   {profile.content.map((item) => (
                     <Link
                       key={item.id}
-                      href={item.type === "COURSE" ? `/course/${item.id}` : `/content/${item.id}`}
+                      href={
+                        item.type === "COURSE"
+                          ? `/course/${item.id}`
+                          : learnerContentHref(item.type, item.id)
+                      }
                       className="flex items-center gap-3 p-3 rounded-lg border border-brand-grey-light hover:bg-brand-grey-light/30 transition-colors"
                     >
                       <span className="text-xl">{TYPE_ICONS[item.type] ?? "📄"}</span>
