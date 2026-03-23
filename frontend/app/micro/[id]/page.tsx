@@ -83,31 +83,67 @@ export default function MicroPlayerPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!id || typeof id !== 'string' || !id.trim()) {
+      setLoading(false);
+      setError('Invalid link');
+      return;
+    }
+
     setLoading(true);
     setError('');
-    const targetId = id;
+    const targetId = id.trim();
     const seed = encodeURIComponent(targetId);
-    apiFetch(`/microlearning/feed?userId=${encodeURIComponent(userId)}&limit=50&offset=0&seed=${seed}`)
-      .then((r) => r.json())
-      .then(async (data: MicroItem[]) => {
+
+    const abortController = new AbortController();
+    const abortTimer = window.setTimeout(() => abortController.abort(), 22_000);
+
+    apiFetch(
+      `/microlearning/feed?userId=${encodeURIComponent(userId)}&limit=50&offset=0&seed=${seed}`,
+      { signal: abortController.signal },
+    )
+      .then(async (r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json() as Promise<MicroItem[]>;
+      })
+      .then((data: MicroItem[]) => {
         const arr = Array.isArray(data) ? data : [];
-        if (arr.length > 0) {
-          const withStreams = await Promise.all(
-            arr.map(async (c) => {
+        if (arr.length === 0) {
+          setItems([]);
+          return;
+        }
+        const idx = arr.findIndex((c) => c.id === targetId);
+        setInitialIndex(idx >= 0 ? idx : 0);
+        setItems(arr);
+
+        /** Resolve stream URLs in background with per-item timeout so mobile never hangs on /video/resolve */
+        void (async () => {
+          const pairs = await Promise.all(
+            arr.map((c) => {
               const raw = getVideoUrl(c);
-              const resolved = await resolveStreamIfNeeded(raw);
-              return { ...c, resolvedStreamUrl: resolved };
+              return Promise.race([
+                resolveStreamIfNeeded(raw).then((resolved) => ({ id: c.id, resolved })),
+                new Promise<{ id: string; resolved: string }>((resolve) =>
+                  setTimeout(() => resolve({ id: c.id, resolved: raw }), 6500),
+                ),
+              ]);
             }),
           );
-          setItems(withStreams);
-          const idx = withStreams.findIndex((c) => c.id === targetId);
-          setInitialIndex(idx >= 0 ? idx : 0);
-        } else {
-          setItems([]);
-        }
+          const map = new Map(pairs.map((p) => [p.id, p.resolved]));
+          setItems((prev) =>
+            prev.map((p) => {
+              const resolved = map.get(p.id);
+              return resolved !== undefined ? { ...p, resolvedStreamUrl: resolved } : p;
+            }),
+          );
+        })();
       })
       .catch(() => setError('Content not found'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        window.clearTimeout(abortTimer);
+        setLoading(false);
+      });
   }, [userId, id]);
 
   const reelsItems: MicrolearningItem[] = items.map((item) => ({

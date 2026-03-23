@@ -93,12 +93,21 @@ export class IntelligenceService {
     query?: string,
     limit = 10,
     excludeIds: string[] = [],
+    /** When set (e.g. MICRO_LEARNING), only score matching items — avoids loading the full catalog */
+    restrictType?: string,
   ) {
     const lightfmUrl = process.env.LIGHTFM_SERVICE_URL;
     if (lightfmUrl) {
       try {
         const url = `${lightfmUrl}/recommend/${encodeURIComponent(userId)}?limit=${limit}&exclude=${excludeIds.join(',')}`;
-        const res = await fetch(url);
+        const controller = new AbortController();
+        const lightfmTimeout = setTimeout(() => controller.abort(), 4500);
+        let res: Response;
+        try {
+          res = await fetch(url, { signal: controller.signal });
+        } finally {
+          clearTimeout(lightfmTimeout);
+        }
         if (res.ok) {
           const data = (await res.json()) as {
             recommendations?: Array<{ contentId: string; score: number }>;
@@ -141,7 +150,10 @@ export class IntelligenceService {
     }
 
     const items = await this.prisma.contentItem.findMany({
-      where: { id: { notIn: [...excludeIds, ...enrolledContentIds] } },
+      where: {
+        id: { notIn: [...excludeIds, ...enrolledContentIds] },
+        ...(restrictType ? { type: restrictType as 'MICRO_LEARNING' } : {}),
+      },
       include: { pathSteps: { include: { path: true } }, domain: true },
     });
 
@@ -214,12 +226,27 @@ export class IntelligenceService {
       }
     }
 
-    const recs = await this.getContentRecommendations(
-      userId,
-      seedQuery || undefined,
-      Math.max(limit * 4, 40),
-      seedContentId && microIds.has(seedContentId) ? [seedContentId] : [],
-    );
+    const exclude =
+      seedContentId && microIds.has(seedContentId) ? [seedContentId] : [];
+    const recLimit = Math.max(limit * 4, 40);
+
+    let recs: Awaited<ReturnType<IntelligenceService['getContentRecommendations']>> = [];
+    try {
+      recs = await Promise.race([
+        this.getContentRecommendations(
+          userId,
+          seedQuery || undefined,
+          recLimit,
+          exclude,
+          'MICRO_LEARNING',
+        ),
+        new Promise<typeof recs>((_, reject) =>
+          setTimeout(() => reject(new Error('micro-feed-ml-timeout')), 14_000),
+        ),
+      ]);
+    } catch {
+      recs = [];
+    }
 
     const ordered: string[] = [];
     const seen = new Set<string>();
