@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import * as PDFDocument from 'pdfkit';
+import * as QRCode from 'qrcode';
 import { BrandingResolverService } from '../email/templates/branding-resolver.service';
 
 type Locale = 'en' | 'fr' | 'ar';
@@ -12,6 +15,7 @@ const CERT_LABELS: Record<Locale, Record<string, string>> = {
     completedPath: 'has successfully completed the learning path',
     completedCourse: 'has successfully completed the course',
     issuedOn: 'Issued on {date}',
+    verifyAt: 'Verify at',
     verifyCode: 'Verification Code',
     afflatus: 'Omnilearn is a product of Afflatus Consulting Group',
   },
@@ -22,6 +26,7 @@ const CERT_LABELS: Record<Locale, Record<string, string>> = {
     completedPath: 'a complété avec succès le parcours d\'apprentissage',
     completedCourse: 'a complété avec succès le cours',
     issuedOn: 'Délivré le {date}',
+    verifyAt: 'Vérifiez sur',
     verifyCode: 'Code de vérification',
     afflatus: 'Omnilearn est un produit d\'Afflatus Consulting Group',
   },
@@ -32,6 +37,7 @@ const CERT_LABELS: Record<Locale, Record<string, string>> = {
     completedPath: 'قد أتم بنجاح مسار التعلم',
     completedCourse: 'قد أتم بنجاح الدورة التدريبية',
     issuedOn: 'صدر بتاريخ {date}',
+    verifyAt: 'تحقق من',
     verifyCode: 'رمز التحقق',
     afflatus: 'Omnilearn هو منتج من Afflatus Consulting Group',
   },
@@ -59,6 +65,37 @@ export class CertificatePdfService {
 
   constructor(private readonly brandingResolver: BrandingResolverService) {}
 
+  private buildVerifyUrl(verifyCode: string): string {
+    const base = (process.env.FRONTEND_URL || 'https://omnilearn.space').replace(/\/$/, '');
+    return `${base}/certificates/verify/${encodeURIComponent(verifyCode)}`;
+  }
+
+  private verifyUrlForDisplay(verifyCode: string): string {
+    try {
+      const u = new URL(this.buildVerifyUrl(verifyCode));
+      return `${u.host}${u.pathname}`;
+    } catch {
+      return `omnilearn.space/certificates/verify/${verifyCode}`;
+    }
+  }
+
+  private tryReadPngAsset(filename: string): Buffer | null {
+    const candidates = [
+      join(__dirname, 'assets', filename),
+      join(process.cwd(), 'src', 'certificate', 'assets', filename),
+      join(process.cwd(), 'frontend', 'public', filename),
+      join(process.cwd(), '..', 'frontend', 'public', filename),
+    ];
+    for (const p of candidates) {
+      try {
+        if (existsSync(p)) return readFileSync(p);
+      } catch {
+        /* try next */
+      }
+    }
+    return null;
+  }
+
   private t(locale: Locale, key: string, params?: Record<string, string>): string {
     const labels = CERT_LABELS[locale] ?? CERT_LABELS.en;
     let value = labels[key] ?? CERT_LABELS.en[key] ?? key;
@@ -81,6 +118,18 @@ export class CertificatePdfService {
     const accentColor = branding.accentColor;
     const textColor = branding.textColor;
     const platformName = branding.platformName;
+
+    let qrPng: Buffer | null = null;
+    try {
+      qrPng = await QRCode.toBuffer(this.buildVerifyUrl(data.verifyCode), {
+        type: 'png',
+        width: 200,
+        margin: 1,
+        color: { dark: primaryColor, light: '#FFFFFF' },
+      });
+    } catch (e) {
+      this.logger.warn(`Certificate QR generation failed: ${e}`);
+    }
 
     const pageWidth = 842; // A4 landscape
     const pageHeight = 595;
@@ -137,6 +186,15 @@ export class CertificatePdfService {
     ];
     for (const [cx, cy] of corners) {
       doc.rect(cx, cy, ornamentSize, ornamentSize).fill(accentColor);
+    }
+
+    const omnilearnLogo = this.tryReadPngAsset('omni-learn-logo.png');
+    if (omnilearnLogo) {
+      try {
+        doc.image(omnilearnLogo, borderInset + 10, 38, { width: 54 });
+      } catch (e) {
+        this.logger.warn(`Certificate OmniLearn logo failed: ${e}`);
+      }
     }
 
     const centerX = pageWidth / 2;
@@ -265,25 +323,58 @@ export class CertificatePdfService {
       .fillColor(textColor)
       .text(platformName, 0, sigLineY + 6, { align: 'center', width: pageWidth });
 
-    // --- Verify code (bottom) ---
+    const qrDrawSize = 76;
+    const qrX = borderInset + 12;
+    const qrY = 360;
+    if (qrPng) {
+      try {
+        doc.image(qrPng, qrX, qrY, { width: qrDrawSize, height: qrDrawSize });
+      } catch (e) {
+        this.logger.warn(`Certificate QR embed failed: ${e}`);
+      }
+    }
+
+    const verifyDisplay = this.verifyUrlForDisplay(data.verifyCode);
     doc
       .font('Helvetica')
       .fontSize(8)
       .fillColor('#9CA3AF')
-      .text(`${this.t(locale, 'verifyCode')}: ${data.verifyCode}`, 0, pageHeight - 50, {
+      .text(`${this.t(locale, 'verifyAt')} ${verifyDisplay}`, 0, pageHeight - 58, {
         align: 'center',
         width: pageWidth,
       });
 
-    // --- Afflatus footer ---
     doc
       .font('Helvetica')
-      .fontSize(7)
+      .fontSize(8)
       .fillColor('#9CA3AF')
-      .text(this.t(locale, 'afflatus'), 0, pageHeight - 38, {
+      .text(`${this.t(locale, 'verifyCode')}: ${data.verifyCode}`, 0, pageHeight - 46, {
         align: 'center',
         width: pageWidth,
       });
+
+    const afflatusText = this.t(locale, 'afflatus');
+    const afflatusBuf = this.tryReadPngAsset('afflatus-logo.png');
+    const footerBaselineY = pageHeight - 28;
+    doc.font('Helvetica').fontSize(7).fillColor('#9CA3AF');
+    let afflatusRowDone = false;
+    if (afflatusBuf) {
+      try {
+        const logoW = 9;
+        const logoH = 9;
+        const tw = doc.widthOfString(afflatusText);
+        const total = logoW + 4 + tw;
+        const startX = centerX - total / 2;
+        doc.image(afflatusBuf, startX, footerBaselineY - logoH + 1, { width: logoW, height: logoH });
+        doc.text(afflatusText, startX + logoW + 4, footerBaselineY, { lineBreak: false });
+        afflatusRowDone = true;
+      } catch (e) {
+        this.logger.warn(`Certificate Afflatus logo failed: ${e}`);
+      }
+    }
+    if (!afflatusRowDone) {
+      doc.text(afflatusText, 0, footerBaselineY, { align: 'center', width: pageWidth });
+    }
 
     doc.end();
 
