@@ -17,6 +17,12 @@ export class CompanyController {
     return portal;
   }
 
+  /** Default tenant branding for marketing / app shell (no auth). */
+  @Get('default-branding')
+  getDefaultBranding() {
+    return this.company.getDefaultSiteBranding();
+  }
+
   @Get('tenants')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN)

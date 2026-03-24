@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { API_URL } from "@/lib/api";
 
 type Branding = {
   logoUrl?: string;
@@ -14,16 +14,10 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const [branding, setBranding] = useState<Branding | null>(null);
 
   useEffect(() => {
-    apiFetch("/company/tenants")
-      .then((r) => r.json())
-      .then((tenants: { id: string }[]) => {
-        const first = Array.isArray(tenants) ? tenants[0] : null;
-        if (first) {
-          return apiFetch(`/company/tenants/${first.id}/branding`).then((r) => r.json());
-        }
-        return null;
-      })
-      .then(setBranding)
+    // Must not use apiFetch: /company/tenants is SUPER_ADMIN-only; 401 there clears the session.
+    fetch(`${API_URL}/company/default-branding`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b: Branding | null) => setBranding(b && typeof b === "object" ? b : null))
       .catch(() => {});
   }, []);
 

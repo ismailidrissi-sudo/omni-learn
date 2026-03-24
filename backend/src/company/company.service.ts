@@ -114,6 +114,16 @@ export class CompanyService {
     });
   }
 
+  /** Public site theme: first tenant by name (same ordering as former admin-only list). */
+  async getDefaultSiteBranding() {
+    const tenant = await this.prisma.tenant.findFirst({
+      orderBy: { name: 'asc' },
+      select: { id: true },
+    });
+    if (!tenant) return null;
+    return this.getBranding(tenant.id);
+  }
+
   async upsertBranding(tenantId: string, data: BrandingDto) {
     const settingsStr = data.settings ? JSON.stringify(data.settings) : undefined;
     const brandingFields = {
