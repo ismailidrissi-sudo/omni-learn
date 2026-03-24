@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Domain, Prisma } from '@prisma/client';
-import { mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { join, relative, resolve } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { EnrollmentStatus } from '../constants/db.constant';
@@ -62,6 +62,91 @@ export class CertificateService {
 
     this.logger.log(`PDF stored: ${filePath}`);
     return relativePath;
+  }
+
+  /** Reject path traversal when resolving pdfUrl from the database. */
+  private absolutePdfUnderStorage(pdfUrlRelative: string): string | null {
+    const trimmed = pdfUrlRelative.trim();
+    if (!trimmed) return null;
+    const root = resolve(this.storagePath);
+    const candidate = resolve(root, trimmed);
+    const rel = relative(root, candidate);
+    if (!rel || rel.startsWith('..')) return null;
+    return candidate;
+  }
+
+  /**
+   * Resolve the certificate PDF on disk for signed downloads: use stored pdfUrl when present,
+   * else the YYYY/MM/{id}.pdf layout from issuedAt. If the file is missing, regenerate it
+   * (covers failed issuance PDF step, ephemeral server storage, or manual data fixes).
+   */
+  async ensureCertificatePdfAbsolutePath(certificateId: string): Promise<string> {
+    const cert = await this.prisma.issuedCertificate.findUnique({
+      where: { id: certificateId },
+      include: {
+        enrollment: { include: { path: true } },
+        courseEnrollment: { include: { course: true } },
+      },
+    });
+
+    if (!cert) {
+      throw new NotFoundException('Certificate not found');
+    }
+
+    if (cert.pdfUrl) {
+      const fromDb = this.absolutePdfUnderStorage(cert.pdfUrl);
+      if (fromDb && existsSync(fromDb)) {
+        return fromDb;
+      }
+    }
+
+    const issuedAt = cert.issuedAt;
+    const year = issuedAt.getFullYear().toString();
+    const month = String(issuedAt.getMonth() + 1).padStart(2, '0');
+    const byIssuedAt = join(this.storagePath, year, month, `${certificateId}.pdf`);
+    if (existsSync(byIssuedAt)) {
+      return byIssuedAt;
+    }
+
+    this.logger.warn(
+      `Certificate PDF missing for ${certificateId}; regenerating (pdfUrl=${cert.pdfUrl ?? 'null'})`,
+    );
+
+    const userId = cert.enrollment?.userId ?? cert.courseEnrollment?.userId;
+    const user = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        })
+      : null;
+
+    let contentTitle: string;
+    let contentType: 'course' | 'path';
+    let tenantId: string | null | undefined;
+
+    if (cert.courseEnrollment) {
+      contentTitle = cert.courseEnrollment.course.title;
+      contentType = 'course';
+      tenantId = cert.courseEnrollment.course.tenantId;
+    } else if (cert.enrollment) {
+      contentTitle = cert.enrollment.path.name;
+      contentType = 'path';
+      tenantId = cert.enrollment.path.tenantId;
+    } else {
+      throw new NotFoundException('Certificate PDF not found');
+    }
+
+    const relativePath = await this.generateAndStorePdf(
+      certificateId,
+      user?.name || 'Learner',
+      contentTitle,
+      contentType,
+      cert.issuedAt,
+      cert.verifyCode,
+      tenantId,
+    );
+
+    return join(this.storagePath, relativePath);
   }
 
   /** Get or create domain-themed certificate template (template derived from Domain entity) */

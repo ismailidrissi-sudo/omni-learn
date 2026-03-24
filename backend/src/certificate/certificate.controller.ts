@@ -1,12 +1,11 @@
 import {
   Controller, Get, Post, Patch, Body, Param, Query,
-  UseGuards, BadRequestException, Res, NotFoundException,
+  UseGuards, BadRequestException, Res,
   ForbiddenException, StreamableFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
-import { createReadStream, existsSync } from 'fs';
-import { join } from 'path';
+import { createReadStream } from 'fs';
 import { CertificateService } from './certificate.service';
 import { CertificateUrlService } from './certificate-url.service';
 
@@ -91,16 +90,7 @@ export class CertificateController {
       throw new ForbiddenException('Invalid or expired signature');
     }
 
-    const storagePath = process.env.CERTIFICATE_STORAGE_PATH || './data/certificates';
-    const cert = await this.certificateService.getCertificateDetail(id);
-    const issuedAt = cert.issuedAt;
-    const year = issuedAt.getFullYear().toString();
-    const month = String(issuedAt.getMonth() + 1).padStart(2, '0');
-    const filePath = join(storagePath, year, month, `${id}.pdf`);
-
-    if (!existsSync(filePath)) {
-      throw new NotFoundException('Certificate PDF not found');
-    }
+    const filePath = await this.certificateService.ensureCertificatePdfAbsolutePath(id);
 
     const asAttachment =
       attachment === '1' || attachment === 'true' || attachment === 'yes';
