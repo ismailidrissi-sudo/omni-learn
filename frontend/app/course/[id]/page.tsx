@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { LearnLogo } from "@/components/ui/learn-logo";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { SmartVideo } from "@/components/media/smart-video";
 import { AudioPlayer } from "@/components/media/audio-player";
 import { DocumentViewer } from "@/components/media/document-viewer";
-import { CompletionCelebration } from "@/components/learning/completion-celebration";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
@@ -108,6 +107,7 @@ function normalizeCourseQuizQuestions(meta: Record<string, unknown>): Array<{
 export default function CoursePlayerPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { t } = useI18n();
   const { user } = useUser();
   const learnerNav = useMemo(() => globalLearnerNavItems(t, user), [t, user]);
@@ -129,11 +129,6 @@ export default function CoursePlayerPage() {
     pathCompleted: boolean;
     totalSteps: number;
     completedSteps: number;
-  } | null>(null);
-  const [celebration, setCelebration] = useState<{
-    certId: string;
-    pathName: string;
-    domainName: string;
   } | null>(null);
   const startTime = useRef(Date.now());
   const [passedQuizItemIds, setPassedQuizItemIds] = useState<Set<string>>(new Set());
@@ -198,13 +193,6 @@ export default function CoursePlayerPage() {
       setEnrollCtx({ ...data, enrollmentType: 'path' });
       if (data.stepStatus === "COMPLETED") {
         setCourseCompleted(true);
-        if (data.certificate?.id) {
-          setCelebration({
-            certId: data.certificate.id,
-            pathName: data.pathName,
-            domainName: data.domainName,
-          });
-        }
       }
       return true;
     };
@@ -223,13 +211,6 @@ export default function CoursePlayerPage() {
       });
       if (data.status === 'COMPLETED') {
         setCourseCompleted(true);
-        if (data.certificate?.id) {
-          setCelebration({
-            certId: data.certificate.id,
-            pathName: data.courseTitle,
-            domainName: data.domainName,
-          });
-        }
       }
       return true;
     };
@@ -366,24 +347,19 @@ export default function CoursePlayerPage() {
           });
         }
 
-        if (result.certificate?.id) {
-          setCelebration({
-            certId: result.certificate.id,
-            pathName: enrollCtx.pathName,
-            domainName: enrollCtx.domainName,
-          });
+        const pathVerify =
+          (result.certificate as { verifyCode?: string } | null)?.verifyCode;
+        if (pathVerify) {
+          router.push(`/certificates/verify/${encodeURIComponent(pathVerify)}`);
         } else if (result.pathCompleted && !result.certificate) {
           const certRes = await apiFetch(
             `/learning-paths/enrollment-for-content?userId=${user?.id}&contentId=${courseId}`,
           );
           if (certRes.ok) {
             const data = await certRes.json();
-            if (data?.certificate?.id) {
-              setCelebration({
-                certId: data.certificate.id,
-                pathName: enrollCtx.pathName,
-                domainName: enrollCtx.domainName,
-              });
+            const code = data?.certificate?.verifyCode as string | undefined;
+            if (code) {
+              router.push(`/certificates/verify/${encodeURIComponent(code)}`);
             }
           }
         }
@@ -415,12 +391,9 @@ export default function CoursePlayerPage() {
         const freshRes = await apiFetch(`/course-enrollments/for-course?userId=${user?.id}&courseId=${courseId}`);
         if (freshRes.ok) {
           const fresh = await freshRes.json();
-          if (fresh?.certificate?.id) {
-            setCelebration({
-              certId: fresh.certificate.id,
-              pathName: enrollCtx.pathName,
-              domainName: enrollCtx.domainName,
-            });
+          const courseVerify = fresh?.certificate?.verifyCode as string | undefined;
+          if (courseVerify) {
+            router.push(`/certificates/verify/${encodeURIComponent(courseVerify)}`);
           }
         }
       }
@@ -429,7 +402,7 @@ export default function CoursePlayerPage() {
     } finally {
       setCompleting(false);
     }
-  }, [enrollCtx, completing, courseCompleted, user?.id, courseId]);
+  }, [enrollCtx, completing, courseCompleted, user?.id, courseId, router]);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -672,18 +645,14 @@ export default function CoursePlayerPage() {
                       })}
                     </span>
                   )}
-                  {(enrollCtx?.certificate?.id || celebration) && (
+                  {enrollCtx?.certificate?.verifyCode && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const certId = celebration?.certId ?? enrollCtx?.certificate?.id;
-                        if (certId) {
-                          setCelebration({
-                            certId,
-                            pathName: enrollCtx?.pathName ?? "",
-                            domainName: enrollCtx?.domainName ?? "",
-                          });
+                        const code = enrollCtx.certificate?.verifyCode;
+                        if (code) {
+                          router.push(`/certificates/verify/${encodeURIComponent(code)}`);
                         }
                       }}
                     >
@@ -852,14 +821,6 @@ export default function CoursePlayerPage() {
         </aside>
       </div>
 
-      {celebration && (
-        <CompletionCelebration
-          certificateId={celebration.certId}
-          pathName={celebration.pathName}
-          domainName={celebration.domainName}
-          onClose={() => setCelebration(null)}
-        />
-      )}
     </div>
   );
 }

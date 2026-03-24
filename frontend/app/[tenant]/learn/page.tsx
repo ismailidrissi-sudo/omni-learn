@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantLogo } from "@/components/ui/tenant-logo";
 import { Button } from "@/components/ui/button";
-import { CompletionCelebration } from "@/components/learning/completion-celebration";
 import { PointsBadgesStreaks } from "@/components/gamification/points-badges-streaks";
 import { ContentCard } from "@/components/learning/content-card";
 import { ContentSection } from "@/components/learning/content-section";
@@ -75,7 +74,6 @@ export default function TenantLearnPage() {
   const [badges, setBadges] = useState<{ id: string; name: string; icon: string; earnedAt: string }[]>([]);
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
   const [loading, setLoading] = useState(true);
-  const [celebration, setCelebration] = useState<{ certId: string; pathName: string; domainName: string } | null>(null);
 
   const userId = user?.id;
   const academyName = branding?.appName || tenant?.name || "Academy";
@@ -318,14 +316,6 @@ export default function TenantLearnPage() {
         )}
       </main>
 
-      {celebration && (
-        <CompletionCelebration
-          certificateId={celebration.certId}
-          pathName={celebration.pathName}
-          domainName={celebration.domainName}
-          onClose={() => setCelebration(null)}
-        />
-      )}
     </div>
   );
 }
