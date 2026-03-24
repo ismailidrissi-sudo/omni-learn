@@ -253,6 +253,35 @@ export class CourseEnrollmentService {
     return { courseCompleted: allCompleted, totalItems, completedItems };
   }
 
+  /** Wallet UI is at /{academySlug}/certificates — never use bare /certificates (conflicts with [tenant] routing). */
+  private async resolveWalletTenantSlugForCourseEnrollment(
+    enrollmentId: string,
+    userId: string,
+  ): Promise<string> {
+    const row = await this.prisma.courseEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: {
+        course: {
+          include: {
+            tenant: { select: { slug: true } },
+            domain: { include: { tenant: { select: { slug: true } } } },
+          },
+        },
+      },
+    });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tenant: { select: { slug: true } } },
+    });
+    return (
+      row?.course.tenant?.slug
+      ?? row?.course.domain?.tenant?.slug
+      ?? user?.tenant?.slug
+      ?? process.env.DEFAULT_ACADEMY_SLUG
+      ?? 'omnilearn'
+    );
+  }
+
   private async autoIssueCertificate(
     enrollmentId: string,
     enrollment: { userId: string; course: { title: string; domainId?: string | null; domain?: { name: string } | null } },
@@ -279,6 +308,10 @@ export class CourseEnrollmentService {
       try {
         const learner = await this.prisma.user.findUnique({ where: { id: enrollment.userId } });
         if (learner) {
+          const tenantSlug = await this.resolveWalletTenantSlugForCourseEnrollment(
+            enrollmentId,
+            enrollment.userId,
+          );
           await this.transactionalEmail.sendCompletionCertificateEmail({
             userId: learner.id,
             toEmail: learner.email,
@@ -287,6 +320,7 @@ export class CourseEnrollmentService {
             contentType: 'course',
             verifyCode: cert.verifyCode,
             certificateId: cert.id,
+            tenantSlug,
           });
         }
       } catch (mailErr) {
@@ -315,6 +349,10 @@ export class CourseEnrollmentService {
           ? await this.prisma.user.findUnique({ where: { id: enroll.userId } })
           : null;
         if (enroll && learner) {
+          const tenantSlug = await this.resolveWalletTenantSlugForCourseEnrollment(
+            enrollmentId,
+            learner.id,
+          );
           await this.transactionalEmail.sendCompletionCertificateEmail({
             userId: learner.id,
             toEmail: learner.email,
@@ -323,6 +361,7 @@ export class CourseEnrollmentService {
             contentType: 'course',
             verifyCode: cert.verifyCode,
             certificateId: cert.id,
+            tenantSlug,
           });
         }
       } catch (mailErr) {

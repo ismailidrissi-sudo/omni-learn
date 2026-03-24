@@ -193,6 +193,19 @@ export class LearningPathService {
     return { pathCompleted: allCompleted, totalSteps, completedSteps };
   }
 
+  private async resolveWalletTenantSlugForPath(tenantId: string, userId: string): Promise<string> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { slug: true },
+    });
+    if (tenant?.slug) return tenant.slug;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tenant: { select: { slug: true } } },
+    });
+    return user?.tenant?.slug ?? process.env.DEFAULT_ACADEMY_SLUG ?? 'omnilearn';
+  }
+
   /** Auto-issue certificate and notify user when a learning path is completed */
   private async autoIssueCertificate(
     enrollmentId: string,
@@ -222,6 +235,10 @@ export class LearningPathService {
       try {
         const learner = await this.prisma.user.findUnique({ where: { id: enrollment.userId } });
         if (learner) {
+          const tenantSlug = await this.resolveWalletTenantSlugForPath(
+            enrollment.path.tenantId,
+            enrollment.userId,
+          );
           await this.transactionalEmail.sendCompletionCertificateEmail({
             userId: learner.id,
             toEmail: learner.email,
@@ -230,6 +247,7 @@ export class LearningPathService {
             contentType: 'path',
             verifyCode: cert.verifyCode,
             certificateId: cert.id,
+            tenantSlug,
           });
         }
       } catch (mailErr) {
@@ -259,6 +277,7 @@ export class LearningPathService {
           ? await this.prisma.user.findUnique({ where: { id: enroll.userId } })
           : null;
         if (enroll && learner) {
+          const tenantSlug = await this.resolveWalletTenantSlugForPath(enroll.path.tenantId, learner.id);
           await this.transactionalEmail.sendCompletionCertificateEmail({
             userId: learner.id,
             toEmail: learner.email,
@@ -267,6 +286,7 @@ export class LearningPathService {
             contentType: 'path',
             verifyCode: cert.verifyCode,
             certificateId: cert.id,
+            tenantSlug,
           });
         }
       } catch (mailErr) {

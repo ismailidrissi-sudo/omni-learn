@@ -283,6 +283,8 @@ export class TransactionalEmailService {
     contentType: 'course' | 'path';
     verifyCode: string;
     certificateId: string;
+    /** Academy URL segment; wallet lives at /{tenantSlug}/certificates */
+    tenantSlug: string;
     downloadUrl?: string;
   }): Promise<void> {
     const eventType = params.contentType === 'course' ? 'course_completed' : 'path_completed';
@@ -290,7 +292,7 @@ export class TransactionalEmailService {
       return;
     }
     const verifyUrl = `${this.baseUrl()}/certificates/verify/${encodeURIComponent(params.verifyCode)}`;
-    const walletUrl = `${this.baseUrl()}/certificates`;
+    const walletUrl = `${this.baseUrl()}/${encodeURIComponent(params.tenantSlug)}/certificates`;
     const contentLabel = params.contentType === 'course' ? 'course' : 'learning path';
     await this.emailService.enqueue({
       toEmail: params.toEmail,
