@@ -574,7 +574,25 @@
     "startLearning": "Start Learning",
     "steps": "steps",
     "verify": "Verify",
-    "viewCertificate": "View Certificate"
+    "viewCertificate": "View Certificate",
+    "verifyPage": {
+      "certificateOfCompletion": "Certificate of completion",
+      "credentialsVerified": "Credentials verified",
+      "verificationId": "Verification ID",
+      "certificatePreview": "Certificate preview",
+      "clickToDownload": "Click to download PDF",
+      "pdfUnavailable": "PDF preview is not available for this certificate.",
+      "issuedTo": "Issued to",
+      "fromCourse": "From course",
+      "fromPath": "From learning path",
+      "lessonsCount": "{count} lessons",
+      "stepsCount": "{count} steps",
+      "durationMinutes": "{minutes} min",
+      "durationHours": "{hours} hours",
+      "noDescription": "No description available for this program.",
+      "socialProofAfterName": "and {count} professionals are already certified",
+      "issuedOn": "Issued {date}"
+    }
   },
   "certificatePdf": {
     "title": "CERTIFICATE OF COMPLETION",

@@ -488,7 +488,25 @@
     "startLearning": "ابدأ التعلم",
     "steps": "خطوات",
     "verify": "تحقق",
-    "viewCertificate": "عرض الشهادة"
+    "viewCertificate": "عرض الشهادة",
+    "verifyPage": {
+      "certificateOfCompletion": "شهادة إتمام",
+      "credentialsVerified": "تم التحقق من البيانات",
+      "verificationId": "معرّف التحقق",
+      "certificatePreview": "معاينة الشهادة",
+      "clickToDownload": "انقر لتحميل PDF",
+      "pdfUnavailable": "معاينة PDF غير متاحة لهذه الشهادة.",
+      "issuedTo": "صادرة إلى",
+      "fromCourse": "من الدورة",
+      "fromPath": "من مسار التعلم",
+      "lessonsCount": "{count} درسًا",
+      "stepsCount": "{count} خطوات",
+      "durationMinutes": "{minutes} دقيقة",
+      "durationHours": "{hours} ساعات",
+      "noDescription": "لا يوجد وصف متاح لهذا البرنامج.",
+      "socialProofAfterName": "و{count} من المهنيين حاصلين على الشهادة",
+      "issuedOn": "صدرت في {date}"
+    }
   },
   "certificatePdf": {
     "title": "شهادة إتمام",

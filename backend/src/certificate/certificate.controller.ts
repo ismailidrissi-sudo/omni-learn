@@ -75,6 +75,7 @@ export class CertificateController {
     @Param('id') id: string,
     @Query('sig') sig: string,
     @Query('exp') exp: string,
+    @Query('attachment') attachment: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     if (!sig || !exp) {
@@ -101,9 +102,13 @@ export class CertificateController {
       throw new NotFoundException('Certificate PDF not found');
     }
 
+    const asAttachment =
+      attachment === '1' || attachment === 'true' || attachment === 'yes';
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="certificate-${id}.pdf"`,
+      'Content-Disposition': asAttachment
+        ? `attachment; filename="certificate-${id}.pdf"`
+        : `inline; filename="certificate-${id}.pdf"`,
     });
 
     const stream = createReadStream(filePath);
@@ -112,7 +117,7 @@ export class CertificateController {
 
   @Get('verify/:code')
   async verify(@Param('code') code: string) {
-    return this.certificateService.verifyCertificate(code);
+    return this.certificateService.getPublicVerificationByCode(code);
   }
 
   @Get('detail/:id')

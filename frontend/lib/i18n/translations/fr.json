@@ -566,7 +566,25 @@
     "startLearning": "Commencer à apprendre",
     "steps": "étapes",
     "verify": "Vérifier",
-    "viewCertificate": "Voir le certificat"
+    "viewCertificate": "Voir le certificat",
+    "verifyPage": {
+      "certificateOfCompletion": "Certificat de complétion",
+      "credentialsVerified": "Identifiants vérifiés",
+      "verificationId": "Identifiant de vérification",
+      "certificatePreview": "Aperçu du certificat",
+      "clickToDownload": "Cliquez pour télécharger le PDF",
+      "pdfUnavailable": "L’aperçu PDF n’est pas disponible pour ce certificat.",
+      "issuedTo": "Délivré à",
+      "fromCourse": "Issue du cours",
+      "fromPath": "Issue du parcours",
+      "lessonsCount": "{count} leçons",
+      "stepsCount": "{count} étapes",
+      "durationMinutes": "{minutes} min",
+      "durationHours": "{hours} heures",
+      "noDescription": "Aucune description disponible pour ce programme.",
+      "socialProofAfterName": "et {count} professionnels sont déjà certifiés",
+      "issuedOn": "Délivré le {date}"
+    }
   },
   "certificatePdf": {
     "title": "CERTIFICAT DE RÉUSSITE",

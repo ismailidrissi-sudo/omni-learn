@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DomainsService } from '../domains/domains.service';
 import { EnrollmentStatus } from '../constants/db.constant';
 import { CertificatePdfService } from './certificate-pdf.service';
+import { CertificateUrlService } from './certificate-url.service';
 
 /**
  * Certificate Service — Progress tracking + certificate issuance
@@ -20,6 +21,7 @@ export class CertificateService {
     private readonly prisma: PrismaService,
     private readonly domainsService: DomainsService,
     private readonly certificatePdfService: CertificatePdfService,
+    private readonly certificateUrlService: CertificateUrlService,
   ) {}
 
   private get storagePath(): string {
@@ -246,16 +248,184 @@ export class CertificateService {
     return cert;
   }
 
-  /** Verify certificate by code */
-  async verifyCertificate(verifyCode: string) {
-    return this.prisma.issuedCertificate.findUnique({
+  private parseJsonRecord(raw: unknown): Record<string, unknown> {
+    if (raw == null) return {};
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, unknown>;
+    }
+    if (typeof raw === 'string') {
+      try {
+        const v = JSON.parse(raw) as unknown;
+        return typeof v === 'object' && v !== null && !Array.isArray(v)
+          ? (v as Record<string, unknown>)
+          : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  }
+
+  /** Strip HTML / collapse whitespace for public description text */
+  private plainTextDescription(html: string | null | undefined): string | null {
+    if (html == null || !String(html).trim()) return null;
+    const stripped = String(html)
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return stripped || null;
+  }
+
+  /**
+   * Public verification payload for /certificates/verify/:code — no internal user ids or emails.
+   * Signed PDF URLs expire after 1 day.
+   */
+  async getPublicVerificationByCode(verifyCode: string) {
+    const cert = await this.prisma.issuedCertificate.findUnique({
       where: { verifyCode },
       include: {
-        enrollment: { include: { path: { include: { domain: true } } } },
-        courseEnrollment: { include: { course: { include: { domain: true } } } },
+        enrollment: {
+          include: {
+            path: {
+              include: {
+                domain: true,
+                steps: {
+                  orderBy: { stepOrder: 'asc' },
+                  include: {
+                    contentItem: {
+                      select: { durationMinutes: true, metadata: true, title: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        courseEnrollment: {
+          include: {
+            course: {
+              select: {
+                title: true,
+                description: true,
+                durationMinutes: true,
+                metadata: true,
+                domain: true,
+                courseSections: {
+                  select: {
+                    items: {
+                      select: {
+                        durationMinutes: true,
+                        videoDurationSeconds: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         template: { include: { domain: true } },
       },
     });
+
+    if (!cert) return null;
+
+    const userId = cert.enrollment?.userId ?? cert.courseEnrollment?.userId;
+    const user = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, trainerProfile: { select: { photoUrl: true } } },
+        })
+      : null;
+
+    const recipientName = user?.name ?? 'Learner';
+    const recipientImageUrl = user?.trainerProfile?.photoUrl ?? null;
+
+    let certType: 'course' | 'path';
+    let title: string;
+    let description: string | null;
+    let domainName: string | null;
+    let thumbnailUrl: string | null;
+    let contentCount: number;
+    let durationMinutes: number | null;
+
+    if (cert.courseEnrollment) {
+      certType = 'course';
+      const course = cert.courseEnrollment.course;
+      title = course.title;
+      description = this.plainTextDescription(course.description);
+      domainName = course.domain?.name ?? null;
+      const meta = this.parseJsonRecord(course.metadata);
+      const landing = meta.landingPage as Record<string, unknown> | undefined;
+      thumbnailUrl =
+        typeof landing?.thumbnailUrl === 'string' ? landing.thumbnailUrl : null;
+
+      let count = 0;
+      let sumMins = 0;
+      for (const sec of course.courseSections) {
+        count += sec.items.length;
+        for (const item of sec.items) {
+          const dm = item.durationMinutes ?? 0;
+          const vs = item.videoDurationSeconds
+            ? Math.ceil(item.videoDurationSeconds / 60)
+            : 0;
+          sumMins += dm || vs;
+        }
+      }
+      contentCount = count;
+      durationMinutes =
+        course.durationMinutes != null && course.durationMinutes > 0
+          ? course.durationMinutes
+          : sumMins > 0
+            ? sumMins
+            : null;
+    } else if (cert.enrollment) {
+      certType = 'path';
+      const path = cert.enrollment.path;
+      title = path.name;
+      description = this.plainTextDescription(path.description);
+      domainName = path.domain?.name ?? null;
+      const steps = path.steps;
+      contentCount = steps.length;
+      let sumMins = 0;
+      for (const st of steps) {
+        const dm = st.contentItem.durationMinutes;
+        if (dm != null && dm > 0) sumMins += dm;
+      }
+      durationMinutes = sumMins > 0 ? sumMins : null;
+      thumbnailUrl = null;
+      const first = steps[0]?.contentItem;
+      if (first) {
+        const meta = this.parseJsonRecord(first.metadata);
+        const landing = meta.landingPage as Record<string, unknown> | undefined;
+        thumbnailUrl =
+          typeof landing?.thumbnailUrl === 'string' ? landing.thumbnailUrl : null;
+      }
+    } else {
+      return null;
+    }
+
+    const signed = this.certificateUrlService.generateSignedUrl(cert.id, 1);
+    const pdfPreviewUrl = signed.url;
+    const pdfDownloadUrl = `${signed.url}&attachment=1`;
+
+    return {
+      verifyCode: cert.verifyCode,
+      grade: cert.grade,
+      issuedAt: cert.issuedAt.toISOString(),
+      certType,
+      templateName: cert.template?.templateName ?? null,
+      recipientName,
+      recipientImageUrl,
+      title,
+      description,
+      domainName,
+      thumbnailUrl,
+      contentCount,
+      durationMinutes,
+      pdfPreviewUrl,
+      pdfDownloadUrl,
+    };
   }
 
   /** Get user's certificates with full details (path + course) */

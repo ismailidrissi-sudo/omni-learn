@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
+import { formatUserCount } from "@/lib/format-user-count";
 
 const PLACEHOLDER_NAMES = [
   "Food Safety Leaders",
@@ -24,18 +25,6 @@ interface TrustedCompany {
 interface PlatformStats {
   userCount: number;
   trustedCompanies: TrustedCompany[];
-}
-
-function formatUserCount(count: number): string {
-  if (count >= 1_000_000) {
-    const millions = Math.floor(count / 1_000_000);
-    return `${millions.toLocaleString("en-US")},000,000+`;
-  }
-  if (count >= 1_000) {
-    const thousands = Math.floor(count / 1_000) * 1_000;
-    return `${thousands.toLocaleString("en-US")}+`;
-  }
-  return `${count}+`;
 }
 
 export function TrustBar() {
