@@ -1003,6 +1003,8 @@
     "completedLesson": "Completed",
     "articleContent": "Article Content",
     "backToDiscover": "Back to Discover",
+    "shareLink": "Share link",
+    "linkCopied": "Link copied!",
     "contentViewerHint": "Content viewer will render based on type (video player, document viewer, quiz, etc.)",
     "completeCourse": "Complete Course",
     "courseCompleted": "Course Completed",

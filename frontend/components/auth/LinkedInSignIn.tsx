@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { getStoredReferralCode } from "@/lib/referral-storage";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID ?? "";
 
@@ -29,7 +30,11 @@ export function LinkedInSignInButton({ referralCode }: { referralCode?: string }
 
     const redirectUri = `${window.location.origin}/auth/linkedin/callback`;
     const state = JSON.stringify({
-      ref: referralCode || searchParams.get("ref") || "",
+      ref:
+        referralCode ||
+        searchParams.get("ref")?.trim() ||
+        getStoredReferralCode() ||
+        "",
       redirect: searchParams.get("redirect") || "/learn",
     });
 

@@ -31,6 +31,12 @@ export class ReferralService {
     });
   }
 
+  /** Primary code for share links (`?ref=`) — same as dashboard; creates default code if missing. */
+  async getShareCode(userId: string): Promise<{ code: string }> {
+    const row = await this.getOrCreateCode(userId, 'My referral link');
+    return { code: row.code };
+  }
+
   async createCode(userId: string, label?: string) {
     return this.prisma.referralCode.create({
       data: {

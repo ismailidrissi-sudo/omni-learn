@@ -13,6 +13,7 @@ import { apiFetch } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
 import { SmartVideo } from "@/components/media/smart-video";
 import { CourseReviews } from "@/components/learning/course-reviews";
+import { LearnerShareLinkButton } from "@/components/learning/learner-share-link-button";
 
 type ContentDetail = {
   id: string;
@@ -190,7 +191,7 @@ export default function TenantContentPage() {
             </div>
 
             {/* CTA */}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 items-center">
               {enrollmentStatus !== "none" ? (
                 <>
                   <span className="inline-flex items-center gap-2 px-4 py-2 text-sm text-green-600 font-medium">✓ {t("content.alreadyEnrolled")}</span>
@@ -203,6 +204,11 @@ export default function TenantContentPage() {
                   {enrolling ? t("content.enrolling") : !user ? t("content.signInToEnroll") : isFree ? t("content.enrollFree") : `${t("content.enrollNow")} — ${price} ${currency}`}
                 </button>
               )}
+              <LearnerShareLinkButton
+                path={`/${slug}/content/${contentId}`}
+                shareTitle={content.title}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-[var(--color-bg-secondary)] text-[var(--color-text-primary)] font-semibold text-sm hover:bg-[var(--color-bg-secondary)]/50 transition-colors"
+              />
             </div>
 
             {/* Promo */}
@@ -254,6 +260,13 @@ export default function TenantContentPage() {
             </div>
             <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-4">{content.title}</h1>
             {content.description && <p className="text-[var(--color-text-secondary)] leading-relaxed mb-6">{content.description}</p>}
+            <div className="mb-6">
+              <LearnerShareLinkButton
+                path={`/${slug}/content/${contentId}`}
+                shareTitle={content.title}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[var(--color-bg-secondary)] text-[var(--color-text-primary)] font-semibold text-sm hover:bg-[var(--color-bg-secondary)]/50 transition-colors"
+              />
+            </div>
             <div className="border-t border-[var(--color-bg-secondary)] pt-6 mt-6">
               <p className="text-sm text-[var(--color-text-secondary)]">{t("content.contentViewerHint")}</p>
             </div>

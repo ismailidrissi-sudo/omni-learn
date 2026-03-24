@@ -17,6 +17,7 @@ import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
+import { LearnerShareLinkButton } from "@/components/learning/learner-share-link-button";
 
 type ContentItem = {
   id: string;
@@ -316,7 +317,7 @@ export default function ContentPage() {
               </div>
 
               {/* CTA */}
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 items-center">
                 {enrollmentStatus !== "none" ? (
                   <>
                     <span className="inline-flex items-center gap-2 px-4 py-2 text-sm text-brand-green font-medium">
@@ -344,6 +345,11 @@ export default function ContentPage() {
                           : `${t("content.enrollNow")} — ${price} ${currency}`}
                   </button>
                 )}
+                <LearnerShareLinkButton
+                  path={`/content/${id}`}
+                  shareTitle={content.title}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-brand-grey-light dark:border-gray-600 text-brand-grey-dark dark:text-gray-200 font-semibold text-sm hover:bg-brand-grey-light/30 dark:hover:bg-gray-800/50 transition-colors"
+                />
               </div>
 
               {/* Promo Video */}
@@ -433,19 +439,26 @@ export default function ContentPage() {
               {enrollmentStatus === "none" && (
                 <div className="rounded-xl bg-brand-purple/5 dark:bg-brand-purple/10 border border-brand-purple/20 p-6 text-center space-y-3">
                   <h3 className="text-lg font-semibold text-brand-grey-dark dark:text-white">{content.title}</h3>
-                  <button
-                    onClick={handleEnroll}
-                    disabled={enrolling}
-                    className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition-colors disabled:opacity-60"
-                  >
-                    {enrolling
-                      ? t("content.enrolling")
-                      : !user
-                        ? t("content.signInToEnroll")
-                        : isFree
-                          ? t("content.enrollFree")
-                          : `${t("content.enrollNow")} — ${price} ${currency}`}
-                  </button>
+                  <div className="flex flex-wrap gap-3 justify-center items-center">
+                    <button
+                      onClick={handleEnroll}
+                      disabled={enrolling}
+                      className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition-colors disabled:opacity-60"
+                    >
+                      {enrolling
+                        ? t("content.enrolling")
+                        : !user
+                          ? t("content.signInToEnroll")
+                          : isFree
+                            ? t("content.enrollFree")
+                            : `${t("content.enrollNow")} — ${price} ${currency}`}
+                    </button>
+                    <LearnerShareLinkButton
+                      path={`/content/${id}`}
+                      shareTitle={content.title}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-brand-purple/30 text-brand-grey-dark dark:text-gray-200 font-semibold text-sm hover:bg-white/50 dark:hover:bg-gray-900/30 transition-colors"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -457,6 +470,13 @@ export default function ContentPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-brand-grey-dark dark:text-white mb-2">{content.title}</h1>
               <p className="text-brand-grey text-sm mb-4 sm:mb-6">{content.type} {content.durationMinutes && `· ${content.durationMinutes} min`}</p>
               {content.description && <p className="text-brand-grey-dark dark:text-gray-300 text-sm mb-6 whitespace-pre-wrap">{content.description}</p>}
+              <div className="mb-4">
+                <LearnerShareLinkButton
+                  path={`/content/${id}`}
+                  shareTitle={content.title}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-brand-grey-light dark:border-gray-600 text-brand-grey-dark dark:text-gray-200 font-semibold text-sm hover:bg-brand-grey-light/30 dark:hover:bg-gray-800/50 transition-colors"
+                />
+              </div>
               <div className="mb-6 sm:mb-8 -mx-4 sm:mx-0">{renderNonCourseMedia()}</div>
               <CourseReviews contentId={id} />
             </>

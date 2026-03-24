@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleLogin, useGoogleOneTapLogin } from "@react-oauth/google";
 import { apiFetch, setToken } from "@/lib/api";
+import { clearStoredReferralCode } from "@/lib/referral-storage";
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 export function GoogleSignInButton({
@@ -30,6 +31,7 @@ export function GoogleSignInButton({
         });
         if (!res.ok) throw new Error("Auth failed");
         const { accessToken, user } = await res.json();
+        if (referralCode) clearStoredReferralCode();
         if (typeof window !== "undefined") {
           setToken(accessToken);
           localStorage.setItem("omnilearn_user", JSON.stringify(user));

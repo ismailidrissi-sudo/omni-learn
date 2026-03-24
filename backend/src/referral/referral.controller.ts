@@ -34,6 +34,14 @@ export class ReferralController {
     return this.referralService.getUserDashboard(userId);
   }
 
+  @Get('share-code')
+  @UseGuards(AuthGuard('jwt'))
+  async getShareCode(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.referralService.getShareCode(userId);
+  }
+
   @Post('codes')
   @UseGuards(AuthGuard('jwt'))
   async createCode(@Req() req: { user?: { sub?: string } }, @Body() dto: CreateReferralCodeDto) {

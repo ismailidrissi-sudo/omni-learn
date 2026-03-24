@@ -10,6 +10,7 @@ import { LandingFooter } from "@/components/landing";
 import { ScrollToHash } from "@/components/ui/scroll-to-hash";
 import { ToastContainer } from "@/components/ui/toast";
 import { SessionTracker } from "@/components/providers/session-tracker";
+import { ReferralParamCapture } from "@/components/providers/referral-param-capture";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = "G-F5378K8LEG";
@@ -81,6 +82,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             <I18nProvider>
               <BrandingProvider>
                 <ScrollToHash />
+                <ReferralParamCapture />
                 <ToastContainer />
                 <SessionTracker />
                 <div className="flex min-h-screen flex-col">

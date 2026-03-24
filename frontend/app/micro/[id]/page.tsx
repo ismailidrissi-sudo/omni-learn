@@ -7,6 +7,7 @@ import { useUser } from '@/lib/use-user';
 import { apiFetch, API_URL } from '@/lib/api';
 import { detectProvider } from '@/lib/video-provider';
 import { toast } from '@/lib/use-toast';
+import { absoluteLearnerUrlWithReferral } from '@/lib/referral-share-url';
 import dynamic from 'next/dynamic';
 import type { MicrolearningItem } from '@/components/video/MicrolearningReels';
 
@@ -194,7 +195,19 @@ export default function MicroPlayerPage() {
 
   const handleShare = useCallback(
     async (contentId: string) => {
-      const shareUrl = `${window.location.origin}/micro/${contentId}`;
+      let referralCode: string | null = null;
+      if (userId !== 'anonymous') {
+        try {
+          const r = await apiFetch('/referral/share-code');
+          if (r.ok) {
+            const d = (await r.json()) as { code?: string };
+            referralCode = d.code ?? null;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      const shareUrl = absoluteLearnerUrlWithReferral(`/micro/${contentId}`, referralCode);
       try {
         if (navigator.share) {
           await navigator.share({

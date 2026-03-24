@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, setToken } from "@/lib/api";
+import { getStoredReferralCode, clearStoredReferralCode } from "@/lib/referral-storage";
 import { OmnilearnLogo } from "@/components/ui/omnilearn-logo";
 import Link from "next/link";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
@@ -49,6 +50,10 @@ function LinkedInCallbackContent() {
       /* ignore */
     }
 
+    if (!referralCode) {
+      referralCode = getStoredReferralCode();
+    }
+
     (async () => {
       try {
         const res = await apiFetch("/auth/linkedin", {
@@ -66,6 +71,8 @@ function LinkedInCallbackContent() {
         }
 
         const { accessToken, linkedinAccessToken, user } = await res.json();
+
+        if (referralCode) clearStoredReferralCode();
 
         if (typeof window !== "undefined") {
           setToken(accessToken);

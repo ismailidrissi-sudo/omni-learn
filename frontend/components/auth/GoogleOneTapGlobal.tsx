@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useGoogleOneTapLogin } from "@react-oauth/google";
 import { apiFetch, setToken } from "@/lib/api";
+import { getStoredReferralCode, clearStoredReferralCode } from "@/lib/referral-storage";
 
 function isSuppressed(pathname: string): boolean {
   const segments = pathname.split("/").filter(Boolean);
@@ -20,12 +21,17 @@ function OneTapInner() {
       const credential = response.credential;
       if (!credential) return;
       try {
+        const storedRef = getStoredReferralCode();
         const res = await apiFetch("/auth/google", {
           method: "POST",
-          body: JSON.stringify({ credential }),
+          body: JSON.stringify({
+            credential,
+            ...(storedRef ? { referralCode: storedRef } : {}),
+          }),
         });
         if (!res.ok) throw new Error("Auth failed");
         const { accessToken, user } = await res.json();
+        if (storedRef) clearStoredReferralCode();
         if (typeof window !== "undefined") {
           setToken(accessToken);
           localStorage.setItem("omnilearn_user", JSON.stringify(user));

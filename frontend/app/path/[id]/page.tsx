@@ -10,6 +10,7 @@ import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
 import { apiFetch } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
+import { LearnerShareLinkButton } from "@/components/learning/learner-share-link-button";
 
 type PathStep = {
   id: string;
@@ -160,6 +161,11 @@ export default function PathDetailPage() {
 
             {/* Enrollment CTA */}
             <div className="flex flex-wrap items-center gap-4">
+              <LearnerShareLinkButton
+                path={`/path/${pathId}`}
+                shareTitle={path.name}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-lg border border-brand-grey-light dark:border-gray-600 text-brand-grey-dark dark:text-gray-200 font-semibold text-sm hover:bg-brand-grey-light/30 dark:hover:bg-gray-800/50 transition-colors"
+              />
               {enrollment ? (
                 <>
                   <span className="inline-flex items-center gap-2 text-sm text-brand-green font-medium">✓ {t("path.enrolled")}</span>

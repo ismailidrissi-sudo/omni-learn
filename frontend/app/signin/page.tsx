@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
+import { getStoredReferralCode, setStoredReferralCode } from "@/lib/referral-storage";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -20,7 +21,15 @@ function SignInPageContent() {
   const passwordResetDone = searchParams.get("passwordReset") === "1";
   const resetToken = searchParams.get("resetToken");
   const redirect = searchParams.get("redirect") ?? "/learn";
-  const referralCode = searchParams.get("ref") ?? "";
+  const refFromUrl = searchParams.get("ref")?.trim() ?? "";
+  useEffect(() => {
+    if (refFromUrl) setStoredReferralCode(refFromUrl);
+  }, [refFromUrl]);
+  const [storedRef, setStoredRef] = useState("");
+  useEffect(() => {
+    setStoredRef(getStoredReferralCode());
+  }, [refFromUrl]);
+  const referralCode = (refFromUrl || storedRef).trim().toUpperCase();
   const { t } = useI18n();
   const shellNav = useMemo(() => authShellNavItems(t), [t]);
   const [email, setEmail] = useState("");

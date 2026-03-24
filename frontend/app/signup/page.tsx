@@ -1,6 +1,11 @@
 "use client";
 
 import { Suspense, useState, useEffect, useMemo } from "react";
+import {
+  getStoredReferralCode,
+  setStoredReferralCode,
+  clearStoredReferralCode,
+} from "@/lib/referral-storage";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -23,8 +28,18 @@ function SignUpContent() {
   const [trainerRequested, setTrainerRequested] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  /** Read on each render — `ref` must not be snapshotted in `useState` or it can stay empty when params hydrate. */
-  const referralCode = searchParams.get("ref") ?? "";
+  const refFromUrl = searchParams.get("ref")?.trim() ?? "";
+  useEffect(() => {
+    if (refFromUrl) setStoredReferralCode(refFromUrl);
+  }, [refFromUrl]);
+
+  const [storedRef, setStoredRef] = useState("");
+  useEffect(() => {
+    setStoredRef(getStoredReferralCode());
+  }, [refFromUrl]);
+
+  /** URL ref or value persisted from an earlier visit (e.g. shared course link). */
+  const referralCode = (refFromUrl || storedRef).trim().toUpperCase();
   const [referrerValid, setReferrerValid] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -56,6 +71,7 @@ function SignUpContent() {
         setError(data?.message || "Signup failed. Please try again.");
         return;
       }
+      clearStoredReferralCode();
       setSuccess(true);
     } catch {
       setError("Something went wrong. Please try again.");
