@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { apiFetch, refreshTokenQuiet } from "./api";
+import { useState, useEffect, useCallback } from "react";
+import { apiFetch, refreshTokenQuiet, OMNILEARN_AUTH_CHANGED_EVENT } from "./api";
 
 export type UserPlan = "EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS";
 
@@ -33,16 +33,15 @@ export function useUser(): { user: User | null; loading: boolean } {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      setLoading(false);
-      return;
-    }
+  const loadUser = useCallback(() => {
+    if (typeof window === "undefined") return;
     const token = localStorage.getItem("omnilearn_token");
     if (!token) {
+      setUser(null);
       setLoading(false);
       return;
     }
+    setLoading(true);
     apiFetch("/auth/me")
       .then((r) => {
         if (r.ok) return r.json();
@@ -60,6 +59,27 @@ export function useUser(): { user: User | null; loading: boolean } {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setLoading(false);
+      return;
+    }
+
+    loadUser();
+
+    const onAuthChanged = () => loadUser();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "omnilearn_token" || e.key === null) loadUser();
+    };
+
+    window.addEventListener(OMNILEARN_AUTH_CHANGED_EVENT, onAuthChanged);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(OMNILEARN_AUTH_CHANGED_EVENT, onAuthChanged);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [loadUser]);
 
   return { user, loading };
 }

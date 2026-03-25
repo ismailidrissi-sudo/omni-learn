@@ -65,8 +65,13 @@ function normalizeQuizQuestionsFromMeta(raw: unknown): QuizQuestion[] {
     if (options.length < 2) {
       options = [...options, ...Array.from({ length: 2 - options.length }, () => "")];
     }
-    let ci = typeof o.correctIndex === "number" ? o.correctIndex : 0;
-    if (Number.isNaN(ci)) ci = 0;
+    let ci = 0;
+    if (typeof o.correctIndex === "number" && Number.isFinite(o.correctIndex)) {
+      ci = Math.trunc(o.correctIndex);
+    } else if (typeof o.correctIndex === "string" && o.correctIndex.trim() !== "") {
+      const parsed = Number(o.correctIndex);
+      if (Number.isFinite(parsed)) ci = Math.trunc(parsed);
+    }
     ci = Math.min(Math.max(0, ci), Math.max(0, options.length - 1));
     return {
       id: typeof o.id === "string" && o.id ? o.id : crypto.randomUUID(),

@@ -933,6 +933,7 @@
     "quizCheckAnswer": "Vérifier la réponse",
     "quizCorrect": "Correct.",
     "quizIncorrect": "Incorrect. Essayez une autre réponse.",
+    "quizPickAnotherToCheck": "Choisissez une autre réponse pour afficher à nouveau Vérifier.",
     "quizNextQuestion": "Question suivante",
     "quizContinueNext": "Continuer vers la leçon suivante",
     "quizCompleted": "Quiz terminé",

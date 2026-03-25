@@ -1021,6 +1021,7 @@
     "quizCheckAnswer": "Check answer",
     "quizCorrect": "Correct.",
     "quizIncorrect": "Incorrect. Try another answer.",
+    "quizPickAnotherToCheck": "Select a different answer to show Check answer again.",
     "quizNextQuestion": "Next question",
     "quizContinueNext": "Continue to next lesson",
     "quizCompleted": "Quiz completed",

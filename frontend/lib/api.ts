@@ -1,5 +1,8 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+/** Same-tab auth updates (e.g. Google One Tap) do not fire `storage`; hooks listen for this. */
+export const OMNILEARN_AUTH_CHANGED_EVENT = "omnilearn-auth-changed";
+
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -10,16 +13,24 @@ function getToken(): string | null {
 
 const COOKIE_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 days — align with middleware so cookie outlives token refresh
 
-function setToken(token: string) {
+function notifyAuthChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OMNILEARN_AUTH_CHANGED_EVENT));
+}
+
+/** Pass `{ notifyListeners: false }` for silent JWT rotation so hooks do not refetch `/auth/me`. */
+function setToken(token: string, options?: { notifyListeners?: boolean }) {
   localStorage.setItem("omnilearn_token", token);
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `omnilearn_token=${token}; path=/; max-age=${COOKIE_MAX_AGE_SEC}; SameSite=Lax${secure}`;
+  if (options?.notifyListeners !== false) notifyAuthChanged();
 }
 
 function clearAuth() {
   localStorage.removeItem("omnilearn_token");
   localStorage.removeItem("omnilearn_user");
   document.cookie = "omnilearn_token=; path=/; max-age=0";
+  notifyAuthChanged();
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -48,7 +59,7 @@ async function refreshTokenQuiet(): Promise<string | null> {
     if (!res.ok) return null;
     const data = await res.json();
     if (data.accessToken) {
-      setToken(data.accessToken);
+      setToken(data.accessToken, { notifyListeners: false });
       return data.accessToken;
     }
     return null;

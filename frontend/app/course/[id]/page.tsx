@@ -81,6 +81,20 @@ function parseLessonMetadata(metadata: CourseSectionItem["metadata"]): Record<st
   return typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
 }
 
+/** Coerce API/stored quiz correctIndex (number or numeric string) so learner check matches selected index. */
+function normalizeQuizCorrectIndex(value: unknown, optionCount: number): number {
+  let n = 0;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    n = Math.trunc(value);
+  } else if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) n = Math.trunc(parsed);
+  }
+  const max = Math.max(0, optionCount - 1);
+  if (optionCount === 0) return 0;
+  return Math.min(Math.max(0, n), max);
+}
+
 function normalizeCourseQuizQuestions(meta: Record<string, unknown>): Array<{
   id: string;
   question: string;
@@ -92,9 +106,7 @@ function normalizeCourseQuizQuestions(meta: Record<string, unknown>): Array<{
   return raw.map((q, i) => {
     const o = q as Record<string, unknown>;
     const options = Array.isArray(o.options) ? o.options.map((x) => String(x ?? "")) : [];
-    let ci = typeof o.correctIndex === "number" ? o.correctIndex : 0;
-    if (Number.isNaN(ci)) ci = 0;
-    ci = Math.min(Math.max(0, ci), Math.max(0, options.length - 1));
+    const ci = normalizeQuizCorrectIndex(o.correctIndex, options.length);
     return {
       id: String(o.id ?? `q-${i}`),
       question: String(o.question ?? ""),
@@ -958,7 +970,7 @@ function QuizPlayer({
         <p className="text-sm text-green-600 font-medium">{t("content.quizCorrect")}</p>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {!checked && (
           <Button onClick={handleCheck} disabled={selected === null}>
             {t("content.quizCheckAnswer")}
@@ -970,6 +982,11 @@ function QuizPlayer({
               ? t("content.quizContinueNext")
               : t("content.quizNextQuestion")}
           </Button>
+        )}
+        {checked && feedback === "wrong" && (
+          <p className="text-xs text-brand-grey w-full sm:w-auto">
+            {t("content.quizPickAnotherToCheck")}
+          </p>
         )}
       </div>
     </div>

@@ -876,6 +876,7 @@
     "quizCheckAnswer": "تحقق من الإجابة",
     "quizCorrect": "صحيح.",
     "quizIncorrect": "غير صحيح. جرّب إجابة أخرى.",
+    "quizPickAnotherToCheck": "اختر إجابة أخرى ليظهر زر التحقق من الإجابة مرة أخرى.",
     "quizNextQuestion": "السؤال التالي",
     "quizContinueNext": "المتابعة إلى الدرس التالي",
     "quizCompleted": "اكتمل الاختبار",

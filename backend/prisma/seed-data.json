@@ -200,7 +200,8 @@
     { "email": "lina.park@afflatus.com", "name": "Lina Park", "department": "MKT", "position": "Data Analyst", "tenantSlug": "afflatus" },
     { "email": "omar.benali@afflatus.com", "name": "Omar Benali", "department": "HR", "position": "HR Director", "tenantSlug": "afflatus" },
     { "email": "elena.rodriguez@afflatus.com", "name": "Elena Rodriguez", "department": "RD", "position": "Senior Scientist", "tenantSlug": "afflatus" },
-    { "email": "tom.wright@afflatus.com", "name": "Tom Wright", "department": "SALES", "position": "Sales Manager", "tenantSlug": "afflatus" }
+    { "email": "tom.wright@afflatus.com", "name": "Tom Wright", "department": "SALES", "position": "Sales Manager", "tenantSlug": "afflatus" },
+    { "email": "learner@oulmes.ma", "name": "Oulmès Learner", "department": "MFG", "position": "Compliance Specialist", "tenantSlug": "oulmes" }
   ],
   "tenants": [
     { "name": "OmniLearn", "slug": "omnilearn", "industryCode": "education", "linkedinProfileUrl": "https://linkedin.com/company/omnilearn", "staffingLevel": "11-50", "targetMarkets": ["B2B", "Enterprise"], "productsServices": ["LMS", "Corporate Training"] },
@@ -220,6 +221,26 @@
         "primaryColor": "#7B1F5C",
         "secondaryColor": "#2D2D2D",
         "accentColor": "#A93F7B",
+        "fontFamily": "Inter, sans-serif",
+        "navStyle": "topbar"
+      }
+    },
+    {
+      "name": "Les Eaux Minérales d'Oulmès",
+      "slug": "oulmes",
+      "industryCode": "food-products-beverage-and-tobacco",
+      "linkedinProfileUrl": "https://www.linkedin.com/company/les-eaux-minerales-d-oulmes",
+      "staffingLevel": "201-500",
+      "targetMarkets": ["B2B", "B2C", "Enterprise"],
+      "productsServices": ["Bottled water", "Beverages"],
+      "branding": {
+        "appName": "Oulmès Academy",
+        "tagline": "Natural mineral water — learning for teams at Les Eaux Minérales d'Oulmès",
+        "logoUrl": "https://www.oulmes.ma/wp-content/uploads/2020/03/Logo_Lemo.png",
+        "faviconUrl": "https://www.oulmes.ma/wp-content/uploads/2020/03/Logo_Lemo.png",
+        "primaryColor": "#0c4da2",
+        "secondaryColor": "#2d5016",
+        "accentColor": "#7cb342",
         "fontFamily": "Inter, sans-serif",
         "navStyle": "topbar"
       }
