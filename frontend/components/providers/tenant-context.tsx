@@ -9,6 +9,8 @@ export type TenantBranding = {
   appName?: string | null;
   tagline?: string | null;
   logoUrl?: string | null;
+  /** True when logo bytes are stored in DB (served from API). */
+  hasStoredLogo?: boolean;
   faviconUrl?: string | null;
   loginBgUrl?: string | null;
   fontFamily?: string | null;

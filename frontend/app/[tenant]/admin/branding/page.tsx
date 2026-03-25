@@ -7,7 +7,7 @@ import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-hea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl, apiUploadTenantLogo, apiDeleteTenantStoredLogo } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -37,6 +37,8 @@ export default function BrandingStudioPage() {
     loginBgUrl: "", fontFamily: "", navStyle: "topbar", customCss: "",
   });
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [removingStoredLogo, setRemovingStoredLogo] = useState(false);
 
   const academyName = branding?.appName || tenant?.name || "Academy";
 
@@ -59,6 +61,39 @@ export default function BrandingStudioPage() {
 
   const update = (key: keyof BrandingForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  const previewLogoSrc =
+    apiAbsoluteMediaUrl(form.logoUrl) ?? (form.logoUrl?.trim() ? form.logoUrl : undefined);
+
+  const uploadStoredLogo = async (file: File) => {
+    if (!tenant) return;
+    setLogoUploading(true);
+    try {
+      const res = await apiUploadTenantLogo(tenant.id, file);
+      if (!res.ok) throw new Error("upload failed");
+      toast(t("adminTenant.logoUploadOk"), "success");
+      window.location.reload();
+    } catch {
+      toast(t("adminTenant.logoUploadFailed"), "error");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const removeStoredLogo = async () => {
+    if (!tenant) return;
+    setRemovingStoredLogo(true);
+    try {
+      const res = await apiDeleteTenantStoredLogo(tenant.id);
+      if (!res.ok) throw new Error("delete failed");
+      toast(t("adminTenant.brandingSaved"), "success");
+      window.location.reload();
+    } catch {
+      toast(t("adminTenant.brandingSaveFailed"), "error");
+    } finally {
+      setRemovingStoredLogo(false);
+    }
   };
 
   const save = async () => {
@@ -120,7 +155,40 @@ export default function BrandingStudioPage() {
                   <Input value={form.tagline} onChange={(e) => update("tagline", e.target.value)} placeholder={t("adminTenant.enterpriseLearningPlatform")} />
                 </div>
                 <div>
+                  <label className="text-sm font-medium">{t("adminTenant.logoFileUpload")}</label>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-2">{t("adminTenant.logoFileHint")}</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                      disabled={logoUploading || !tenant}
+                      className="text-sm"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) void uploadStoredLogo(f);
+                      }}
+                    />
+                    {logoUploading ? (
+                      <span className="text-sm text-[var(--color-text-secondary)]">{t("adminTenant.logoUploading")}</span>
+                    ) : null}
+                    {branding?.hasStoredLogo ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={removingStoredLogo}
+                        onClick={() => void removeStoredLogo()}
+                      >
+                        {removingStoredLogo ? t("common.saving") : t("adminTenant.removeStoredLogo")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div>
                   <label className="text-sm font-medium">{t("adminTenant.logoUrl")}</label>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-1">
+                    {t("adminTenant.logoUrlOptionalHelp")}
+                  </p>
                   <Input value={form.logoUrl} onChange={(e) => update("logoUrl", e.target.value)} placeholder="https://..." />
                 </div>
                 <div>
@@ -201,8 +269,8 @@ export default function BrandingStudioPage() {
               <CardContent>
                 <div className="rounded-xl border border-[var(--color-bg-secondary)] overflow-hidden">
                   <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-200" style={{ backgroundColor: previewPrimary + "10" }}>
-                    {form.logoUrl ? (
-                      <img src={form.logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded" />
+                    {previewLogoSrc ? (
+                      <img src={previewLogoSrc} alt="Logo" className="h-8 w-8 object-contain rounded" />
                     ) : (
                       <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: previewPrimary }}>
                         {(form.appName || tenant?.name || "A").charAt(0)}

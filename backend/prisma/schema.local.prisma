@@ -476,6 +476,8 @@ model TenantBranding {
   id             String   @id @default(uuid())
   tenantId       String   @unique
   logoUrl        String?
+  logoData       Bytes?
+  logoMimeType   String?
   faviconUrl     String?
   primaryColor   String?  @default("#6B4E9A")
   secondaryColor String?  @default("#8D8D8D")

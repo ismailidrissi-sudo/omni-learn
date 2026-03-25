@@ -1,4 +1,22 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Res,
+  UseGuards,
+  NotFoundException,
+  BadRequestException,
+  StreamableFile,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { CompanyService, BrandingDto, EnterpriseLeadDto } from './company.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
@@ -46,6 +64,45 @@ export class CompanyController {
   @UseGuards(OptionalJwtGuard)
   getPlatformStats() {
     return this.company.getPlatformStats();
+  }
+
+  /** Public: binary academy logo stored in TenantBranding.logoData */
+  @Get('tenants/:tenantId/logo')
+  async getTenantLogo(
+    @Param('tenantId') tenantId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const file = await this.company.getTenantLogoFile(tenantId);
+    if (!file) throw new NotFoundException('Logo not found');
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return new StreamableFile(file.buffer);
+  }
+
+  @Post('tenants/:tenantId/branding/logo')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  @UseInterceptors(FileInterceptor('logo', { limits: { fileSize: 1_500_000 } }))
+  async uploadTenantLogo(
+    @Param('tenantId') tenantId: string,
+    @UploadedFile()
+    file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('Empty logo file');
+    if (file.size > 1_500_000) throw new BadRequestException('Logo must be at most 1.5 MB');
+    if (!/^(image\/png|image\/jpeg|image\/webp|image\/gif|image\/svg\+xml)$/.test(file.mimetype)) {
+      throw new BadRequestException('Logo must be PNG, JPEG, WebP, GIF, or SVG');
+    }
+    await this.company.saveTenantLogoBytes(tenantId, file.buffer, file.mimetype);
+    return this.company.getBranding(tenantId);
+  }
+
+  @Delete('tenants/:tenantId/branding/logo')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async deleteTenantLogo(@Param('tenantId') tenantId: string) {
+    await this.company.clearTenantLogoBytes(tenantId);
+    return this.company.getBranding(tenantId);
   }
 
   @Get('tenants/:id')

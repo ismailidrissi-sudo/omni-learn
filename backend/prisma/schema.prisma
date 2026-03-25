@@ -690,6 +690,9 @@ model TenantBranding {
   id             String   @id @default(uuid())
   tenantId       String   @unique
   logoUrl        String?
+  /// Raster/vector bytes served at GET /company/tenants/:tenantId/logo (takes precedence over logoUrl for display)
+  logoData       Bytes?
+  logoMimeType   String?  @db.VarChar(127)
   faviconUrl     String?
   primaryColor   String?  @default("#6B4E9A")
   secondaryColor String?  @default("#8D8D8D")

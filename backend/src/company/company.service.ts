@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TenantBranding } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -21,7 +21,13 @@ export interface BrandingDto {
   navStyle?: string;
   customCss?: string;
   settings?: Record<string, unknown>;
+  /** When true, removes bytes from TenantBranding (URL fields unchanged unless also sent). */
+  clearStoredLogo?: boolean;
 }
+
+export type SanitizedTenantBranding = Omit<TenantBranding, 'logoData'> & {
+  hasStoredLogo: boolean;
+};
 
 export interface EnterpriseLeadDto {
   company: string;
@@ -34,11 +40,91 @@ export interface EnterpriseLeadDto {
 export class CompanyService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Absolute or root-relative URL served by GET /company/tenants/:id/logo */
+  storedLogoPublicUrl(tenantId: string): string {
+    const path = `/company/tenants/${tenantId}/logo`;
+    const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+    return base ? `${base}${path}` : path;
+  }
+
+  static storedLogoBytesLen(logoData: TenantBranding['logoData']): number {
+    if (logoData == null) return 0;
+    const b = logoData as unknown;
+    if (Buffer.isBuffer(b)) return b.length;
+    if (b instanceof Uint8Array) return b.byteLength;
+    return 0;
+  }
+
+  resolveDisplayLogoUrl(
+    tenantId: string,
+    branding: Pick<TenantBranding, 'logoUrl' | 'logoData'> | null,
+    tenantFallbackLogoUrl: string | null | undefined,
+  ): string | null {
+    if (branding && CompanyService.storedLogoBytesLen(branding.logoData) > 0) {
+      return this.storedLogoPublicUrl(tenantId);
+    }
+    const u = branding?.logoUrl ?? tenantFallbackLogoUrl;
+    if (u != null && String(u).trim() !== '') return String(u).trim();
+    return null;
+  }
+
+  sanitizeBranding(tenantId: string, row: TenantBranding): SanitizedTenantBranding {
+    const { logoData: _drop, ...rest } = row;
+    const hasStoredLogo = CompanyService.storedLogoBytesLen(row.logoData) > 0;
+    const resolved = this.resolveDisplayLogoUrl(tenantId, row, null);
+    return {
+      ...rest,
+      logoUrl: resolved ?? rest.logoUrl,
+      hasStoredLogo,
+    } as SanitizedTenantBranding;
+  }
+
+  async getTenantLogoFile(tenantId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    const row = await this.prisma.tenantBranding.findUnique({
+      where: { tenantId },
+      select: { logoData: true, logoMimeType: true },
+    });
+    if (!row?.logoData) return null;
+    const len = CompanyService.storedLogoBytesLen(row.logoData);
+    if (len === 0) return null;
+    const buffer = Buffer.isBuffer(row.logoData) ? row.logoData : Buffer.from(row.logoData as Uint8Array);
+    return {
+      buffer,
+      mimeType: row.logoMimeType?.trim() || 'image/png',
+    };
+  }
+
+  async saveTenantLogoBytes(tenantId: string, buffer: Buffer, mimeType: string): Promise<void> {
+    await this.prisma.tenantBranding.upsert({
+      where: { tenantId },
+      create: {
+        tenantId,
+        logoData: buffer,
+        logoMimeType: mimeType,
+      },
+      update: {
+        logoData: buffer,
+        logoMimeType: mimeType,
+      },
+    });
+  }
+
+  async clearTenantLogoBytes(tenantId: string): Promise<void> {
+    await this.prisma.tenantBranding.updateMany({
+      where: { tenantId },
+      data: { logoData: null, logoMimeType: null },
+    });
+  }
+
   async listTenants() {
-    return this.prisma.tenant.findMany({
+    const rows = await this.prisma.tenant.findMany({
       orderBy: { name: 'asc' },
       include: { branding: true },
     });
+    return rows.map((t) => ({
+      ...t,
+      branding: t.branding ? this.sanitizeBranding(t.id, t.branding) : null,
+    }));
   }
 
   /** List users for admin (e.g. content assignment). Optional tenantId filter. */
@@ -59,13 +145,15 @@ export class CompanyService {
     });
     return tenants
       .filter((t) => {
-        const logo = t.branding?.logoUrl ?? t.logoUrl;
-        return logo != null && logo.trim() !== '';
+        const b = t.branding;
+        const hasBlob = b != null && CompanyService.storedLogoBytesLen(b.logoData) > 0;
+        const url = b?.logoUrl ?? t.logoUrl;
+        return hasBlob || (url != null && String(url).trim() !== '');
       })
       .map((t) => ({
         id: t.id,
         name: t.name,
-        logoUrl: t.branding?.logoUrl ?? t.logoUrl,
+        logoUrl: this.resolveDisplayLogoUrl(t.id, t.branding, t.logoUrl) ?? '',
       }));
   }
 
@@ -79,10 +167,15 @@ export class CompanyService {
   }
 
   async getTenant(id: string) {
-    return this.prisma.tenant.findUniqueOrThrow({
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id },
       include: { branding: true, learningPaths: true },
     });
+    const { branding, ...rest } = tenant;
+    return {
+      ...rest,
+      branding: branding ? this.sanitizeBranding(tenant.id, branding) : null,
+    };
   }
 
   async createTenant(name: string, slug: string) {
@@ -109,9 +202,10 @@ export class CompanyService {
   }
 
   async getBranding(tenantId: string) {
-    return this.prisma.tenantBranding.findUnique({
+    const row = await this.prisma.tenantBranding.findUnique({
       where: { tenantId },
     });
+    return row ? this.sanitizeBranding(tenantId, row) : null;
   }
 
   /** Public site theme: first tenant by name (same ordering as former admin-only list). */
@@ -125,6 +219,7 @@ export class CompanyService {
   }
 
   async upsertBranding(tenantId: string, data: BrandingDto) {
+    const clearStoredLogo = data.clearStoredLogo === true;
     const settingsStr = data.settings ? JSON.stringify(data.settings) : undefined;
     const brandingFields = {
       logoUrl: data.logoUrl,
@@ -140,7 +235,7 @@ export class CompanyService {
       navStyle: data.navStyle,
       customCss: data.customCss,
     };
-    return this.prisma.tenantBranding.upsert({
+    const row = await this.prisma.tenantBranding.upsert({
       where: { tenantId },
       create: {
         tenantId,
@@ -150,8 +245,10 @@ export class CompanyService {
       update: {
         ...brandingFields,
         ...(settingsStr !== undefined && { settings: settingsStr }),
+        ...(clearStoredLogo && { logoData: null, logoMimeType: null }),
       },
     });
+    return this.sanitizeBranding(tenantId, row);
   }
 
   private static RESERVED_SLUGS = new Set([
@@ -175,11 +272,12 @@ export class CompanyService {
     if (!tenant) return null;
 
     const branding = tenant.branding;
+    const topLogoUrl = this.resolveDisplayLogoUrl(tenant.id, branding, tenant.logoUrl);
     return {
       id: tenant.id,
       name: branding?.appName || tenant.name,
       slug: tenant.slug,
-      logoUrl: branding?.logoUrl || tenant.logoUrl,
+      logoUrl: topLogoUrl,
       industry: tenant.industry?.name ?? null,
       branding: branding ? {
         primaryColor: branding.primaryColor,
@@ -187,12 +285,13 @@ export class CompanyService {
         accentColor: branding.accentColor,
         appName: branding.appName,
         tagline: branding.tagline,
-        logoUrl: branding.logoUrl,
+        logoUrl: this.resolveDisplayLogoUrl(tenant.id, branding, tenant.logoUrl),
         faviconUrl: branding.faviconUrl,
         loginBgUrl: branding.loginBgUrl,
         fontFamily: branding.fontFamily,
         navStyle: branding.navStyle,
         customCss: branding.customCss,
+        hasStoredLogo: CompanyService.storedLogoBytesLen(branding.logoData) > 0,
       } : null,
       ssoProviders: tenant.ssoConfigs.map((c) => c.provider),
       stats: {

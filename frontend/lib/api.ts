@@ -63,6 +63,32 @@ async function tryRefreshToken(): Promise<string | null> {
   return result;
 }
 
+/** Backend may return root-relative API paths (e.g. stored logos). Use for <img src>. */
+export function apiAbsoluteMediaUrl(src: string | null | undefined): string | undefined {
+  if (src == null || src === "") return undefined;
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  const base = API_URL.replace(/\/$/, "");
+  const path = src.startsWith("/") ? src : `/${src}`;
+  return `${base}${path}`;
+}
+
+export async function apiUploadTenantLogo(tenantId: string, file: File): Promise<Response> {
+  const form = new FormData();
+  form.append("logo", file);
+  const token = typeof window !== "undefined" ? localStorage.getItem("omnilearn_token") : null;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(`${API_URL}/company/tenants/${tenantId}/branding/logo`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+}
+
+export async function apiDeleteTenantStoredLogo(tenantId: string): Promise<Response> {
+  return apiFetch(`/company/tenants/${tenantId}/branding/logo`, { method: "DELETE" });
+}
+
 export async function apiFetch(
   path: string,
   options: RequestInit = {}

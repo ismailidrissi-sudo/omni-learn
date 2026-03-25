@@ -1,5 +1,7 @@
 "use client";
 
+import { apiAbsoluteMediaUrl } from "@/lib/api";
+
 type TenantLogoProps = {
   logoUrl?: string | null;
   name: string;
@@ -16,10 +18,11 @@ const sizeMap = {
 export function TenantLogo({ logoUrl, name, size = "md", className = "" }: TenantLogoProps) {
   const s = sizeMap[size];
 
-  if (logoUrl) {
+  const resolved = apiAbsoluteMediaUrl(logoUrl ?? undefined) ?? logoUrl;
+  if (resolved) {
     return (
       <img
-        src={logoUrl}
+        src={resolved}
         alt={`${name} logo`}
         className={`${s.img} object-contain rounded ${className}`}
       />

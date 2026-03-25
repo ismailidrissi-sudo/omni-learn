@@ -15,6 +15,13 @@ import { RbacRole } from '../constants/rbac.constant';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateEmailBrandingDto } from './dto/update-email-branding.dto';
 
+function storedLogoByteLength(logoData: unknown): number {
+  if (logoData == null) return 0;
+  if (Buffer.isBuffer(logoData)) return logoData.length;
+  if (logoData instanceof Uint8Array) return logoData.byteLength;
+  return 0;
+}
+
 function defaultEmailBrandingResponse(tenantId: string) {
   return {
     id: null as string | null,
@@ -184,8 +191,14 @@ export class EmailBrandingController {
       this.db.tenant.findUnique({ where: { id: tenantId }, select: { name: true, logoUrl: true } }),
     ]);
 
+    const apiBase = (process.env.PUBLIC_API_URL || process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+    const storedLogoUrl =
+      tenantBranding && storedLogoByteLength(tenantBranding.logoData) > 0 && apiBase
+        ? `${apiBase}/company/tenants/${tenantId}/logo`
+        : null;
+
     const logoUrl =
-      tenantBranding?.emailLogoUrl ?? tenantBranding?.logoUrl ?? tenant?.logoUrl ?? null;
+      tenantBranding?.emailLogoUrl ?? storedLogoUrl ?? tenantBranding?.logoUrl ?? tenant?.logoUrl ?? null;
 
     const senderName = tenantBranding?.appName?.trim() || tenant?.name || 'OmniLearn';
 

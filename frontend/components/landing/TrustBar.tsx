@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { formatUserCount } from "@/lib/format-user-count";
 
 const PLACEHOLDER_NAMES = [
@@ -84,23 +84,19 @@ export function TrustBar() {
         </p>
       </motion.div>
 
-      <div className="mx-auto max-w-5xl px-4">
-        <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-8 md:gap-x-12 md:gap-y-10">
           {items.map((item) => (
-            <motion.div
+            <div
               key={item.id}
-              initial={{ opacity: 0, y: 8 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
               className="flex items-center justify-center min-h-[7rem] md:min-h-[8.5rem] flex-shrink-0 py-2"
             >
               {item.logoUrl && !brokenLogos.has(item.id) ? (
                 <img
-                  src={item.logoUrl}
+                  src={apiAbsoluteMediaUrl(item.logoUrl) ?? item.logoUrl}
                   alt={item.name}
                   title={item.name}
-                  className="h-20 w-auto max-w-[240px] md:h-24 md:max-w-[300px] object-contain object-center transition-all duration-300 mix-blend-multiply dark:brightness-0 dark:invert dark:opacity-80 hover:scale-105"
+                  className="h-20 w-auto max-w-[240px] md:h-24 md:max-w-[280px] object-contain object-center transition-transform duration-300 dark:brightness-0 dark:invert dark:opacity-80 hover:scale-105"
                   loading="lazy"
                   onError={() => handleImgError(item.id)}
                 />
@@ -112,7 +108,7 @@ export function TrustBar() {
                   {item.name}
                 </span>
               )}
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

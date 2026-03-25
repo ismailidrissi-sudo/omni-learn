@@ -4,6 +4,13 @@ import { ResolvedEmailBranding } from './branding-types';
 
 const DEFAULT_BASE = 'https://omnilearn.space';
 
+function storedLogoByteLength(logoData: unknown): number {
+  if (logoData == null) return 0;
+  if (Buffer.isBuffer(logoData)) return logoData.length;
+  if (logoData instanceof Uint8Array) return logoData.byteLength;
+  return 0;
+}
+
 @Injectable()
 export class BrandingResolverService {
   private readonly db: any;
@@ -39,9 +46,16 @@ export class BrandingResolverService {
       tenant?.name ||
       'OmniLearn';
 
+    const apiBase = (process.env.PUBLIC_API_URL || baseUrl).replace(/\/$/, '');
+    const storedLogoUrl =
+      tenantBranding && storedLogoByteLength(tenantBranding.logoData) > 0
+        ? `${apiBase}/company/tenants/${tenantId}/logo`
+        : null;
+
     const logoUrl =
       emailBranding?.logoUrl ||
       tenantBranding?.emailLogoUrl ||
+      storedLogoUrl ||
       tenantBranding?.logoUrl ||
       tenant?.logoUrl ||
       null;

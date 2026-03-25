@@ -114,13 +114,36 @@ async function main() {
       console.log(`Seeded tenant: ${tenant.slug}`);
 
       if (t0.branding) {
+        let logoData: Buffer | undefined;
+        let logoMimeType: string | undefined;
+        if (t0.slug === 'afflatus') {
+          const logoCandidates = [
+            path.join(__dirname, 'assets', 'afflatus-logo.png'),
+            path.join(process.cwd(), 'prisma', 'assets', 'afflatus-logo.png'),
+            path.join(process.cwd(), '..', 'frontend', 'public', 'afflatus-logo.png'),
+          ];
+          for (const p of logoCandidates) {
+            try {
+              if (fs.existsSync(p)) {
+                logoData = fs.readFileSync(p);
+                logoMimeType = 'image/png';
+                break;
+              }
+            } catch {
+              /* try next */
+            }
+          }
+        }
+
         await prisma.tenantBranding.upsert({
           where: { tenantId: tenant.id },
           create: {
             tenantId: tenant.id,
             appName: t0.branding.appName,
             tagline: t0.branding.tagline,
-            logoUrl: t0.branding.logoUrl,
+            logoUrl: logoData ? null : t0.branding.logoUrl,
+            logoData,
+            logoMimeType,
             faviconUrl: t0.branding.faviconUrl,
             primaryColor: t0.branding.primaryColor,
             secondaryColor: t0.branding.secondaryColor,
@@ -134,7 +157,9 @@ async function main() {
           update: {
             appName: t0.branding.appName,
             tagline: t0.branding.tagline,
-            logoUrl: t0.branding.logoUrl,
+            ...(logoData
+              ? { logoData, logoMimeType, logoUrl: null }
+              : { logoUrl: t0.branding.logoUrl }),
             faviconUrl: t0.branding.faviconUrl,
             primaryColor: t0.branding.primaryColor,
             secondaryColor: t0.branding.secondaryColor,
