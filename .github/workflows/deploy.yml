@@ -42,8 +42,8 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || '22' }}
-          timeout: 600s
-          command_timeout: 15m
+          timeout: 20m
+          command_timeout: 45m
           envs: APP_DIR
           script: |
             set -e
