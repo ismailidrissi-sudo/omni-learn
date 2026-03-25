@@ -125,8 +125,50 @@ export class CompanyController {
   @Put('tenants/:id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  updateTenant(@Param('id') id: string, @Body() body: { name?: string; slug?: string; settings?: Record<string, unknown> }) {
-    return this.company.updateTenant(id, body);
+  updateTenant(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      slug?: string;
+      settings?: Record<string, unknown>;
+      logoUrl?: string | null;
+      language?: string | null;
+      status?: string | null;
+      internalErp?: string | null;
+      industryId?: string | null;
+      linkedinProfileUrl?: string | null;
+      targetMarkets?: string[];
+      productsServices?: string[];
+      certifications?: string[];
+      staffingLevel?: string | null;
+      companyProfileComplete?: boolean;
+    },
+  ) {
+    if (body.slug != null && this.company.isReservedSlug(body.slug)) {
+      throw new BadRequestException(`The slug "${body.slug}" is reserved and cannot be used`);
+    }
+
+    const payload = { ...body };
+    if (payload.industryId === '') payload.industryId = null;
+    if (payload.logoUrl === '') payload.logoUrl = null;
+    if (payload.internalErp === '') payload.internalErp = null;
+    if (payload.language === '') payload.language = null;
+    if (payload.staffingLevel === '') payload.staffingLevel = null;
+    if (payload.status === '') payload.status = null;
+
+    if (body.linkedinProfileUrl !== undefined) {
+      const li = String(body.linkedinProfileUrl).trim();
+      if (li === '') {
+        payload.linkedinProfileUrl = null;
+      } else if (!CompanyService.isValidLinkedInCompanyUrl(li)) {
+        throw new BadRequestException('Invalid LinkedIn company URL');
+      } else {
+        payload.linkedinProfileUrl = li;
+      }
+    }
+
+    return this.company.updateTenant(id, payload);
   }
 
   @Delete('tenants/:id')

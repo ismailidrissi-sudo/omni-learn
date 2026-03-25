@@ -184,7 +184,25 @@ export class CompanyService {
     });
   }
 
-  async updateTenant(id: string, data: { name?: string; slug?: string; settings?: Record<string, unknown> }) {
+  async updateTenant(
+    id: string,
+    data: {
+      name?: string;
+      slug?: string;
+      settings?: Record<string, unknown>;
+      logoUrl?: string | null;
+      language?: string | null;
+      status?: string | null;
+      internalErp?: string | null;
+      industryId?: string | null;
+      linkedinProfileUrl?: string | null;
+      targetMarkets?: string[];
+      productsServices?: string[];
+      certifications?: string[];
+      staffingLevel?: string | null;
+      companyProfileComplete?: boolean;
+    },
+  ) {
     return this.prisma.tenant.update({
       where: { id },
       data: {
@@ -193,8 +211,37 @@ export class CompanyService {
         ...(data.settings !== undefined && {
           settings: data.settings as Prisma.InputJsonValue,
         }),
+        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+        ...(data.language !== undefined && { language: data.language }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.internalErp !== undefined && { internalErp: data.internalErp }),
+        ...(data.industryId !== undefined && { industryId: data.industryId }),
+        ...(data.linkedinProfileUrl !== undefined && {
+          linkedinProfileUrl: data.linkedinProfileUrl,
+        }),
+        ...(data.targetMarkets !== undefined && {
+          targetMarkets: data.targetMarkets as Prisma.InputJsonValue,
+        }),
+        ...(data.productsServices !== undefined && {
+          productsServices: data.productsServices as Prisma.InputJsonValue,
+        }),
+        ...(data.certifications !== undefined && {
+          certifications: data.certifications as Prisma.InputJsonValue,
+        }),
+        ...(data.staffingLevel !== undefined && { staffingLevel: data.staffingLevel }),
+        ...(data.companyProfileComplete !== undefined && {
+          companyProfileComplete: data.companyProfileComplete,
+        }),
       },
-    });
+      include: { branding: true },
+    }).then((t) => ({
+      ...t,
+      branding: t.branding ? this.sanitizeBranding(t.id, t.branding) : null,
+    }));
+  }
+
+  static isValidLinkedInCompanyUrl(url: string): boolean {
+    return /^https?:\/\/(www\.)?linkedin\.com\/(in|company)\/[\w-]+\/?$/i.test(url.trim());
   }
 
   async deleteTenant(id: string) {
