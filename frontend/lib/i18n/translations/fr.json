@@ -971,7 +971,10 @@
     "notFound": "Parcours d'apprentissage introuvable.",
     "backToDiscover": "Retour à Découvrir",
     "progress": "Progression",
-    "signInToEnroll": "Connectez-vous pour vous inscrire"
+    "signInToEnroll": "Connectez-vous pour vous inscrire",
+    "completed": "Terminé",
+    "inProgress": "En cours",
+    "notStarted": "Non commencé"
   },
   "notifications": {
     "title": "Notifications",

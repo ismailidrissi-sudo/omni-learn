@@ -37,10 +37,16 @@ type LearningPath = {
   steps: PathStep[];
 };
 
+type StepProgress = {
+  stepId: string;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+};
+
 type PathEnrollment = {
   id: string;
   progressPct: number;
   status: string;
+  stepProgress: StepProgress[];
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -96,6 +102,10 @@ export default function PathDetailPage() {
   const firstStepHref = firstStep
     ? learnerContentHref(firstStep.type, firstStep.id)
     : "/learn";
+
+  const stepStatusMap = new Map(
+    (enrollment?.stepProgress ?? []).map((sp) => [sp.stepId, sp.status])
+  );
 
   const handleEnroll = async () => {
     if (!user) {
@@ -204,53 +214,99 @@ export default function PathDetailPage() {
             {path.steps.length > 0 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-brand-grey-dark dark:text-white">{t("path.courseSteps")}</h2>
-                <div className="space-y-3">
+                <div className="relative">
                   {path.steps
                     .filter((step) => step.contentItem)
                     .sort((a, b) => a.stepOrder - b.stepOrder)
-                    .map((step, idx) => {
+                    .map((step, idx, arr) => {
                       const ci = step.contentItem;
                       const thumb = getThumbnail(ci?.metadata);
                       const isCourse = ci?.type === "COURSE";
                       const typeLabel = ci?.type?.replace(/_/g, " ") ?? "";
+                      const stepStatus = stepStatusMap.get(step.id);
+                      const isCompleted = stepStatus === "COMPLETED";
+                      const isInProgress = stepStatus === "IN_PROGRESS";
+                      const isLast = idx === arr.length - 1;
+
+                      const circleClass = isCompleted
+                        ? "bg-brand-green text-white"
+                        : isInProgress
+                        ? "bg-white dark:bg-gray-900 border-2 border-brand-purple text-brand-purple"
+                        : "bg-brand-purple/10 text-brand-purple";
+
+                      const lineColor = isCompleted
+                        ? "bg-brand-green"
+                        : "bg-brand-grey-light dark:bg-gray-700";
+
                       return (
-                        <Link
-                          key={step.id}
-                          href={learnerContentHref(ci?.type, ci.id)}
-                          className="flex items-start gap-4 p-4 rounded-xl border border-brand-grey-light dark:border-gray-700 hover:border-brand-purple/40 hover:shadow-md transition-all group"
-                        >
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-purple/10 text-brand-purple font-bold text-sm flex items-center justify-center">
-                            {idx + 1}
-                          </div>
-                          {thumb ? (
-                            <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden">
-                              <img src={thumb} alt="" className="w-full h-full object-cover" />
+                        <div key={step.id} className="flex gap-0">
+                          {/* Timeline column */}
+                          <div className="flex flex-col items-center flex-shrink-0 w-8 mr-4">
+                            <div className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center flex-shrink-0 transition-colors ${circleClass}`}>
+                              {isCompleted ? (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                idx + 1
+                              )}
                             </div>
-                          ) : (
-                            <div className="flex-shrink-0 w-24 h-16 rounded-lg bg-gradient-to-br from-brand-purple/10 to-brand-green/10 flex items-center justify-center text-2xl">
-                              {isCourse ? "📚" : ci?.type === "VIDEO" ? "🎬" : ci?.type === "PODCAST" ? "🎧" : "📄"}
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-brand-grey-dark dark:text-white group-hover:text-brand-purple transition-colors line-clamp-1">
-                              {ci.title}
-                            </h3>
-                            {ci.description && (
-                              <p className="text-xs text-brand-grey dark:text-gray-400 line-clamp-2 mt-0.5">{ci.description}</p>
+                            {!isLast && (
+                              <div className={`w-0.5 flex-1 min-h-[16px] ${lineColor} transition-colors`} />
                             )}
-                            <div className="flex items-center gap-2 mt-1">
-                              {typeLabel && <span className="text-[10px] uppercase font-medium text-brand-purple">{typeLabel}</span>}
-                              {ci.durationMinutes && (
-                                <span className="text-[10px] text-brand-grey">{ci.durationMinutes} min</span>
-                              )}
-                              {step.isRequired && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium">
-                                  {t("pathProgress.required")}
-                                </span>
-                              )}
-                            </div>
                           </div>
-                        </Link>
+
+                          {/* Step card */}
+                          <Link
+                            href={learnerContentHref(ci?.type, ci.id)}
+                            className={`flex items-start gap-4 p-4 rounded-xl border transition-all group flex-1 mb-3 ${
+                              isCompleted
+                                ? "border-brand-green/30 bg-brand-green/5 dark:bg-brand-green/5 hover:border-brand-green/50 hover:shadow-md"
+                                : isInProgress
+                                ? "border-brand-purple/30 bg-brand-purple/5 dark:bg-brand-purple/5 hover:border-brand-purple/50 hover:shadow-md"
+                                : "border-brand-grey-light dark:border-gray-700 hover:border-brand-purple/40 hover:shadow-md"
+                            }`}
+                          >
+                            {thumb ? (
+                              <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden">
+                                <img src={thumb} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-24 h-16 rounded-lg bg-gradient-to-br from-brand-purple/10 to-brand-green/10 flex items-center justify-center text-2xl">
+                                {isCourse ? "📚" : ci?.type === "VIDEO" ? "🎬" : ci?.type === "PODCAST" ? "🎧" : "📄"}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-sm font-semibold text-brand-grey-dark dark:text-white group-hover:text-brand-purple transition-colors line-clamp-1">
+                                {ci.title}
+                              </h3>
+                              {ci.description && (
+                                <p className="text-xs text-brand-grey dark:text-gray-400 line-clamp-2 mt-0.5">{ci.description}</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                {typeLabel && <span className="text-[10px] uppercase font-medium text-brand-purple">{typeLabel}</span>}
+                                {ci.durationMinutes && (
+                                  <span className="text-[10px] text-brand-grey">{ci.durationMinutes} min</span>
+                                )}
+                                {step.isRequired && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium">
+                                    {t("pathProgress.required")}
+                                  </span>
+                                )}
+                                {isCompleted && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-green/10 text-brand-green font-medium">
+                                    {t("path.completed")}
+                                  </span>
+                                )}
+                                {isInProgress && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple font-medium">
+                                    {t("path.inProgress")}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
                       );
                     })}
                 </div>

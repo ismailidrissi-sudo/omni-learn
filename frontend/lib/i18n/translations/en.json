@@ -1059,7 +1059,10 @@
     "notFound": "Learning path not found.",
     "backToDiscover": "Back to Discover",
     "progress": "Progress",
-    "signInToEnroll": "Sign in to enroll"
+    "signInToEnroll": "Sign in to enroll",
+    "completed": "Completed",
+    "inProgress": "In Progress",
+    "notStarted": "Not Started"
   },
   "media": {
     "advertisement": "Advertisement",
