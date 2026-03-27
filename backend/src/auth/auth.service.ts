@@ -20,6 +20,8 @@ export interface JwtPayload {
   resource_access?: Record<string, { roles: string[] }>;
   tenant_id?: string;
   preferred_username?: string;
+  /** Unix seconds — used by refresh flow with ignoreExpiration */
+  exp?: number;
 }
 
 @Injectable()

@@ -88,14 +88,31 @@ export default function ContentPage() {
 
   useEffect(() => {
     if (!user?.id || !id || content?.type !== "COURSE") return;
-    apiFetch(`/course-enrollments/for-course?userId=${user.id}&courseId=${id}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          setEnrollmentStatus(data.status === "COMPLETED" ? "completed" : "enrolled");
+
+    const checkEnrollment = async () => {
+      try {
+        const courseRes = await apiFetch(`/course-enrollments/for-course?userId=${user.id}&courseId=${id}`);
+        if (courseRes.ok) {
+          const data = await courseRes.json();
+          if (data) {
+            setEnrollmentStatus(data.status === "COMPLETED" ? "completed" : "enrolled");
+            return;
+          }
         }
-      })
-      .catch(() => {});
+      } catch {}
+
+      try {
+        const pathRes = await apiFetch(`/learning-paths/enrollment-for-content?userId=${user.id}&contentId=${id}`);
+        if (pathRes.ok) {
+          const data = await pathRes.json();
+          if (data) {
+            setEnrollmentStatus("enrolled");
+          }
+        }
+      } catch {}
+    };
+
+    checkEnrollment();
   }, [user?.id, id, content?.type]);
 
   const meta = useMemo(() => parseMeta(content?.metadata), [content?.metadata]);

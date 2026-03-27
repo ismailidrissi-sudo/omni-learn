@@ -578,11 +578,13 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
             {sections.map((section, sectionIdx) => (
               <div
                 key={section.id}
-                className="border border-brand-grey-light rounded-lg overflow-hidden bg-white"
+                className="border border-brand-grey-light rounded-lg bg-white"
               >
                 {/* Section header */}
                 <div
-                  className="flex items-center gap-3 p-4 cursor-pointer hover:bg-brand-grey-light/20 transition-colors"
+                  className={`flex items-center gap-3 p-4 cursor-pointer hover:bg-brand-grey-light/20 transition-colors ${
+                    expandedSection === section.id ? "rounded-t-lg" : "rounded-lg"
+                  }`}
                   onClick={() =>
                     setExpandedSection(expandedSection === section.id ? null : section.id)
                   }
@@ -626,7 +628,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
 
                 {/* Section content - sessions */}
                 {expandedSection === section.id && (
-                  <div className="border-t border-brand-grey-light bg-brand-grey-light/10">
+                  <div className="border-t border-brand-grey-light bg-brand-grey-light/10 rounded-b-lg">
                     {section.learningGoal && (
                       <div className="px-4 py-2 text-sm text-brand-grey">
                         {section.learningGoal}

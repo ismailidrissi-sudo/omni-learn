@@ -89,13 +89,21 @@ export default function PathDetailPage() {
       .catch(() => {});
   }, [user?.id, pathId]);
 
+  const sortedSteps = (path?.steps ?? [])
+    .filter((s) => s.contentItem)
+    .sort((a, b) => a.stepOrder - b.stepOrder);
+  const firstStep = sortedSteps[0]?.contentItem;
+  const firstStepHref = firstStep
+    ? learnerContentHref(firstStep.type, firstStep.id)
+    : "/learn";
+
   const handleEnroll = async () => {
     if (!user) {
       router.push("/signin");
       return;
     }
     if (enrollment) {
-      router.push("/learn");
+      router.push(firstStepHref);
       return;
     }
     setEnrolling(true);
@@ -177,7 +185,7 @@ export default function PathDetailPage() {
                       <span className="text-xs text-brand-grey font-medium">{enrollment.progressPct}%</span>
                     </div>
                   )}
-                  <Link href="/learn" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition">
+                  <Link href={firstStepHref} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-purple text-white font-semibold hover:bg-brand-purple/90 transition">
                     {t("path.continueLearning")}
                   </Link>
                 </>

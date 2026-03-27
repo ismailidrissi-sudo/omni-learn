@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { apiFetch, API_URL } from "@/lib/api";
+import { apiFetch, API_URL, refreshTokenQuiet, syncAuthCookieFromStorage } from "@/lib/api";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
+/** Rotate JWT before the 1h access-token expiry so learners are not dropped mid-course. */
+const TOKEN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -97,14 +99,31 @@ export function useSessionTracking() {
   useEffect(() => {
     startSession();
 
-    const interval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+    const heartbeat = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+    const refreshToken = () => {
+      if (getToken()) void refreshTokenQuiet();
+    };
+    refreshToken();
+    const tokenRefresh = setInterval(refreshToken, TOKEN_REFRESH_INTERVAL_MS);
 
     const handleBeforeUnload = () => endSession();
     window.addEventListener("beforeunload", handleBeforeUnload);
 
+    /** Timers are throttled in background tabs; cookie can be dropped while localStorage remains. */
+    const onBecameVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      syncAuthCookieFromStorage();
+      if (getToken()) void refreshTokenQuiet();
+    };
+    document.addEventListener("visibilitychange", onBecameVisible);
+    window.addEventListener("pageshow", onBecameVisible);
+
     return () => {
-      clearInterval(interval);
+      clearInterval(heartbeat);
+      clearInterval(tokenRefresh);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", onBecameVisible);
+      window.removeEventListener("pageshow", onBecameVisible);
       endSession();
     };
   }, [startSession, sendHeartbeat, endSession]);

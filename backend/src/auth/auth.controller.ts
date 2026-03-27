@@ -121,7 +121,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt-refresh'))
   async refresh(@Req() req: { user?: { sub?: string } }) {
     const userId = req.user?.sub;
     if (!userId) throw new BadRequestException('Not authenticated');

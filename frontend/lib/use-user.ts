@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch, refreshTokenQuiet, OMNILEARN_AUTH_CHANGED_EVENT } from "./api";
 
 export type UserPlan = "EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS";
@@ -32,31 +32,46 @@ function getJwtRoles(): string[] {
 export function useUser(): { user: User | null; loading: boolean } {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastGoodUserRef = useRef<User | null>(null);
 
   const loadUser = useCallback(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("omnilearn_token");
     if (!token) {
+      lastGoodUserRef.current = null;
       setUser(null);
       setLoading(false);
       return;
     }
     setLoading(true);
     apiFetch("/auth/me")
-      .then((r) => {
-        if (r.ok) return r.json();
-        return null;
-      })
-      .then(async (profile: User | null) => {
-        if (profile && (profile.trainerApprovedAt || profile.isAdmin)) {
-          const roles = getJwtRoles();
-          if (!roles.includes("instructor")) {
-            await refreshTokenQuiet();
+      .then(async (r) => {
+        if (r.ok) {
+          const profile = (await r.json()) as User;
+          lastGoodUserRef.current = profile;
+          if (profile.trainerApprovedAt || profile.isAdmin) {
+            const roles = getJwtRoles();
+            if (!roles.includes("instructor")) {
+              await refreshTokenQuiet();
+            }
           }
+          return { kind: "ok" as const, profile };
         }
-        setUser(profile);
+        if (r.status >= 500 || r.status === 429) {
+          return { kind: "transient" as const };
+        }
+        return { kind: "fail" as const };
       })
-      .catch(() => setUser(null))
+      .catch(() => ({ kind: "transient" as const }))
+      .then((out) => {
+        if (out.kind === "ok") setUser(out.profile);
+        else if (out.kind === "fail") {
+          lastGoodUserRef.current = null;
+          setUser(null);
+        } else {
+          setUser(lastGoodUserRef.current);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 

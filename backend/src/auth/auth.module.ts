@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LinkedInStrategy } from './strategies/linkedin.strategy';
 import { RbacGuard } from './guards/rbac.guard';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -23,11 +24,12 @@ import { ReferralModule } from '../referral/referral.module';
         }
         return secret || 'dev-secret-local-only';
       })(),
-      signOptions: { expiresIn: '1h' },
+      // Longer access window reduces disconnects when refresh is delayed (background tabs, brief offline).
+      signOptions: { expiresIn: '8h' },
     }),
     forwardRef(() => ReferralModule),
   ],
-  providers: [AuthService, JwtStrategy, LinkedInStrategy, RbacGuard, OptionalJwtGuard],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, LinkedInStrategy, RbacGuard, OptionalJwtGuard],
   exports: [AuthService, RbacGuard, OptionalJwtGuard],
 })
 export class AuthModule {}

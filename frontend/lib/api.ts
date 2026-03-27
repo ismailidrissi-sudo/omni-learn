@@ -3,33 +3,53 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 /** Same-tab auth updates (e.g. Google One Tap) do not fire `storage`; hooks listen for this. */
 export const OMNILEARN_AUTH_CHANGED_EVENT = "omnilearn-auth-changed";
 
-let isRefreshing = false;
-let refreshPromise: Promise<string | null> | null = null;
+const COOKIE_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 days — align with middleware so cookie outlives token refresh
+
+type RefreshResult =
+  | { ok: true; accessToken: string }
+  | { ok: false; reason: "unauthorized" | "transient" };
+
+let refreshInflight: Promise<RefreshResult> | null = null;
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("omnilearn_token");
 }
 
-const COOKIE_MAX_AGE_SEC = 7 * 24 * 60 * 60; // 7 days — align with middleware so cookie outlives token refresh
-
 function notifyAuthChanged() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(OMNILEARN_AUTH_CHANGED_EVENT));
 }
 
+function persistTokenToCookie(token: string) {
+  if (typeof window === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `omnilearn_token=${token}; path=/; max-age=${COOKIE_MAX_AGE_SEC}; SameSite=Lax${secure}`;
+}
+
+/**
+ * Re-apply cookie from localStorage (Safari / privacy tools sometimes drop cookies; middleware only sees the cookie).
+ */
+export function syncAuthCookieFromStorage() {
+  if (typeof window === "undefined") return;
+  const token = localStorage.getItem("omnilearn_token");
+  if (token) persistTokenToCookie(token);
+  else document.cookie = "omnilearn_token=; path=/; max-age=0";
+}
+
 /** Pass `{ notifyListeners: false }` for silent JWT rotation so hooks do not refetch `/auth/me`. */
 function setToken(token: string, options?: { notifyListeners?: boolean }) {
   localStorage.setItem("omnilearn_token", token);
-  const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `omnilearn_token=${token}; path=/; max-age=${COOKIE_MAX_AGE_SEC}; SameSite=Lax${secure}`;
+  persistTokenToCookie(token);
   if (options?.notifyListeners !== false) notifyAuthChanged();
 }
 
 function clearAuth() {
   localStorage.removeItem("omnilearn_token");
   localStorage.removeItem("omnilearn_user");
-  document.cookie = "omnilearn_token=; path=/; max-age=0";
+  if (typeof window !== "undefined") {
+    document.cookie = "omnilearn_token=; path=/; max-age=0";
+  }
   notifyAuthChanged();
 }
 
@@ -44,9 +64,11 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-async function refreshTokenQuiet(): Promise<string | null> {
+async function executeAuthRefresh(): Promise<RefreshResult> {
   const token = getToken();
-  if (!token) return null;
+  if (!token) {
+    return { ok: false, reason: "unauthorized" };
+  }
 
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -56,22 +78,46 @@ async function refreshTokenQuiet(): Promise<string | null> {
         Authorization: `Bearer ${token}`,
       },
     });
-    if (!res.ok) return null;
+
+    if (res.status === 401 || res.status === 403) {
+      clearAuth();
+      return { ok: false, reason: "unauthorized" };
+    }
+
+    if (!res.ok) {
+      return { ok: false, reason: "transient" };
+    }
+
     const data = await res.json();
     if (data.accessToken) {
       setToken(data.accessToken, { notifyListeners: false });
-      return data.accessToken;
+      return { ok: true, accessToken: data.accessToken };
     }
-    return null;
+    return { ok: false, reason: "transient" };
   } catch {
-    return null;
+    return { ok: false, reason: "transient" };
   }
 }
 
-async function tryRefreshToken(): Promise<string | null> {
-  const result = await refreshTokenQuiet();
-  if (!result) clearAuth();
-  return result;
+/** Single in-flight refresh so parallel 401s share one rotation and transient errors do not clear the session. */
+async function refreshAccessToken(): Promise<RefreshResult> {
+  if (!refreshInflight) {
+    refreshInflight = executeAuthRefresh().finally(() => {
+      refreshInflight = null;
+    });
+  }
+  return refreshInflight;
+}
+
+export async function refreshTokenQuiet(): Promise<string | null> {
+  const r = await refreshAccessToken();
+  return r.ok ? r.accessToken : null;
+}
+
+/** Clears session only when the server rejects refresh (not on network / 5xx). */
+export async function tryRefreshToken(): Promise<string | null> {
+  const r = await refreshAccessToken();
+  return r.ok ? r.accessToken : null;
 }
 
 /** Backend may return root-relative API paths (e.g. stored logos). Use for <img src>. */
@@ -125,9 +171,9 @@ export async function apiFetch(
     );
   }
 
-  if (res.status === 403 && getToken() && !path.startsWith("/auth/")) {
-    const newToken = await refreshTokenQuiet();
-    if (newToken) {
+  if (res.status === 403 && getToken() && path !== "/auth/refresh") {
+    const refreshResult = await refreshAccessToken();
+    if (refreshResult.ok) {
       return fetch(url, {
         ...options,
         headers: {
@@ -135,20 +181,15 @@ export async function apiFetch(
           ...(options.headers as Record<string, string>),
         },
       });
+    }
+    if (refreshResult.reason === "unauthorized" && typeof window !== "undefined") {
+      window.location.href = `/signin?redirect=${encodeURIComponent(window.location.pathname)}`;
     }
   }
 
-  if (res.status === 401 && getToken() && !path.startsWith("/auth/")) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = tryRefreshToken().finally(() => {
-        isRefreshing = false;
-        refreshPromise = null;
-      });
-    }
-
-    const newToken = await refreshPromise;
-    if (newToken) {
+  if (res.status === 401 && getToken() && path !== "/auth/refresh") {
+    const refreshResult = await refreshAccessToken();
+    if (refreshResult.ok) {
       return fetch(url, {
         ...options,
         headers: {
@@ -158,7 +199,7 @@ export async function apiFetch(
       });
     }
 
-    if (typeof window !== "undefined") {
+    if (refreshResult.reason === "unauthorized" && typeof window !== "undefined") {
       window.location.href = `/signin?redirect=${encodeURIComponent(window.location.pathname)}`;
     }
   }
@@ -166,4 +207,4 @@ export async function apiFetch(
   return res;
 }
 
-export { API_URL, setToken, clearAuth, tryRefreshToken, refreshTokenQuiet };
+export { API_URL, setToken, clearAuth };
