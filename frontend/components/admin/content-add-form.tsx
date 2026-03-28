@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { UrlPreview } from "@/components/admin/url-preview";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch, apiUploadDocument, apiAbsoluteMediaUrl } from "@/lib/api";
+import { apiFetch, apiUploadDocument } from "@/lib/api";
 
 export type ContentType =
   | "COURSE"
@@ -541,7 +541,7 @@ export function ContentAddForm({
                     setError("");
                     try {
                       const result = await apiUploadDocument(file);
-                      setDocumentUrl(apiAbsoluteMediaUrl(result.url) || result.url);
+                      setDocumentUrl(result.url);
                       setDocumentFileName(file.name);
                     } catch (err) {
                       setError(err instanceof Error ? err.message : "Upload failed");

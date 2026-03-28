@@ -13,7 +13,7 @@ import { ContentAddForm, type ContentType } from "@/components/admin/content-add
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch, apiUploadDocument, apiAbsoluteMediaUrl } from "@/lib/api";
+import { apiFetch, apiUploadDocument } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
 const CONTENT_TYPES = [
@@ -445,7 +445,7 @@ function AdminContentPageContent() {
                         setEditUploading(true);
                         try {
                           const result = await apiUploadDocument(file);
-                          setFormMediaId(apiAbsoluteMediaUrl(result.url) || result.url);
+                          setFormMediaId(result.url);
                           setEditDocFileName(file.name);
                         } catch (err) {
                           toast(err instanceof Error ? err.message : "Upload failed", "error");

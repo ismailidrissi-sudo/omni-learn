@@ -90,7 +90,9 @@ export class ContentController {
     const ext = extname(safeName).toLowerCase();
     const mime = ContentController.MIME_BY_EXT[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
     const buffer = readFileSync(filePath);
     return new StreamableFile(buffer);
