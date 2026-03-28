@@ -448,7 +448,7 @@ function AdminContentPageContent() {
                           setFormMediaId(apiAbsoluteMediaUrl(result.url) || result.url);
                           setEditDocFileName(file.name);
                         } catch (err) {
-                          toast({ title: "Upload failed", description: err instanceof Error ? err.message : "Upload failed" });
+                          toast(err instanceof Error ? err.message : "Upload failed", "error");
                         } finally {
                           setEditUploading(false);
                         }
