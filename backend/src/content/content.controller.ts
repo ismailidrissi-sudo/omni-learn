@@ -1,4 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller, Get, Post, Put, Delete, Body, Param, Query, Res,
+  UseGuards, UseInterceptors, UploadedFile, BadRequestException, StreamableFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ContentService, CreateContentDto, ScormMetadata } from './content.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
@@ -8,6 +13,9 @@ import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user
 import { RbacRole } from '../constants/rbac.constant';
 import { detectProvider } from '../utils/video-provider';
 import { CreateContentBodyDto, CreateCourseBodyDto, ValidateUrlDto } from '../dto/content.dto';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { join, extname } from 'path';
+import { randomUUID } from 'crypto';
 
 @Controller('content')
 export class ContentController {
@@ -22,6 +30,70 @@ export class ContentController {
   ) {
     const adminMode = admin === 'true';
     return this.contentService.findAll(type, user?.sub ?? null, adminMode, user?.roles ?? []);
+  }
+
+  private get documentStoragePath(): string {
+    return process.env.DOCUMENT_STORAGE_PATH || './data/documents';
+  }
+
+  private static readonly ALLOWED_DOC_TYPES: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  };
+
+  private static readonly MIME_BY_EXT: Record<string, string> = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+
+  @Post('upload-document')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20_000_000 } }))
+  async uploadDocument(
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string; size: number } | undefined,
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('No file provided');
+    if (file.size > 20_000_000) throw new BadRequestException('File must be at most 20 MB');
+
+    const ext = ContentController.ALLOWED_DOC_TYPES[file.mimetype]
+      || (/\.docx$/i.test(file.originalname) ? '.docx' : null)
+      || (/\.doc$/i.test(file.originalname) ? '.doc' : null)
+      || (/\.pdf$/i.test(file.originalname) ? '.pdf' : null);
+
+    if (!ext) {
+      throw new BadRequestException('Only PDF, DOC, and DOCX files are allowed');
+    }
+
+    mkdirSync(this.documentStoragePath, { recursive: true });
+    const filename = `${randomUUID()}${ext}`;
+    const filePath = join(this.documentStoragePath, filename);
+    writeFileSync(filePath, file.buffer);
+
+    return { url: `/content/documents/${filename}`, filename };
+  }
+
+  @Get('documents/:filename')
+  async serveDocument(
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '');
+    const filePath = join(this.documentStoragePath, safeName);
+
+    if (!existsSync(filePath)) {
+      throw new BadRequestException('Document not found');
+    }
+
+    const ext = extname(safeName).toLowerCase();
+    const mime = ContentController.MIME_BY_EXT[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    const buffer = readFileSync(filePath);
+    return new StreamableFile(buffer);
   }
 
   @Post('validate-url')

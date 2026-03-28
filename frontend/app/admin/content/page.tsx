@@ -13,7 +13,7 @@ import { ContentAddForm, type ContentType } from "@/components/admin/content-add
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUploadDocument, apiAbsoluteMediaUrl } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
 const CONTENT_TYPES = [
@@ -81,6 +81,9 @@ function AdminContentPageContent() {
   const [formIsFoundational, setFormIsFoundational] = useState(true);
   const [formAvailablePlans, setFormAvailablePlans] = useState<string[]>(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
   const [formAvailableInEnterprise, setFormAvailableInEnterprise] = useState(false);
+  const [editDocInputMode, setEditDocInputMode] = useState<"url" | "file">("url");
+  const [editDocFileName, setEditDocFileName] = useState("");
+  const [editUploading, setEditUploading] = useState(false);
 
   // Lookup data
   const [tenants, setTenants] = useState<{ id: string; name: string; slug: string }[]>([]);
@@ -139,6 +142,9 @@ function AdminContentPageContent() {
     setFormIsFoundational(true);
     setFormAvailablePlans(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
     setFormAvailableInEnterprise(false);
+    setEditDocInputMode("url");
+    setEditDocFileName("");
+    setEditUploading(false);
     setEditing(null);
   };
 
@@ -415,7 +421,58 @@ function AdminContentPageContent() {
                 />
               </>
             )}
-            {!["COURSE", "VIDEO", "PODCAST"].includes(formType) && (
+            {formType === "DOCUMENT" && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium">Document (PDF, DOC, or DOCX)</label>
+                <div className="flex gap-4 mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="editDocMode" checked={editDocInputMode === "file"} onChange={() => setEditDocInputMode("file")} />
+                    Upload File
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="editDocMode" checked={editDocInputMode === "url"} onChange={() => setEditDocInputMode("url")} />
+                    Paste URL
+                  </label>
+                </div>
+                {editDocInputMode === "file" ? (
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setEditUploading(true);
+                        try {
+                          const result = await apiUploadDocument(file);
+                          setFormMediaId(apiAbsoluteMediaUrl(result.url) || result.url);
+                          setEditDocFileName(file.name);
+                        } catch (err) {
+                          toast({ title: "Upload failed", description: err instanceof Error ? err.message : "Upload failed" });
+                        } finally {
+                          setEditUploading(false);
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                      disabled={editUploading}
+                    />
+                    {editUploading && <p className="text-sm text-purple-600 animate-pulse">Uploading document...</p>}
+                    {editDocFileName && !editUploading && <p className="text-sm text-green-700">Uploaded: {editDocFileName}</p>}
+                    {formMediaId && !editDocFileName && !editUploading && (
+                      <p className="text-xs text-brand-grey truncate">Current: {formMediaId}</p>
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    label="Document URL"
+                    value={formMediaId}
+                    onChange={(e) => { setFormMediaId(e.target.value); setEditDocFileName(""); }}
+                    placeholder="https://...pdf or https://...docx"
+                  />
+                )}
+              </div>
+            )}
+            {!["COURSE", "VIDEO", "PODCAST", "DOCUMENT"].includes(formType) && (
               <Input
                 label="Media / Resource URL"
                 value={formMediaId}
@@ -526,7 +583,7 @@ function AdminContentPageContent() {
                   {t("admin.courseBuildCurriculum")}
                 </Button>
               )}
-              <Button onClick={saveContent}>{t("common.save")}</Button>
+              <Button onClick={saveContent} disabled={editUploading}>{t("common.save")}</Button>
               <Button variant="ghost" onClick={() => { setView("list"); resetForm(); }}>{t("common.back")}</Button>
             </div>
           </Card>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { UrlPreview } from "@/components/admin/url-preview";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUploadDocument, apiAbsoluteMediaUrl } from "@/lib/api";
 
 export type ContentType =
   | "COURSE"
@@ -88,6 +88,9 @@ export function ContentAddForm({
   const [videoUrl, setVideoUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
+  const [documentInputMode, setDocumentInputMode] = useState<"url" | "file">("file");
+  const [documentFileName, setDocumentFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [gameUrl, setGameUrl] = useState("");
   const [scormUrl, setScormUrl] = useState("");
   const [xapiEndpoint, setXapiEndpoint] = useState("");
@@ -280,6 +283,7 @@ export function ContentAddForm({
 
   const canSubmit =
     title.trim() &&
+    !uploading &&
     (contentType !== "PODCAST" ||
       (podcastMediaType === "audio" ? audioUrl.trim() : videoUrl.trim())) &&
     (contentType !== "DOCUMENT" || documentUrl.trim()) &&
@@ -498,14 +502,75 @@ export function ContentAddForm({
         </div>
       )}
 
-      {/* DOCUMENT: PDF or doc/docx */}
+      {/* DOCUMENT: Upload file or paste URL */}
       {contentType === "DOCUMENT" && (
-        <Input
-          label="Document URL (PDF, DOC, or DOCX)"
-          value={documentUrl}
-          onChange={(e) => setDocumentUrl(e.target.value)}
-          placeholder="https://...pdf or https://...docx"
-        />
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-2">Document (PDF, DOC, or DOCX)</label>
+            <div className="flex gap-4 mb-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="documentInputMode"
+                  checked={documentInputMode === "file"}
+                  onChange={() => setDocumentInputMode("file")}
+                />
+                Upload File
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="documentInputMode"
+                  checked={documentInputMode === "url"}
+                  onChange={() => setDocumentInputMode("url")}
+                />
+                Paste URL
+              </label>
+            </div>
+          </div>
+          {documentInputMode === "file" ? (
+            <div className="space-y-2">
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    setError("");
+                    try {
+                      const result = await apiUploadDocument(file);
+                      setDocumentUrl(apiAbsoluteMediaUrl(result.url) || result.url);
+                      setDocumentFileName(file.name);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Upload failed");
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                  disabled={uploading}
+                />
+              </div>
+              {uploading && (
+                <p className="text-sm text-purple-600 animate-pulse">Uploading document...</p>
+              )}
+              {documentFileName && !uploading && (
+                <p className="text-sm text-green-700">
+                  Uploaded: {documentFileName}
+                </p>
+              )}
+            </div>
+          ) : (
+            <Input
+              label="Document URL"
+              value={documentUrl}
+              onChange={(e) => { setDocumentUrl(e.target.value); setDocumentFileName(""); }}
+              placeholder="https://...pdf or https://...docx"
+            />
+          )}
+        </div>
       )}
 
       {/* GAME */}

@@ -142,6 +142,24 @@ export async function apiUploadTenantLogo(tenantId: string, file: File): Promise
   });
 }
 
+export async function apiUploadDocument(file: File): Promise<{ url: string; filename: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = typeof window !== "undefined" ? localStorage.getItem("omnilearn_token") : null;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/content/upload-document`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Upload failed");
+  }
+  return res.json();
+}
+
 export async function apiDeleteTenantStoredLogo(tenantId: string): Promise<Response> {
   return apiFetch(`/company/tenants/${tenantId}/branding/logo`, { method: "DELETE" });
 }
