@@ -8,6 +8,8 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
 import { EnrollDto, UpdateStepProgressDto } from '../dto/learning-path.dto';
+import { AccountStatusGuard } from '../auth/guards/account-status.guard';
+import { PremiumAction } from '../auth/decorators/premium-action.decorator';
 
 @Controller('learning-paths')
 export class LearningPathController {
@@ -17,7 +19,8 @@ export class LearningPathController {
   ) {}
 
   @Post(':pathId/enroll')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), AccountStatusGuard)
+  @PremiumAction()
   async enroll(
     @Param('pathId') pathId: string,
     @Body() body: EnrollDto,
@@ -50,7 +53,8 @@ export class LearningPathController {
   }
 
   @Post('auto-enroll-for-content')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), AccountStatusGuard)
+  @PremiumAction()
   async autoEnrollForContent(
     @Body() body: { userId: string; contentId: string },
   ) {

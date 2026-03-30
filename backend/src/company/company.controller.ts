@@ -23,6 +23,10 @@ import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { RequestUserPayload } from '../auth/types/request-user.types';
+import { PermissionGuard } from '../auth/guards/permission.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('company')
 export class CompanyController {
@@ -51,8 +55,31 @@ export class CompanyController {
   @Get('users')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER)
-  listUsers(@Query('tenantId') tenantId?: string) {
-    return this.company.listUsers(tenantId);
+  listUsers(
+    @CurrentUser() user: RequestUserPayload,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    if (user.roles.includes(RbacRole.SUPER_ADMIN)) {
+      return this.company.listUsers(tenantId);
+    }
+    const scope = user.tenantId;
+    if (!scope) return [];
+    return this.company.listUsers(scope);
+  }
+
+  @Get('users/geo-distribution')
+  @UseGuards(AuthGuard('jwt'), PermissionGuard)
+  @Permissions('users:view_map')
+  usersGeoDistribution(
+    @CurrentUser() user: RequestUserPayload,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    const canSeeAllTenants = user.roles.includes(RbacRole.SUPER_ADMIN);
+    return this.company.usersGeoDistribution({
+      filterTenantId: tenantId,
+      actorTenantId: user.tenantId,
+      canSeeAllTenants,
+    });
   }
 
   @Get('trusted-by')
@@ -143,6 +170,9 @@ export class CompanyController {
       certifications?: string[];
       staffingLevel?: string | null;
       companyProfileComplete?: boolean;
+      tenantKind?: string;
+      privateLabelConfig?: Record<string, unknown>;
+      tenantApprovalStatus?: string;
     },
   ) {
     if (body.slug != null && this.company.isReservedSlug(body.slug)) {

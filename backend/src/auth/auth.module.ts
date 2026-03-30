@@ -7,6 +7,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LinkedInStrategy } from './strategies/linkedin.strategy';
 import { RbacGuard } from './guards/rbac.guard';
+import { PermissionGuard } from './guards/permission.guard';
+import { AccountStatusGuard } from './guards/account-status.guard';
+import { ContentOwnerGuard } from './guards/content-owner.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { OptionalJwtGuard } from './guards/optional-jwt.guard';
 import { ReferralModule } from '../referral/referral.module';
@@ -29,7 +32,17 @@ import { ReferralModule } from '../referral/referral.module';
     }),
     forwardRef(() => ReferralModule),
   ],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, LinkedInStrategy, RbacGuard, OptionalJwtGuard],
-  exports: [AuthService, RbacGuard, OptionalJwtGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    LinkedInStrategy,
+    RbacGuard,
+    PermissionGuard,
+    AccountStatusGuard,
+    ContentOwnerGuard,
+    OptionalJwtGuard,
+  ],
+  exports: [AuthService, RbacGuard, PermissionGuard, AccountStatusGuard, ContentOwnerGuard, OptionalJwtGuard],
 })
 export class AuthModule {}

@@ -63,7 +63,16 @@ export class ProfileController {
   @UseGuards(AuthGuard('jwt'))
   async updateDemographics(
     @Req() req: { user?: { sub?: string } },
-    @Body() body: { gender?: string; dateOfBirth?: string; country?: string; city?: string; phoneNumber?: string },
+    @Body()
+    body: {
+      gender?: string;
+      dateOfBirth?: string;
+      country?: string;
+      countryCode?: string;
+      city?: string;
+      timezone?: string;
+      phoneNumber?: string;
+    },
   ) {
     const userId = req.user?.sub;
     if (!userId) throw new BadRequestException('Not authenticated');

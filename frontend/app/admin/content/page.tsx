@@ -15,6 +15,8 @@ import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch, apiUploadDocument } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { useUser } from "@/lib/use-user";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚", label: "Course" },
@@ -37,8 +39,10 @@ type ContentItem = {
   durationMinutes?: number | null;
   metadata?: string | Record<string, unknown> | null;
   createdAt?: string;
+  createdById?: string | null;
   availablePlans?: string[];
   availableInEnterprise?: boolean;
+  language?: string;
   tenantAssignments?: { tenantId: string; tenant: { id: string; name: string } }[];
   userAssignments?: { userId: string; user: { id: string; name: string; email: string } }[];
 };
@@ -52,6 +56,8 @@ const PLAN_OPTIONS = [
 
 function AdminContentPageContent() {
   const { t } = useI18n();
+  const { user } = useUser();
+  const { can } = usePermissions();
   const adminNav = useMemo(() => adminHubNavItems(t), [t]);
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -81,6 +87,7 @@ function AdminContentPageContent() {
   const [formIsFoundational, setFormIsFoundational] = useState(true);
   const [formAvailablePlans, setFormAvailablePlans] = useState<string[]>(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
   const [formAvailableInEnterprise, setFormAvailableInEnterprise] = useState(false);
+  const [formLanguage, setFormLanguage] = useState("en");
   const [editDocInputMode, setEditDocInputMode] = useState<"url" | "file">("url");
   const [editDocFileName, setEditDocFileName] = useState("");
   const [editUploading, setEditUploading] = useState(false);
@@ -125,6 +132,19 @@ function AdminContentPageContent() {
       (!filterType || c.type === filterType)
   );
 
+  function canMutateCourse(item: ContentItem): boolean {
+    if (item.type !== "COURSE") return true;
+    if (can("courses:edit_any")) return true;
+    if (item.createdById && user?.id === item.createdById) return true;
+    return false;
+  }
+
+  function creatorLabel(createdById: string | null | undefined): string {
+    if (!createdById) return "—";
+    const u = users.find((x) => x.id === createdById);
+    return u ? `${u.name}` : `${createdById.slice(0, 8)}…`;
+  }
+
   const resetForm = () => {
     setFormType("COURSE");
     setFormTitle("");
@@ -142,6 +162,7 @@ function AdminContentPageContent() {
     setFormIsFoundational(true);
     setFormAvailablePlans(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
     setFormAvailableInEnterprise(false);
+    setFormLanguage("en");
     setEditDocInputMode("url");
     setEditDocFileName("");
     setEditUploading(false);
@@ -178,6 +199,7 @@ function AdminContentPageContent() {
         : ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]
     );
     setFormAvailableInEnterprise(full.availableInEnterprise ?? false);
+    setFormLanguage(full.language ?? "en");
     setView("edit");
   };
 
@@ -217,6 +239,7 @@ function AdminContentPageContent() {
       isFoundational: formAvailablePlans.includes("EXPLORER"),
       availablePlans: formAvailablePlans,
       availableInEnterprise: formAvailableInEnterprise,
+      language: formLanguage,
     };
 
     if (editing) {
@@ -243,6 +266,7 @@ function AdminContentPageContent() {
           isFoundational: formAvailablePlans.includes("EXPLORER"),
           availablePlans: formAvailablePlans,
           availableInEnterprise: formAvailableInEnterprise,
+          language: formLanguage,
           scormMetadata: {},
         }),
       })
@@ -493,6 +517,18 @@ function AdminContentPageContent() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">{t("admin.language")}</label>
+              <select
+                value={formLanguage}
+                onChange={(e) => setFormLanguage(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white"
+              >
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+                <option value="ar">العربية</option>
+              </select>
+            </div>
             {/* Plan availability */}
             <div className="space-y-3">
               <label className="block text-sm font-medium">Available in Plans</label>
@@ -646,16 +682,21 @@ function AdminContentPageContent() {
                   <span className="text-2xl">{ct?.icon ?? "📄"}</span>
                   <div>
                     <h3 className="font-semibold text-brand-grey-dark">{item.title}</h3>
-                    <div className="flex gap-2 mt-1">
+                    <div className="flex gap-2 mt-1 flex-wrap items-center">
                       <Badge variant="pulsar">{item.type.replace("_", " ")}</Badge>
                       {item.durationMinutes && (
                         <span className="text-brand-grey text-sm">{item.durationMinutes} min</span>
+                      )}
+                      {item.type === "COURSE" && (
+                        <span className="text-brand-grey text-xs">
+                          Created by: {creatorLabel(item.createdById)}
+                        </span>
                       )}
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {item.type === "COURSE" && (
+                  {item.type === "COURSE" && canMutateCourse(item) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -664,12 +705,16 @@ function AdminContentPageContent() {
                       {t("admin.courseBuildCurriculum")}
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
-                    {t("common.edit")}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => deleteContent(item.id)} className="text-red-600">
-                    {t("common.delete")}
-                  </Button>
+                  {canMutateCourse(item) && (
+                    <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
+                      {t("common.edit")}
+                    </Button>
+                  )}
+                  {canMutateCourse(item) && (
+                    <Button variant="ghost" size="sm" onClick={() => deleteContent(item.id)} className="text-red-600">
+                      {t("common.delete")}
+                    </Button>
+                  )}
                 </div>
               </Card>
             );

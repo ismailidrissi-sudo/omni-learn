@@ -3,10 +3,17 @@ import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { OrgApprovalStatus } from '@prisma/client';
+import {
+  ApprovalRequestType,
+  OrgApprovalStatus,
+  SubscriptionPlan,
+  UserAccountStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
 import { RbacRole } from '../constants/rbac.constant';
+import { resolvePermissionsFromRoles } from './permissions.constants';
+import type { RequestUserPayload } from './types/request-user.types';
 
 /**
  * Auth Service — Keycloak SSO + Google Sign-In + LinkedIn Sign-In + Multi-tenant RBAC
@@ -20,6 +27,7 @@ export interface JwtPayload {
   resource_access?: Record<string, { roles: string[] }>;
   tenant_id?: string;
   preferred_username?: string;
+  omnilearn_permissions?: string[];
   /** Unix seconds — used by refresh flow with ignoreExpiration */
   exp?: number;
 }
@@ -48,6 +56,7 @@ export class AuthService {
     name: string,
     trainerRequested = false,
     tenantSlug?: string,
+    requestedPlan: SubscriptionPlan = SubscriptionPlan.EXPLORER,
   ): Promise<{ message: string; userId: string }> {
     const emailNorm = email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email: emailNorm } });
@@ -59,6 +68,7 @@ export class AuthService {
     }
     let tenantId: string | undefined;
     let orgStatus: OrgApprovalStatus = OrgApprovalStatus.NONE;
+    let accountStatus: UserAccountStatus = UserAccountStatus.ACTIVE;
     if (tenantSlug) {
       const tenant = await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } });
       if (!tenant) {
@@ -66,6 +76,12 @@ export class AuthService {
       }
       tenantId = tenant.id;
       orgStatus = OrgApprovalStatus.PENDING;
+      accountStatus = UserAccountStatus.PENDING_COMPANY;
+    }
+
+    const paidPlan = requestedPlan !== SubscriptionPlan.EXPLORER;
+    if (paidPlan && !tenantSlug) {
+      accountStatus = UserAccountStatus.PENDING_PLAN;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -83,8 +99,44 @@ export class AuthService {
         trainerRequested: !!trainerRequested,
         tenantId,
         orgApprovalStatus: orgStatus,
+        accountStatus,
+        planId: paidPlan && !tenantSlug ? requestedPlan : SubscriptionPlan.EXPLORER,
       },
     });
+
+    const platformTenant =
+      (await this.prisma.tenant.findFirst({ orderBy: { createdAt: 'asc' } })) ?? undefined;
+    if (paidPlan && !tenantSlug && platformTenant) {
+      await this.prisma.approvalRequest.create({
+        data: {
+          tenantId: platformTenant.id,
+          type: ApprovalRequestType.PLAN_UPGRADE,
+          requesterId: user.id,
+          payload: { requested_plan: requestedPlan },
+        },
+      });
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        this.transactionalEmail
+          .sendPlanApprovalPendingAdmin({
+            toEmail: adminEmail,
+            userName: user.name,
+            userEmail: user.email,
+            plan: requestedPlan,
+          })
+          .catch(() => undefined);
+      }
+    }
+    if (tenantSlug && tenantId) {
+      await this.prisma.approvalRequest.create({
+        data: {
+          tenantId,
+          type: ApprovalRequestType.COMPANY_JOIN,
+          requesterId: user.id,
+          payload: { company_tenant_id: tenantId, message: '' },
+        },
+      });
+    }
 
     await this.transactionalEmail.sendEmailVerification({
       toEmail: emailNorm,
@@ -213,7 +265,11 @@ export class AuthService {
   }
 
   /** Build JWT roles for a user: admins get every role; others get learner_basic + instructor/company_admin if approved */
-  private getRolesForUser(user: { isAdmin?: boolean; trainerApprovedAt?: Date | null; companyAdminApprovedAt?: Date | null }): string[] {
+  private getRolesForUser(user: {
+    isAdmin?: boolean | null;
+    trainerApprovedAt?: Date | null;
+    companyAdminApprovedAt?: Date | null;
+  }): string[] {
     if (user?.isAdmin) {
       return [
         'super_admin',
@@ -233,6 +289,29 @@ export class AuthService {
       roles.push('company_admin');
     }
     return roles;
+  }
+
+  private signAccessToken(user: {
+    id: string;
+    email: string;
+    isAdmin?: boolean | null | undefined;
+    trainerApprovedAt?: Date | null;
+    companyAdminApprovedAt?: Date | null;
+  }): string {
+    const rolesRaw = this.getRolesForUser(user);
+    const roles: RbacRole[] = [];
+    for (const r of rolesRaw) {
+      const mapped = this.mapKeycloakRoleToRbac(r);
+      if (mapped && !roles.includes(mapped)) roles.push(mapped);
+    }
+    const permissions = resolvePermissionsFromRoles(roles);
+    return this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      preferred_username: user.email,
+      realm_access: { roles: rolesRaw },
+      omnilearn_permissions: permissions,
+    });
   }
 
   /** Login with email/password (after verification). Admin accounts (matching ADMIN_EMAIL) are auto-created and auto-verified. */
@@ -262,13 +341,7 @@ export class AuthService {
         user = await this.prisma.user.update({ where: { id: user.id }, data: adminData });
       }
       const resolved = await this.ensureUserHasTenant(user!);
-      const roles = this.getRolesForUser(resolved);
-      const accessToken = this.jwtService.sign({
-        sub: resolved.id,
-        email: resolved.email,
-        preferred_username: resolved.email,
-        realm_access: { roles },
-      });
+      const accessToken = this.signAccessToken(resolved);
       return {
         accessToken,
         user: { id: resolved.id, email: resolved.email, name: resolved.name, profileComplete: resolved.profileComplete, needsProfileCompletion: !resolved.profileComplete },
@@ -294,13 +367,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
     const promoted = await this.promoteIfAdmin(user);
-    const roles = this.getRolesForUser(promoted);
-    const accessToken = this.jwtService.sign({
-      sub: promoted.id,
-      email: promoted.email,
-      preferred_username: promoted.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(promoted);
     return {
       accessToken,
       user: { id: promoted.id, email: promoted.email, name: promoted.name, profileComplete: promoted.profileComplete, needsProfileCompletion: !promoted.profileComplete },
@@ -341,13 +408,7 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
     const user = await this.promoteIfAdmin(found);
-    const roles = this.getRolesForUser(user);
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(user);
     return { accessToken };
   }
 
@@ -413,13 +474,7 @@ export class AuthService {
       });
     }
     const resolved = await this.ensureUserHasTenant(user!);
-    const roles = this.getRolesForUser(resolved);
-    const accessToken = this.jwtService.sign({
-      sub: resolved.id,
-      email: resolved.email,
-      preferred_username: resolved.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(resolved);
     return {
       accessToken,
       user: { id: resolved.id, email: resolved.email, name: resolved.name, profileComplete: resolved.profileComplete, needsProfileCompletion: !resolved.profileComplete },
@@ -473,13 +528,7 @@ export class AuthService {
       }
     }
     const user = await this.promoteIfAdmin(resolved);
-    const roles = this.getRolesForUser(user);
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(user);
     return {
       accessToken,
       user: { id: user.id, email: user.email, name: user.name, profileComplete: user.profileComplete, needsProfileCompletion: !user.profileComplete },
@@ -585,13 +634,7 @@ export class AuthService {
     }
 
     const user = await this.promoteIfAdmin(resolved);
-    const roles = this.getRolesForUser(user);
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(user);
 
     return {
       accessToken,
@@ -650,13 +693,7 @@ export class AuthService {
     }
 
     const user = await this.promoteIfAdmin(resolved);
-    const roles = this.getRolesForUser(user);
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.email,
-      realm_access: { roles },
-    });
+    const accessToken = this.signAccessToken(user);
 
     return {
       accessToken,
@@ -668,6 +705,32 @@ export class AuthService {
         profileComplete: user.profileComplete,
         needsProfileCompletion: !user.profileComplete,
       },
+    };
+  }
+
+  /**
+   * Full auth context from DB (roles + permissions). Used by JWT strategy and GET /auth/me.
+   */
+  async loadRequestUser(userId: string): Promise<RequestUserPayload | null> {
+    const found = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!found) return null;
+    const user = await this.promoteIfAdmin(found);
+    const rolesRaw = this.getRolesForUser(user);
+    const roles: RbacRole[] = [];
+    for (const r of rolesRaw) {
+      const mapped = this.mapKeycloakRoleToRbac(r);
+      if (mapped && !roles.includes(mapped)) roles.push(mapped);
+    }
+    const permissions = resolvePermissionsFromRoles(roles);
+    return {
+      sub: user.id,
+      email: user.email,
+      roles,
+      rolesRaw,
+      permissions,
+      tenantId: user.tenantId ?? null,
+      accountStatus: user.accountStatus,
+      isAdmin: !!user.isAdmin,
     };
   }
 }

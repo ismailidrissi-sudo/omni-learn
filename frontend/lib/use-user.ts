@@ -16,6 +16,13 @@ export interface User {
   isAdmin?: boolean;
   trainerRequested?: boolean;
   trainerApprovedAt?: string | null;
+  permissions?: string[];
+  roles?: string[];
+  accountStatus?: string;
+  country?: string | null;
+  city?: string | null;
+  countryCode?: string | null;
+  timezone?: string | null;
 }
 
 function getJwtRoles(): string[] {

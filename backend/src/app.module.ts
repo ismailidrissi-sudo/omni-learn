@@ -23,6 +23,7 @@ import { NotificationModule } from './notification/notification.module';
 import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
 import { CourseEnrollmentModule } from './course-enrollment/course-enrollment.module';
 import { VideoModule } from './video/video.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { VideoModule } from './video/video.module';
     NotificationModule,
     TrainerProfileModule,
     VideoModule,
+    ApprovalsModule,
   ],
 })
 export class AppModule {}

@@ -8,6 +8,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ContentService, CreateContentDto, ScormMetadata } from './content.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
+import { ContentOwnerGuard } from '../auth/guards/content-owner.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { RbacRole } from '../constants/rbac.constant';
@@ -139,13 +140,14 @@ export class ContentController {
         isFoundational: body.isFoundational,
         availablePlans: body.availablePlans,
         availableInEnterprise: body.availableInEnterprise,
+        language: body.language,
         createdById: user.sub,
       },
     );
   }
 
   @Put(':id')
-  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @UseGuards(AuthGuard('jwt'), RbacGuard, ContentOwnerGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
   async update(
     @Param('id') id: string,
@@ -156,7 +158,7 @@ export class ContentController {
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @UseGuards(AuthGuard('jwt'), RbacGuard, ContentOwnerGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
   async remove(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
     return this.contentService.remove(id, { userId: user.sub, roles: user.roles });

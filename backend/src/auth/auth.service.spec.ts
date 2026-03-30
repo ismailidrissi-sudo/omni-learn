@@ -9,10 +9,14 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: {
     user: { findUnique: jest.Mock; findFirst: jest.Mock; create: jest.Mock; update: jest.Mock };
-    tenant: { findUnique: jest.Mock };
+    tenant: { findUnique: jest.Mock; findFirst: jest.Mock };
+    approvalRequest: { create: jest.Mock };
   };
   let jwtService: { sign: jest.Mock };
-  let transactionalEmail: { sendEmailVerification: jest.Mock };
+  let transactionalEmail: {
+    sendEmailVerification: jest.Mock;
+    sendPlanApprovalPendingAdmin: jest.Mock;
+  };
 
   beforeEach(async () => {
     prisma = {
@@ -22,10 +26,19 @@ describe('AuthService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
-      tenant: { findUnique: jest.fn() },
+      tenant: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      approvalRequest: {
+        create: jest.fn().mockResolvedValue({ id: 'ar1' }),
+      },
     };
     jwtService = { sign: jest.fn().mockReturnValue('mock-jwt-token') };
-    transactionalEmail = { sendEmailVerification: jest.fn().mockResolvedValue(undefined) };
+    transactionalEmail = {
+      sendEmailVerification: jest.fn().mockResolvedValue(undefined),
+      sendPlanApprovalPendingAdmin: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

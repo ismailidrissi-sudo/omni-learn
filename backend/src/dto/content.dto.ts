@@ -61,6 +61,10 @@ export class CreateContentBodyDto {
   @IsOptional()
   @IsBoolean()
   availableInEnterprise?: boolean;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
 }
 
 export class CreateCourseBodyDto {
@@ -110,6 +114,10 @@ export class CreateCourseBodyDto {
   @IsOptional()
   @IsBoolean()
   availableInEnterprise?: boolean;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
 }
 
 export class ValidateUrlDto {

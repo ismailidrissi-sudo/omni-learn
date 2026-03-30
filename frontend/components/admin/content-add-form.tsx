@@ -101,6 +101,7 @@ export function ContentAddForm({
     { format: "video", url: "", description: "" },
   ]);
   const [guideFormat, setGuideFormat] = useState("video");
+  const [language, setLanguage] = useState("en");
 
   const addMicroVideo = () =>
     setMicroVideos((p) => [...p, { url: "", description: "" }]);
@@ -136,6 +137,7 @@ export function ContentAddForm({
       isFoundational: availablePlans.includes("EXPLORER"),
       availablePlans,
       availableInEnterprise,
+      language,
     };
 
     switch (contentType) {
@@ -225,6 +227,7 @@ export function ContentAddForm({
             isFoundational: availablePlans.includes("EXPLORER"),
             availablePlans,
             availableInEnterprise,
+            language,
             scormMetadata: {
               scormPackageUrl: scormUrl || undefined,
               xapiEndpoint: xapiEndpoint || undefined,
@@ -257,6 +260,7 @@ export function ContentAddForm({
             isFoundational: availablePlans.includes("EXPLORER"),
             availablePlans,
             availableInEnterprise,
+            language,
           };
           const res = await apiFetch("/content", {
             method: "POST",
@@ -620,6 +624,20 @@ export function ContentAddForm({
               {d.name}
             </option>
           ))}
+        </select>
+      </div>
+
+      {/* Language */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Language</label>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white"
+        >
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="ar">العربية</option>
         </select>
       </div>
 

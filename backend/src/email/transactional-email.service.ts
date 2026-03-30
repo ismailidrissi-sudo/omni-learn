@@ -34,6 +34,14 @@ import {
   newLearningPathPublishedHtml,
   newLearningPathPublishedSubject,
 } from './templates/new-learning-path.template';
+import {
+  planApprovalPendingAdminHtml,
+  planApprovalPendingAdminSubject,
+  planApprovedUserHtml,
+  planApprovedUserSubject,
+  planRejectedUserHtml,
+  planRejectedUserSubject,
+} from './templates/approval-workflow.template';
 
 /** Event types that must always send (security / account recovery) */
 const ALWAYS_SEND = new Set([
@@ -382,6 +390,74 @@ export class TransactionalEmailService {
         contentType: params.contentType,
         ...(params.tenantId ? { tenantId: params.tenantId } : {}),
       },
+    });
+  }
+
+  async sendPlanApprovalPendingAdmin(params: {
+    toEmail: string;
+    userName: string;
+    userEmail: string;
+    plan: string;
+  }): Promise<void> {
+    const adminUrl = `${this.baseUrl()}/admin/approvals`;
+    await this.emailService.enqueue({
+      toEmail: params.toEmail,
+      toName: 'Platform admin',
+      subject: planApprovalPendingAdminSubject(),
+      htmlBody: planApprovalPendingAdminHtml(
+        params.userName,
+        params.userEmail,
+        params.plan,
+        adminUrl,
+      ),
+      emailType: 'notification',
+      eventType: 'plan_approval_pending',
+      priority: EmailPriority.HIGH,
+      triggeredBy: 'plan_approval_pending',
+      metadata: { userEmail: params.userEmail },
+    });
+  }
+
+  async sendPlanApprovedUser(params: {
+    userId: string;
+    toEmail: string;
+    toName: string;
+  }): Promise<void> {
+    const signInUrl = `${this.baseUrl()}/signin`;
+    await this.emailService.enqueue({
+      toEmail: params.toEmail,
+      toName: params.toName,
+      subject: planApprovedUserSubject(),
+      htmlBody: planApprovedUserHtml(params.toName, signInUrl),
+      emailType: 'notification',
+      eventType: 'plan_approved',
+      priority: EmailPriority.HIGH,
+      triggeredBy: 'plan_approved',
+      userId: params.userId,
+      idempotencyKey: `plan_approved:${params.userId}`,
+      metadata: { signInUrl },
+    });
+  }
+
+  async sendPlanRejectedUser(params: {
+    userId: string;
+    toEmail: string;
+    toName: string;
+    reviewNote?: string | null;
+  }): Promise<void> {
+    const signInUrl = `${this.baseUrl()}/signin`;
+    await this.emailService.enqueue({
+      toEmail: params.toEmail,
+      toName: params.toName,
+      subject: planRejectedUserSubject(),
+      htmlBody: planRejectedUserHtml(params.toName, params.reviewNote ?? undefined, signInUrl),
+      emailType: 'notification',
+      eventType: 'plan_rejected',
+      priority: EmailPriority.NORMAL,
+      triggeredBy: 'plan_rejected',
+      userId: params.userId,
+      idempotencyKey: `plan_rejected:${params.userId}`,
+      metadata: { signInUrl },
     });
   }
 }

@@ -2,13 +2,16 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nest
 import { AuthGuard } from '@nestjs/passport';
 import { StepProgressStatus } from '../constants/db.constant';
 import { CourseEnrollmentService } from './course-enrollment.service';
+import { AccountStatusGuard } from '../auth/guards/account-status.guard';
+import { PremiumAction } from '../auth/decorators/premium-action.decorator';
 
 @Controller('course-enrollments')
 export class CourseEnrollmentController {
   constructor(private readonly courseEnrollmentService: CourseEnrollmentService) {}
 
   @Post(':courseId/enroll')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), AccountStatusGuard)
+  @PremiumAction()
   async enroll(
     @Param('courseId') courseId: string,
     @Body() body: { userId: string; deadline?: string },

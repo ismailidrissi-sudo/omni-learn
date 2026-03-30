@@ -1,8 +1,19 @@
 import type { BurgerNavItem } from "@/components/ui/app-burger-header";
+import { ADMIN_NAV_ANY_PERMISSIONS, hasAnyPermission } from "@/lib/permissions";
 
 type T = (key: string) => string;
 
-type UserLike = { isAdmin?: boolean; planId?: string; trainerApprovedAt?: string | null } | null | undefined;
+type UserLike = {
+  isAdmin?: boolean;
+  planId?: string;
+  trainerApprovedAt?: string | null;
+  permissions?: string[];
+} | null | undefined;
+
+function showAdminNav(user: UserLike): boolean {
+  if (user?.isAdmin) return true;
+  return hasAnyPermission(user?.permissions, [...ADMIN_NAV_ANY_PERMISSIONS]);
+}
 
 export function trainersDirectoryNavItems(t: T, user: UserLike): BurgerNavItem[] {
   const items = globalLearnerNavItems(t, user);
@@ -31,12 +42,14 @@ export function globalLearnerNavItems(t: T, user: UserLike): BurgerNavItem[] {
       inactiveVariant: "outline",
     });
   }
-  items.push({
-    href: "/admin",
-    label: t("nav.admin"),
-    match: "prefix",
-    inactiveVariant: "outline",
-  });
+  if (showAdminNav(user)) {
+    items.push({
+      href: "/admin/dashboard",
+      label: t("nav.admin"),
+      match: "prefix",
+      inactiveVariant: "outline",
+    });
+  }
   return items;
 }
 
@@ -58,17 +71,21 @@ export function discoverNavItems(t: T, user: UserLike): BurgerNavItem[] {
       inactiveVariant: "outline",
     });
   }
-  items.push({
-    href: "/admin",
-    label: t("nav.admin"),
-    match: "prefix",
-    inactiveVariant: "outline",
-  });
+  if (showAdminNav(user)) {
+    items.push({
+      href: "/admin/dashboard",
+      label: t("nav.admin"),
+      match: "prefix",
+      inactiveVariant: "outline",
+    });
+  }
   return items;
 }
 
 export function adminHubNavItems(t: T): BurgerNavItem[] {
   return [
+    { href: "/admin/dashboard", label: "Dashboard", match: "exact" },
+    { href: "/admin/approvals", label: "Approvals", match: "exact" },
     { href: "/trainer", label: t("nav.trainer"), match: "prefix" },
     { href: "/admin/paths", label: t("nav.paths"), match: "exact" },
     { href: "/admin/domains", label: "Domains", match: "exact" },
@@ -139,7 +156,7 @@ export function tenantLearnerNavItems(t: T, slug: string, user: UserLike): Burge
     { href: `${base}/certificates`, label: t("certificate.myCertificates"), match: "exact" },
     { href: `${base}/forum`, label: t("tenant.forum"), match: "prefix" },
   ];
-  if (user?.isAdmin || user?.planId === "NEXUS" || user?.trainerApprovedAt) {
+  if (showAdminNav(user) || user?.trainerApprovedAt) {
     items.push({ href: `${base}/admin`, label: t("tenant.admin"), match: "prefix" });
   }
   return items;

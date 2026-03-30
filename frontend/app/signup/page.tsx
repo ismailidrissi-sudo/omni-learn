@@ -26,6 +26,7 @@ function SignUpContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [trainerRequested, setTrainerRequested] = useState(false);
+  const [planId, setPlanId] = useState<"EXPLORER" | "SPECIALIST" | "VISIONARY" | "NEXUS">("EXPLORER");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const refFromUrl = searchParams.get("ref")?.trim() ?? "";
@@ -64,7 +65,14 @@ function SignUpContent() {
     try {
       const res = await apiFetch("/auth/signup", {
         method: "POST",
-        body: JSON.stringify({ email, password, name, trainerRequested, ...(referralCode ? { referralCode } : {}) }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          trainerRequested,
+          planId,
+          ...(referralCode ? { referralCode } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -190,6 +198,26 @@ function SignUpContent() {
                 placeholder="At least 8 characters"
                 className="w-full rounded-lg border border-gray-200 dark:border-[#059669]/30 bg-gray-50 dark:bg-[#F5F5DC]/5 px-4 py-3 text-[#1a1212] dark:text-[#F5F5DC] placeholder:text-gray-500 dark:placeholder:text-[#D4B896]/60 focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
               />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-brand-stardustLight">
+                Learning plan
+              </label>
+              <select
+                value={planId}
+                onChange={(e) => setPlanId(e.target.value as typeof planId)}
+                className="w-full rounded-lg border border-gray-200 dark:border-[#059669]/30 bg-gray-50 dark:bg-[#F5F5DC]/5 px-4 py-3 text-[#1a1212] dark:text-[#F5F5DC]"
+              >
+                <option value="EXPLORER">Explorer (free — immediate access)</option>
+                <option value="SPECIALIST">Specialist (paid — requires approval)</option>
+                <option value="VISIONARY">Visionary (paid — requires approval)</option>
+                <option value="NEXUS">Nexus enterprise (paid — requires approval)</option>
+              </select>
+              {planId !== "EXPLORER" && (
+                <p className="mt-2 text-xs text-gray-600 dark:text-brand-stardustLight">
+                  Your account will be reviewed by an administrator. You can browse free content while waiting.
+                </p>
+              )}
             </div>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 dark:border-[#059669]/30 bg-gray-50/50 dark:bg-[#F5F5DC]/5 px-4 py-3">
               <input

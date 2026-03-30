@@ -1,5 +1,6 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsBoolean, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { SubscriptionPlan } from '@prisma/client';
 
 export class SignUpDto {
   @IsEmail()
@@ -27,6 +28,11 @@ export class SignUpDto {
   @IsOptional()
   @IsString()
   tenantSlug?: string;
+
+  /** Paid plans require super-admin approval before full access */
+  @IsOptional()
+  @IsEnum(SubscriptionPlan)
+  planId?: SubscriptionPlan;
 }
 
 export class PasswordResetRequestDto {

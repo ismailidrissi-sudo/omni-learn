@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { ADMIN_NAV_ANY_PERMISSIONS, hasAnyPermission, parsePermissionsFromToken } from "@/lib/permissions";
 
 const PROTECTED_PATHS = [
   "/learn",
@@ -57,6 +58,14 @@ export function middleware(request: NextRequest) {
     const signinUrl = new URL("/signin", request.url);
     signinUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(signinUrl);
+  }
+
+  const isGlobalAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  if (isGlobalAdmin) {
+    const perms = parsePermissionsFromToken(token);
+    if (!hasAnyPermission(perms, [...ADMIN_NAV_ANY_PERMISSIONS])) {
+      return NextResponse.redirect(new URL("/learn", request.url));
+    }
   }
 
   return NextResponse.next();

@@ -132,8 +132,62 @@ export class CompanyService {
     return this.prisma.user.findMany({
       where: tenantId ? { tenantId } : undefined,
       orderBy: { name: 'asc' },
-      select: { id: true, email: true, name: true, tenantId: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tenantId: true,
+        country: true,
+        countryCode: true,
+        city: true,
+        timezone: true,
+      },
     });
+  }
+
+  /** Aggregated counts for admin map (English country names in DB). */
+  async usersGeoDistribution(opts: {
+    filterTenantId?: string;
+    actorTenantId: string | null;
+    canSeeAllTenants: boolean;
+  }) {
+    const where: Prisma.UserWhereInput = {};
+    if (opts.canSeeAllTenants) {
+      if (opts.filterTenantId) where.tenantId = opts.filterTenantId;
+    } else if (opts.actorTenantId) {
+      where.tenantId = opts.actorTenantId;
+    }
+    const users = await this.prisma.user.findMany({
+      where: {
+        ...where,
+        country: { not: null },
+      },
+      select: {
+        country: true,
+        countryCode: true,
+        city: true,
+      },
+    });
+    type Acc = { countryCode: string; cities: Map<string, number>; totalUsers: number };
+    const byCountry = new Map<string, Acc>();
+    for (const u of users) {
+      const country = u.country ?? 'Unknown';
+      const cc = u.countryCode ?? '';
+      if (!byCountry.has(country)) {
+        byCountry.set(country, { countryCode: cc, cities: new Map(), totalUsers: 0 });
+      }
+      const entry = byCountry.get(country)!;
+      entry.totalUsers += 1;
+      if (u.city) {
+        entry.cities.set(u.city, (entry.cities.get(u.city) ?? 0) + 1);
+      }
+    }
+    return [...byCountry.entries()].map(([country, v]) => ({
+      country,
+      countryCode: v.countryCode,
+      totalUsers: v.totalUsers,
+      cities: [...v.cities.entries()].map(([city, userCount]) => ({ city, userCount })),
+    }));
   }
 
   /** Tenants with logos that have at least one user (created account / logged in) */
@@ -201,6 +255,9 @@ export class CompanyService {
       certifications?: string[];
       staffingLevel?: string | null;
       companyProfileComplete?: boolean;
+      tenantKind?: string;
+      privateLabelConfig?: Record<string, unknown>;
+      tenantApprovalStatus?: string;
     },
   ) {
     return this.prisma.tenant.update({
@@ -231,6 +288,13 @@ export class CompanyService {
         ...(data.staffingLevel !== undefined && { staffingLevel: data.staffingLevel }),
         ...(data.companyProfileComplete !== undefined && {
           companyProfileComplete: data.companyProfileComplete,
+        }),
+        ...(data.tenantKind !== undefined && { tenantKind: data.tenantKind }),
+        ...(data.privateLabelConfig !== undefined && {
+          privateLabelConfig: data.privateLabelConfig as Prisma.InputJsonValue,
+        }),
+        ...(data.tenantApprovalStatus !== undefined && {
+          tenantApprovalStatus: data.tenantApprovalStatus,
         }),
       },
       include: { branding: true },

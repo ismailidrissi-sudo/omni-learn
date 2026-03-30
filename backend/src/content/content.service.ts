@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessService } from '../subscription/access.service';
+import { ContentType } from '@prisma/client';
 import { RbacRole } from '../constants/rbac.constant';
 
 /**
@@ -37,6 +38,8 @@ export interface CreateContentDto {
   availablePlans?: string[];
   /** Whether this content is available in company white-label academies */
   availableInEnterprise?: boolean;
+  /** Content language (en, fr, ar, etc.) */
+  language?: string;
 }
 
 export interface ScormMetadata {
@@ -72,7 +75,15 @@ export class ContentService {
     private readonly accessService: AccessService,
   ) {}
 
-  private assertCanMutateContent(editor: ContentEditor, content: { createdById: string | null }) {
+  private assertCanMutateContent(
+    editor: ContentEditor,
+    content: { createdById: string | null; type: ContentType },
+  ) {
+    if (content.type === ContentType.COURSE) {
+      if (editor.roles.includes(RbacRole.SUPER_ADMIN)) return;
+      if (content.createdById === editor.userId) return;
+      throw new ForbiddenException('You can only modify courses you created');
+    }
     if (canManageAnyContent(editor.roles)) {
       return;
     }
@@ -113,6 +124,7 @@ export class ContentService {
         isFoundational: data.isFoundational ?? plans.includes('EXPLORER'),
         availablePlans: plans,
         availableInEnterprise: data.availableInEnterprise ?? false,
+        language: data.language ?? 'en',
         ...(opts?.createdById != null ? { createdById: opts.createdById } : {}),
       },
     });
@@ -240,6 +252,7 @@ export class ContentService {
     if (data.availableInEnterprise !== undefined) {
       updateData.availableInEnterprise = data.availableInEnterprise;
     }
+    if (data.language !== undefined) updateData.language = data.language;
     await this.prisma.contentItem.update({
       where: { id },
       data: updateData,
@@ -316,6 +329,7 @@ export class ContentService {
       isFoundational?: boolean;
       availablePlans?: string[];
       availableInEnterprise?: boolean;
+      language?: string;
       createdById?: string | null;
     },
   ) {
@@ -332,6 +346,7 @@ export class ContentService {
         isFoundational: opts?.isFoundational,
         availablePlans: opts?.availablePlans,
         availableInEnterprise: opts?.availableInEnterprise,
+        language: opts?.language,
       },
       { createdById: opts?.createdById },
     );

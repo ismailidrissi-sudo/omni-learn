@@ -108,7 +108,9 @@ export class ProfileService {
       gender?: string;
       dateOfBirth?: string;
       country?: string;
+      countryCode?: string;
       city?: string;
+      timezone?: string;
       phoneNumber?: string;
     },
   ) {
@@ -116,13 +118,24 @@ export class ProfileService {
     if (data.gender !== undefined) updateData.gender = data.gender || null;
     if (data.dateOfBirth !== undefined) updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
     if (data.country !== undefined) updateData.country = data.country || null;
+    if (data.countryCode !== undefined) updateData.countryCode = data.countryCode || null;
     if (data.city !== undefined) updateData.city = data.city || null;
+    if (data.timezone !== undefined) updateData.timezone = data.timezone || null;
     if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber || null;
 
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: updateData,
-      select: { id: true, gender: true, dateOfBirth: true, country: true, city: true, phoneNumber: true },
+      select: {
+        id: true,
+        gender: true,
+        dateOfBirth: true,
+        country: true,
+        countryCode: true,
+        city: true,
+        timezone: true,
+        phoneNumber: true,
+      },
     });
     return { user, message: 'Demographics updated' };
   }

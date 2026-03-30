@@ -31,6 +31,7 @@ export class AuthController {
       body.name ?? '',
       body.trainerRequested ?? false,
       body.tenantSlug,
+      body.planId,
     );
 
     if (body.referralCode && this.referralService) {
@@ -114,10 +115,32 @@ export class AuthController {
     if (!userId) throw new BadRequestException('Not authenticated');
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, tenantId: true, planId: true, billingCycle: true, sectorFocus: true, isAdmin: true, trainerRequested: true, trainerApprovedAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tenantId: true,
+        planId: true,
+        billingCycle: true,
+        sectorFocus: true,
+        isAdmin: true,
+        trainerRequested: true,
+        trainerApprovedAt: true,
+        accountStatus: true,
+        country: true,
+        city: true,
+        countryCode: true,
+        timezone: true,
+      },
     });
     if (!user) throw new UnauthorizedException('User not found');
-    return user;
+    const ctx = await this.authService.loadRequestUser(userId);
+    if (!ctx) throw new UnauthorizedException('User not found');
+    return {
+      ...user,
+      roles: ctx.rolesRaw,
+      permissions: ctx.permissions,
+    };
   }
 
   @Post('refresh')

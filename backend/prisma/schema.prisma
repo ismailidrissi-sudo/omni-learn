@@ -94,6 +94,27 @@ enum OrgApprovalStatus {
   REJECTED
 }
 
+/// Unified approval queue (plan upgrade, company join, private-label)
+enum ApprovalRequestType {
+  PLAN_UPGRADE
+  COMPANY_JOIN
+  PRIVATE_LABEL
+}
+
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Canonical account gate (see also orgApprovalStatus for legacy company join)
+enum UserAccountStatus {
+  ACTIVE
+  PENDING_PLAN
+  PENDING_COMPANY
+  SUSPENDED
+}
+
 enum DeviceType {
   DESKTOP
   MOBILE
@@ -176,14 +197,20 @@ model User {
   gender        Gender?
   dateOfBirth   DateTime?
   country       String?
+  countryCode   String?          @db.VarChar(3)
   city          String?
+  timezone      String?          @db.VarChar(50)
   phoneNumber   String?
+  accountStatus UserAccountStatus @default(ACTIVE)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   department Department? @relation(fields: [departmentId], references: [id])
   position   Position?  @relation(fields: [positionId], references: [id])
   tenant     Tenant?    @relation(fields: [tenantId], references: [id])
+
+  requestedApprovals ApprovalRequest[] @relation("ApprovalRequestRequester")
+  reviewedApprovals  ApprovalRequest[] @relation("ApprovalRequestReviewer")
 
   groupMemberships         UserGroupMembership[]
   userTags                 UserTag[]
@@ -216,6 +243,11 @@ model Tenant {
   staffingLevel    String?
   internalErp      String?
   settings         Json?    @default("{}")
+  /// INDIVIDUAL | COMPANY | PRIVATE_LABEL
+  tenantKind       String   @default("INDIVIDUAL") @db.VarChar(30)
+  privateLabelConfig Json?  @default("{}")
+  /// For PRIVATE_LABEL: PENDING until super_admin approves; else ACTIVE | SUSPENDED
+  tenantApprovalStatus String @default("ACTIVE") @db.VarChar(20)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -235,8 +267,30 @@ model Tenant {
   emailBranding              EmailBranding?
   emailSchedules             EmailSchedule[]
   emailCampaigns             EmailCampaign[]
+  approvalRequests           ApprovalRequest[]
 
   @@index([industryId])
+}
+
+model ApprovalRequest {
+  id          String                @id @default(uuid())
+  tenantId    String
+  type        ApprovalRequestType
+  status      ApprovalRequestStatus @default(PENDING)
+  requesterId String
+  reviewerId  String?
+  payload     Json                  @default("{}")
+  reviewNote  String?               @db.Text
+  createdAt   DateTime              @default(now())
+  reviewedAt  DateTime?
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester User   @relation("ApprovalRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewer  User?  @relation("ApprovalRequestReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([type, status])
+  @@map("approval_requests")
 }
 
 // ── DYNAMIC DOMAINS (admin-created, NOT enums) ──
@@ -335,6 +389,8 @@ model ContentItem {
 
   availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
   availableInEnterprise Boolean   @default(false) // Available in company white-label academies
+
+  language              String    @default("en") // Content language (en, fr, ar, …)
 
   videoIsMicrolearning Boolean  @default(false)
   videoDurationSeconds Int?     // Precise duration in seconds for video content
