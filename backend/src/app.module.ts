@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bullmq';
+import { bullRedisConnection } from './analytics/redis-connection.util';
 import { PrismaModule } from './prisma/prisma.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
@@ -24,10 +26,14 @@ import { TrainerProfileModule } from './trainer-profile/trainer-profile.module';
 import { CourseEnrollmentModule } from './course-enrollment/course-enrollment.module';
 import { VideoModule } from './video/video.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { AppGraphqlModule } from './graphql/graphql.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    BullModule.forRoot({
+      connection: bullRedisConnection(),
+    }),
     PrismaModule,
     EmailModule,
     AuthModule,
@@ -52,6 +58,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
     TrainerProfileModule,
     VideoModule,
     ApprovalsModule,
+    AppGraphqlModule,
   ],
 })
 export class AppModule {}

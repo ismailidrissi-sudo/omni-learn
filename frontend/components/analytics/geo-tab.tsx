@@ -100,7 +100,6 @@ export function GeoTab({ data, filters }: Props) {
               <div key={c.country} className="flex items-center justify-between py-2.5 border-b border-[var(--color-bg-secondary)] last:border-b-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-[var(--color-text-primary)]">{c.country}</span>
-                  <span className="text-xs text-[var(--color-text-muted)]">{c.countryCode}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-28 h-2 bg-[var(--color-bg-secondary)] rounded-full overflow-hidden">

@@ -232,6 +232,31 @@ export class AnalyticsController {
     this.sendCsv(res, csvData, 'geography');
   }
 
+  @Get('deep/export/geo.xlsx')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async exportGeoXlsx(@Query() filters: AnalyticsFiltersDto, @Res() res: Response) {
+    const buf = await this.csv.buildGeoExcelBuffer(filters);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="omnilearn-geo-${date}.xlsx"`);
+    res.send(buf);
+  }
+
+  @Get('deep/export/geo.pdf')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async exportGeoPdf(@Query() filters: AnalyticsFiltersDto, @Res() res: Response) {
+    const buf = await this.csv.buildGeoPdfBuffer(filters);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="omnilearn-geo-${date}.pdf"`);
+    res.send(buf);
+  }
+
   @Get('deep/export/demographics')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)

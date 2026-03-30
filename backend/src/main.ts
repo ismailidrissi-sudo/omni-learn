@@ -8,6 +8,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   try {
@@ -15,6 +16,8 @@ async function bootstrap() {
       rawBody: true,
       logger: ['error', 'warn', 'log'],
     });
+
+    app.useWebSocketAdapter(new IoAdapter(app));
 
     app.useGlobalPipes(
       new ValidationPipe({

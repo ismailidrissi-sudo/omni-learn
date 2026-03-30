@@ -223,6 +223,7 @@ model User {
   userEmailPreferences     UserEmailPreference[]
   userContentInteractions  UserContentInteraction[]
   sessions                 UserSession[]
+  contentAccessLogs        ContentAccessLog[]
 }
 
 // ── TENANTS (rich company profile) ──
@@ -268,6 +269,7 @@ model Tenant {
   emailSchedules             EmailSchedule[]
   emailCampaigns             EmailCampaign[]
   approvalRequests           ApprovalRequest[]
+  geoAnalyticsRollups        GeoAnalyticsRollup[]
 
   @@index([industryId])
 }
@@ -407,6 +409,7 @@ model ContentItem {
   courseEnrollments      CourseEnrollment[]
   tenantAssignments      ContentTenantAssignment[] // When empty = all companies
   userAssignments        ContentUserAssignment[]   // When empty = all users
+  contentAccessLogs      ContentAccessLog[]
 
   @@index([tenantId])
   @@index([createdById])
@@ -941,6 +944,7 @@ model UserSession {
   region           String?
   latitude         Float?
   longitude        Float?
+  continent        String?    @db.VarChar(30)
   startedAt        DateTime   @default(now())
   endedAt          DateTime?
   durationSeconds  Int        @default(0)
@@ -954,8 +958,77 @@ model UserSession {
   @@index([startedAt])
   @@index([deviceType])
   @@index([country])
+  @@index([countryCode])
+  @@index([continent, startedAt])
   @@index([isActive])
   @@map("user_sessions")
+}
+
+/// Per-content access with geography (rollup source + live activity).
+model ContentAccessLog {
+  id                String   @id @default(uuid())
+  userId            String
+  contentId         String
+  deviceType        String   @default("web") @db.VarChar(20)
+  ipAddress         String?  @db.VarChar(45)
+  userAgent         String?  @db.Text
+  screenshotAttempt Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  country     String?  @db.VarChar(100)
+  countryCode String?  @db.VarChar(3)
+  city        String?  @db.VarChar(100)
+  region      String?  @db.VarChar(100)
+  latitude    Float?
+  longitude   Float?
+  continent   String?  @db.VarChar(30)
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([country, createdAt])
+  @@index([countryCode])
+  @@index([continent, createdAt])
+  @@index([contentId])
+  @@index([createdAt])
+  @@map("content_access_logs")
+}
+
+/// Pre-aggregated geographic metrics per tenant (filled by BullMQ jobs).
+model GeoAnalyticsRollup {
+  id            String   @id @default(uuid())
+  tenantId      String
+  period        String   @db.VarChar(10)
+  periodStart   DateTime
+  country       String   @db.VarChar(100)
+  countryCode   String   @db.VarChar(3)
+  /// Empty string = country-level row; non-empty = city-level rollup bucket
+  city          String   @default("") @db.VarChar(100)
+  region        String?  @db.VarChar(100)
+
+  activeUsers        Int    @default(0)
+  newRegistrations Int    @default(0)
+  contentViews     Int    @default(0)
+  courseCompletions Int   @default(0)
+  pathCompletions  Int    @default(0)
+  certsIssued      Int    @default(0)
+  totalTimeSpentMin Int   @default(0)
+  quizAttempts     Int    @default(0)
+  avgQuizScore     Float?
+
+  webSessions     Int @default(0)
+  iosSessions     Int @default(0)
+  androidSessions Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, period, periodStart, country, city])
+  @@index([tenantId, period, periodStart])
+  @@index([countryCode, period])
+  @@map("geo_analytics_rollups")
 }
 
 model PageView {

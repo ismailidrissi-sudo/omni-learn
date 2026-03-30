@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import * as ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
 
@@ -164,23 +167,180 @@ export class CsvExportService {
     return this.toCsv(headers, rows);
   }
 
+  private buildContentLogWhere(f: AnalyticsFiltersDto): Prisma.ContentAccessLogWhereInput {
+    const userFilter: Prisma.UserWhereInput = {};
+    if (f.tenantId) userFilter.tenantId = f.tenantId;
+    const where: Prisma.ContentAccessLogWhereInput = { user: userFilter };
+    if (f.from || f.to) {
+      where.createdAt = {};
+      if (f.from) (where.createdAt as Prisma.DateTimeFilter).gte = new Date(f.from);
+      if (f.to) (where.createdAt as Prisma.DateTimeFilter).lte = new Date(f.to);
+    }
+    return where;
+  }
+
+  /** Country-level merge: sessions + content views (full English country names in CSV). */
   async exportGeo(f: AnalyticsFiltersDto): Promise<string> {
     const where = this.buildSessionWhere(f);
-    const groups = await this.prisma.userSession.groupBy({
-      by: ['country', 'city'],
-      where: { ...where, country: { not: null } },
-      _count: true,
-      _avg: { durationSeconds: true },
-    });
+    const [sessionCountry, logsCountry, sessionCity] = await Promise.all([
+      this.prisma.userSession.groupBy({
+        by: ['country', 'countryCode'],
+        where: { ...where, country: { not: null } },
+        _count: true,
+        _avg: { durationSeconds: true },
+      }),
+      this.prisma.contentAccessLog.groupBy({
+        by: ['country', 'countryCode'],
+        where: { ...this.buildContentLogWhere(f), country: { not: null } },
+        _count: true,
+      }),
+      this.prisma.userSession.groupBy({
+        by: ['country', 'city'],
+        where: { ...where, country: { not: null }, city: { not: null } },
+        _count: true,
+        _avg: { durationSeconds: true },
+      }),
+    ]);
 
-    const rows = groups.map((g) => ({
+    const byCode = new Map<
+      string,
+      { country: string; sessions: number; contentViews: number; avgMin: number; n: number }
+    >();
+    for (const g of sessionCountry) {
+      const code = (g.countryCode || '').toUpperCase() || '_';
+      byCode.set(code, {
+        country: g.country || '',
+        sessions: g._count,
+        contentViews: 0,
+        avgMin: Math.round((g._avg.durationSeconds || 0) / 60),
+        n: 1,
+      });
+    }
+    for (const g of logsCountry) {
+      const code = (g.countryCode || '').toUpperCase() || '_';
+      const cur = byCode.get(code);
+      if (cur) cur.contentViews = g._count;
+      else {
+        byCode.set(code, {
+          country: g.country || '',
+          sessions: 0,
+          contentViews: g._count,
+          avgMin: 0,
+          n: 0,
+        });
+      }
+    }
+
+    const countryRows = [...byCode.entries()]
+      .filter(([code]) => code !== '_')
+      .map(([, v]) => ({
+        Country: v.country,
+        Sessions: v.sessions,
+        'Content views': v.contentViews,
+        'Avg session (min)': v.avgMin,
+      }))
+      .sort((a, b) => b.Sessions + b['Content views'] - (a.Sessions + a['Content views']));
+
+    const cityRows = sessionCity.map((g) => ({
       Country: g.country || '',
       City: g.city || '',
       Sessions: g._count,
       'Avg Duration (min)': Math.round((g._avg.durationSeconds || 0) / 60),
     }));
 
-    return this.toCsv(['Country', 'City', 'Sessions', 'Avg Duration (min)'], rows);
+    const a = this.toCsv(['Country', 'Sessions', 'Content views', 'Avg session (min)'], countryRows);
+    const b = this.toCsv(['Country', 'City', 'Sessions', 'Avg Duration (min)'], cityRows);
+    return `=== By country ===\n${a}\n\n=== By city (sessions) ===\n${b}`;
+  }
+
+  async buildGeoExcelBuffer(f: AnalyticsFiltersDto): Promise<Buffer> {
+    const csvBlock = await this.exportGeo(f);
+    const wb = new ExcelJS.Workbook();
+    const countrySheet = wb.addWorksheet('Countries');
+    countrySheet.addRow(['Country', 'Sessions', 'Content views', 'Avg session (min)']);
+    const sessionWhere = this.buildSessionWhere(f);
+    const sessionCountry = await this.prisma.userSession.groupBy({
+      by: ['country', 'countryCode'],
+      where: { ...sessionWhere, country: { not: null } },
+      _count: true,
+      _avg: { durationSeconds: true },
+    });
+    const logsCountry = await this.prisma.contentAccessLog.groupBy({
+      by: ['country', 'countryCode'],
+      where: { ...this.buildContentLogWhere(f), country: { not: null } },
+      _count: true,
+    });
+    const map = new Map<string, { country: string; s: number; v: number; avg: number }>();
+    for (const g of sessionCountry) {
+      const c = (g.countryCode || '').toUpperCase();
+      map.set(c, {
+        country: g.country || '',
+        s: g._count,
+        v: 0,
+        avg: Math.round((g._avg.durationSeconds || 0) / 60),
+      });
+    }
+    for (const g of logsCountry) {
+      const c = (g.countryCode || '').toUpperCase();
+      const x = map.get(c);
+      if (x) x.v = g._count;
+      else map.set(c, { country: g.country || '', s: 0, v: g._count, avg: 0 });
+    }
+    for (const [, v] of map) {
+      countrySheet.addRow([v.country, v.s, v.v, v.avg]);
+    }
+
+    const citySheet = wb.addWorksheet('Cities');
+    citySheet.addRow(['Country', 'City', 'Sessions', 'Avg Duration (min)']);
+    const sessionCity = await this.prisma.userSession.groupBy({
+      by: ['country', 'city'],
+      where: { ...sessionWhere, country: { not: null }, city: { not: null } },
+      _count: true,
+      _avg: { durationSeconds: true },
+    });
+    for (const g of sessionCity) {
+      citySheet.addRow([
+        g.country,
+        g.city,
+        g._count,
+        Math.round((g._avg.durationSeconds || 0) / 60),
+      ]);
+    }
+
+    const notes = wb.addWorksheet('Export notes');
+    notes.addRow(['Generated from filters', JSON.stringify(f)]);
+    notes.addRow(['Raw combined CSV preview', csvBlock.slice(0, 5000)]);
+
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+
+  async buildGeoPdfBuffer(f: AnalyticsFiltersDto): Promise<Buffer> {
+    const sessionWhere = this.buildSessionWhere(f);
+    const sessionCountry = await this.prisma.userSession.groupBy({
+      by: ['country', 'countryCode'],
+      where: { ...sessionWhere, country: { not: null } },
+      _count: true,
+    });
+    const top = sessionCountry.sort((a, b) => b._count - a._count).slice(0, 15);
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const doc = new PDFDocument({ margin: 50 });
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(18).text('Geographic analytics summary', { underline: true });
+      doc.moveDown();
+      doc.fontSize(10).text(`Period: ${f.from || '—'} to ${f.to || '—'}  Tenant: ${f.tenantId || 'all'}`);
+      doc.moveDown();
+      doc.fontSize(12).text('Top countries by sessions');
+      doc.moveDown(0.5);
+      top.forEach((row, i) => {
+        doc.fontSize(10).text(`${i + 1}. ${row.country} — ${row._count} sessions`);
+      });
+      doc.end();
+    });
   }
 
   async exportDemographics(f: AnalyticsFiltersDto): Promise<string> {
