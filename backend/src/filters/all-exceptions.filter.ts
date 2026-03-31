@@ -13,6 +13,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost) {
+    if (host.getType() !== 'http') {
+      // GraphQL / WS contexts are handled by Apollo or gateway error formatters.
+      throw exception;
+    }
+
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
