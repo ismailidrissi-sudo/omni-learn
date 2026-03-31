@@ -7,7 +7,7 @@ describe('AllExceptionsFilter', () => {
   let mockStatus: jest.Mock;
   let mockGetResponse: jest.Mock;
   let mockGetRequest: jest.Mock;
-  let mockHost: { switchToHttp: jest.Mock };
+  let mockHost: { getType: jest.Mock; switchToHttp: jest.Mock };
 
   beforeEach(() => {
     filter = new AllExceptionsFilter();
@@ -16,6 +16,7 @@ describe('AllExceptionsFilter', () => {
     mockGetResponse = jest.fn().mockReturnValue({ status: mockStatus });
     mockGetRequest = jest.fn().mockReturnValue({ method: 'GET', url: '/test' });
     mockHost = {
+      getType: jest.fn().mockReturnValue('http'),
       switchToHttp: jest.fn().mockReturnValue({
         getResponse: mockGetResponse,
         getRequest: mockGetRequest,
