@@ -2,13 +2,13 @@ import { Field, Float, ID, Int, ObjectType, GraphQLISODateTime } from '@nestjs/g
 
 @ObjectType()
 export class CountryStatsGql {
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   countryCode!: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   topCity?: string | null;
 
   @Field(() => Int)
@@ -44,7 +44,7 @@ export class CountryStatsGql {
 
 @ObjectType()
 export class ContinentStatsGql {
-  @Field()
+  @Field(() => String)
   continent!: string;
 
   @Field(() => Int)
@@ -74,10 +74,10 @@ export class GeoOverviewGql {
 
 @ObjectType()
 export class CityStatsGql {
-  @Field()
+  @Field(() => String)
   city!: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   region?: string | null;
 
   @Field(() => Int)
@@ -92,10 +92,10 @@ export class CityStatsGql {
 
 @ObjectType()
 export class DomainShareGql {
-  @Field()
+  @Field(() => String)
   domainId!: string;
 
-  @Field()
+  @Field(() => String)
   domainName!: string;
 
   @Field(() => Float)
@@ -167,13 +167,13 @@ export class CountryKpisGql {
 
 @ObjectType()
 export class LeaderboardEntryGql {
-  @Field()
+  @Field(() => String)
   userId!: string;
 
-  @Field()
+  @Field(() => String)
   displayName!: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   city?: string | null;
 
   @Field(() => Int)
@@ -188,10 +188,10 @@ export class LeaderboardEntryGql {
 
 @ObjectType()
 export class CountryDetailGql {
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   countryCode!: string;
 
   @Field(() => [CityStatsGql])
@@ -215,10 +215,10 @@ export class CountryDetailGql {
 
 @ObjectType()
 export class CountryComparisonEntryGql {
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   countryCode!: string;
 
   @Field(() => Int)
@@ -230,10 +230,10 @@ export class CountryComparisonEntryGql {
   @Field(() => Float)
   completionRate!: number;
 
-  @Field()
+  @Field(() => String)
   topDomain!: string;
 
-  @Field()
+  @Field(() => String)
   topCity!: string;
 
   @Field(() => Int)
@@ -245,10 +245,10 @@ export class CountryComparisonEntryGql {
 
 @ObjectType()
 export class CountryTrendLineGql {
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   countryCode!: string;
 
   @Field(() => [DailyMetricGql])
@@ -266,22 +266,22 @@ export class CountryComparisonGql {
 
 @ObjectType()
 export class LiveActivityEntryGql {
-  @Field()
+  @Field(() => String)
   userId!: string;
 
-  @Field()
+  @Field(() => String)
   userName!: string;
 
-  @Field()
+  @Field(() => String)
   city!: string;
 
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   action!: string;
 
-  @Field()
+  @Field(() => String)
   contentTitle!: string;
 
   @Field(() => GraphQLISODateTime)
@@ -290,9 +290,9 @@ export class LiveActivityEntryGql {
 
 @ObjectType()
 export class CountrySearchResultGql {
-  @Field()
+  @Field(() => String)
   country!: string;
 
-  @Field()
+  @Field(() => String)
   countryCode!: string;
 }
