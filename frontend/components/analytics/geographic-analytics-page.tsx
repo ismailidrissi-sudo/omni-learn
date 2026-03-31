@@ -72,11 +72,13 @@ function GeoInner() {
       period: { start: period.start.toISOString(), end: period.end.toISOString() },
       metric: GQL_METRIC[metric],
     },
+    errorPolicy: "all",
   });
 
   const { data: liveData } = useQuery(LIVE_ACTIVITY, {
     variables: { tenantId, limit: 20 },
     pollInterval: 60_000,
+    errorPolicy: "all",
   });
 
   type GeoOverviewData = {
@@ -136,7 +138,14 @@ function GeoInner() {
     <div className="space-y-6">
       {error && !hideError && (
         <ErrorBanner
-          message={error.message || "Failed to load geographic data"}
+          message={
+            ("graphQLErrors" in error
+              ? (error as unknown as { graphQLErrors: { message: string }[] })
+                  .graphQLErrors?.[0]?.message
+              : undefined) ||
+            error.message ||
+            "Failed to load geographic data"
+          }
           onDismiss={() => setHideError(true)}
         />
       )}
