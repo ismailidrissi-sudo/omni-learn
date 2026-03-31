@@ -35,11 +35,11 @@ export class GeoAnalyticsGqlService {
     private readonly cache: GeoRedisCacheService,
   ) {}
 
-  resolveTenantId(user: RequestUserPayload, requested: string | null | undefined): string {
+  /** Returns null when super admin queries all tenants (no filter). */
+  resolveTenantId(user: RequestUserPayload, requested: string | null | undefined): string | null {
     const isSuper = user.roles.includes(RbacRole.SUPER_ADMIN);
     if (isSuper) {
-      if (requested) return requested;
-      throw new BadRequestException('tenantId required for super admin');
+      return requested || null;
     }
     if (!user.tenantId) throw new BadRequestException('No tenant context');
     if (requested && requested !== user.tenantId) {
@@ -78,7 +78,7 @@ export class GeoAnalyticsGqlService {
 
     const rollups = await this.prisma.geoAnalyticsRollup.findMany({
       where: {
-        tenantId,
+        ...(tenantId ? { tenantId } : {}),
         period: 'daily',
         periodStart: { gte: start, lte: end },
         city: '',
@@ -224,7 +224,7 @@ export class GeoAnalyticsGqlService {
   }
 
   private async fallbackOverviewFromSessions(
-    tenantId: string,
+    tenantId: string | null,
     start: Date,
     end: Date,
     topCityByCode: Map<string, string>,
@@ -232,7 +232,7 @@ export class GeoAnalyticsGqlService {
     const groups = await this.prisma.userSession.groupBy({
       by: ['country', 'countryCode'],
       where: {
-        tenantId,
+        ...(tenantId ? { tenantId } : {}),
         startedAt: { gte: start, lte: end },
         country: { not: null },
       },
@@ -270,7 +270,7 @@ export class GeoAnalyticsGqlService {
 
     const users = await this.prisma.user.findMany({
       where: {
-        tenantId,
+        ...(tenantId ? { tenantId } : {}),
         countryCode: code,
       },
       select: { id: true, city: true, name: true },
@@ -298,7 +298,7 @@ export class GeoAnalyticsGqlService {
       where: {
         createdAt: { gte: start, lte: end },
         countryCode: code,
-        user: { tenantId },
+        user: tenantId ? { tenantId } : undefined,
       },
       _count: { id: true },
     });
@@ -318,7 +318,7 @@ export class GeoAnalyticsGqlService {
       where: {
         createdAt: { gte: start, lte: end },
         countryCode: code,
-        user: { tenantId },
+        user: tenantId ? { tenantId } : undefined,
       },
       select: {
         content: { select: { domainId: true, domain: { select: { name: true } } } },
@@ -374,7 +374,7 @@ export class GeoAnalyticsGqlService {
     void certN;
 
     const named = await this.prisma.user.findFirst({
-      where: { tenantId, countryCode: code, country: { not: null } },
+      where: { ...(tenantId ? { tenantId } : {}), countryCode: code, country: { not: null } },
       select: { country: true },
     });
     const countryName = named?.country ?? code;
@@ -466,7 +466,7 @@ export class GeoAnalyticsGqlService {
     const rows = await this.prisma.contentAccessLog.findMany({
       where: {
         createdAt: { gte: since },
-        user: { tenantId },
+        user: tenantId ? { tenantId } : undefined,
         ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {}),
       },
       orderBy: { createdAt: 'desc' },

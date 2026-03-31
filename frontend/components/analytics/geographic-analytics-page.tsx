@@ -56,9 +56,12 @@ function GeoInner() {
   }, []);
 
   const period = useMemo(() => {
-    const start = new Date(filters.from + "T00:00:00.000Z");
-    const end = new Date(filters.to + "T23:59:59.999Z");
-    return { start, end };
+    const fromStr = filters.from || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const toStr = filters.to || new Date().toISOString().slice(0, 10);
+    return {
+      start: new Date(fromStr + "T00:00:00.000Z"),
+      end: new Date(toStr + "T23:59:59.999Z"),
+    };
   }, [filters.from, filters.to]);
 
   const tenantId = filters.tenantId || null;
@@ -69,12 +72,10 @@ function GeoInner() {
       period: { start: period.start.toISOString(), end: period.end.toISOString() },
       metric: GQL_METRIC[metric],
     },
-    skip: !tenantId,
   });
 
   const { data: liveData } = useQuery(LIVE_ACTIVITY, {
     variables: { tenantId, limit: 20 },
-    skip: !tenantId,
     pollInterval: 60_000,
   });
 
@@ -130,14 +131,6 @@ function GeoInner() {
   const continents = geoData?.geoOverview?.continents ?? [];
   const countries = geoData?.geoOverview?.countries ?? [];
   const maxCont = Math.max(...continents.map((x: { activeUsers: number }) => x.activeUsers), 1);
-
-  if (!tenantId) {
-    return (
-      <p className="text-sm text-[var(--color-text-muted)] py-8">
-        Select a company (tenant) in the filters above to load geographic analytics. Super admins must pick a tenant; company admins use their org automatically when the API provides tenant context.
-      </p>
-    );
-  }
 
   return (
     <div className="space-y-6">
