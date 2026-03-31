@@ -20,6 +20,18 @@ import './geo-graphql.enums';
       autoSchemaFile: true,
       sortSchema: true,
       context: ({ req, res }: { req: unknown; res: unknown }) => ({ req, res }),
+      formatError: (err) => {
+        const original = err.extensions?.originalError as
+          | { message?: string; statusCode?: number }
+          | undefined;
+        return {
+          message: original?.message || err.message,
+          extensions: {
+            code: err.extensions?.code ?? 'INTERNAL_SERVER_ERROR',
+            statusCode: original?.statusCode,
+          },
+        };
+      },
     }),
   ],
   providers: [GeoAnalyticsGqlService, GeoGqlResolver, GqlJwtAuthGuard, GqlRbacGuard],
