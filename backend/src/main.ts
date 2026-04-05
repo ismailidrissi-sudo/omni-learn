@@ -17,6 +17,7 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log'],
     });
 
+    app.set('trust proxy', true);
     app.useWebSocketAdapter(new IoAdapter(app));
 
     app.useGlobalPipes(

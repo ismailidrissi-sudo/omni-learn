@@ -5,6 +5,8 @@ import { AnalyticsService } from './analytics.service';
 import { SessionTrackingService } from './session-tracking.service';
 import { DeepAnalyticsService } from './deep-analytics.service';
 import { CsvExportService } from './csv-export.service';
+import { GeoBackfillService } from './geo-backfill.service';
+import { GeoRollupService } from './geo-rollup.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -18,6 +20,8 @@ export class AnalyticsController {
     private readonly sessions: SessionTrackingService,
     private readonly deep: DeepAnalyticsService,
     private readonly csv: CsvExportService,
+    private readonly geoBackfill: GeoBackfillService,
+    private readonly geoRollup: GeoRollupService,
   ) {}
 
   // ── Legacy endpoints ──
@@ -196,6 +200,26 @@ export class AnalyticsController {
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER)
   deepTopContent(@Query() filters: AnalyticsFiltersDto, @Query('limit') limit?: string) {
     return this.deep.getTopContent(filters, limit ? +limit : 10);
+  }
+
+  // ── Geo backfill + rollup refresh ──
+
+  @Post('geo/backfill')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async triggerGeoBackfill(@Query('limit') limit?: string) {
+    const batchSize = limit ? Math.min(+limit, 2000) : 500;
+    const result = await this.geoBackfill.runBatch(batchSize);
+    return { ok: true, ...result };
+  }
+
+  @Post('geo/rollup')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async triggerGeoRollup() {
+    const now = new Date();
+    const daily = await this.geoRollup.runRollup('daily', now);
+    return { ok: true, daily };
   }
 
   // ── CSV exports ──

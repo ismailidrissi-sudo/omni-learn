@@ -33,7 +33,7 @@ export function formatLocation(city?: string | null, country?: string | null): s
   return 'Unknown';
 }
 
-export type GeoResolutionSource = 'user_profile' | 'maxmind' | 'ipinfo' | 'geoip_lite';
+export type GeoResolutionSource = 'user_profile' | 'maxmind' | 'ipinfo' | 'geoip_lite' | 'ip_api';
 
 export interface ResolvedGeo {
   country: string | null;

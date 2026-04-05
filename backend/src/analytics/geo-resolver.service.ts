@@ -11,11 +11,33 @@ import {
   continentFromCountryCode,
 } from './geo-constants';
 
+/** Strip IPv4-mapped IPv6 prefix (::ffff:1.2.3.4 → 1.2.3.4). */
+function normalizeIp(raw: string): string {
+  const trimmed = raw.trim();
+  const mapped = trimmed.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i);
+  if (mapped) return mapped[1];
+  return trimmed;
+}
+
+function isPrivateIp(ip: string): boolean {
+  return (
+    ip === '::1' ||
+    ip.startsWith('127.') ||
+    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ||
+    ip.startsWith('fc') ||
+    ip.startsWith('fd') ||
+    ip.startsWith('fe80')
+  );
+}
+
 @Injectable()
 export class GeoResolverService implements OnModuleDestroy {
   private readonly log = new Logger(GeoResolverService.name);
   private maxmindReader: ReaderModel | null = null;
   private maxmindOpenPromise: Promise<void> | null = null;
+  private loggedOnce = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -125,8 +147,42 @@ export class GeoResolverService implements OnModuleDestroy {
     };
   }
 
+  /** Free ip-api.com fallback (45 req/min, no key required). */
+  private async fromIpApi(ip: string): Promise<ResolvedGeo | null> {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<{
+          status?: string;
+          country?: string;
+          countryCode?: string;
+          city?: string;
+          regionName?: string;
+          lat?: number;
+          lon?: number;
+        }>(`http://ip-api.com/json/${encodeURIComponent(ip)}`, {
+          params: { fields: 'status,country,countryCode,city,regionName,lat,lon' },
+          timeout: 5000,
+        }),
+      );
+      if (data.status !== 'success' || !data.countryCode) return null;
+      const code = data.countryCode.toUpperCase();
+      return {
+        country: englishCountryNameFromCode(code) ?? data.country ?? null,
+        countryCode: code,
+        city: data.city ?? null,
+        region: data.regionName ?? null,
+        latitude: data.lat ?? null,
+        longitude: data.lon ?? null,
+        continent: continentFromCountryCode(code),
+        source: 'ip_api',
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /**
-   * Priority: user profile (country+city) → MaxMind → ipinfo → geoip-lite.
+   * Priority: user profile → MaxMind → ipinfo → geoip-lite → ip-api.com.
    */
   async resolve(ip: string | undefined, userId?: string): Promise<ResolvedGeo> {
     const empty: ResolvedGeo = {
@@ -160,8 +216,15 @@ export class GeoResolverService implements OnModuleDestroy {
       }
     }
 
-    const cleanIp = ip?.split(',')[0]?.trim();
-    if (!cleanIp || cleanIp === '::1' || cleanIp.startsWith('127.')) {
+    const rawIp = ip?.split(',')[0]?.trim();
+    if (!rawIp) return empty;
+
+    const cleanIp = normalizeIp(rawIp);
+    if (isPrivateIp(cleanIp)) {
+      if (!this.loggedOnce) {
+        this.log.warn(`Geo resolve skipped — private/loopback IP: ${cleanIp} (raw: ${ip}). Check X-Forwarded-For / trust proxy.`);
+        this.loggedOnce = true;
+      }
       return empty;
     }
 
@@ -177,6 +240,10 @@ export class GeoResolverService implements OnModuleDestroy {
     const lite = this.fromGeoipLite(cleanIp);
     if (lite) return lite;
 
+    const ipApi = await this.fromIpApi(cleanIp);
+    if (ipApi?.country || ipApi?.countryCode) return ipApi;
+
+    this.log.warn(`All geo resolvers failed for IP: ${cleanIp}`);
     return empty;
   }
 }

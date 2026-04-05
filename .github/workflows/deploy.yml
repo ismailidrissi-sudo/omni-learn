@@ -20,6 +20,7 @@
 #   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 #   NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_LINKEDIN_CLIENT_ID
 #   YTDLP_COOKIES_PATH
+#   IPINFO_TOKEN — Free ipinfo.io token for IP geolocation (50k/month)
 
 name: Deploy
 
@@ -78,6 +79,7 @@ jobs:
             STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
             YTDLP_MAX_QUALITY=720p
             YTDLP_COOKIES_PATH=${{ secrets.YTDLP_COOKIES_PATH }}
+            IPINFO_TOKEN=${{ secrets.IPINFO_TOKEN }}
             ENVEOF
 
             mkdir -p video-proxy/cookies

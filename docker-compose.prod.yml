@@ -52,6 +52,9 @@ services:
       LIGHTFM_SERVICE_URL: http://recommendations:5000
       VIDEO_PROXY_SERVICE_URL: http://video-proxy:5001
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      # Geolocation: at least one of these should be set for geography analytics
+      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
       # Required for BullMQ (geo rollups, etc.); without this the backend targets 127.0.0.1 and nginx may return HTML 502s.
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     volumes:
