@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeoResolverService } from './geo-resolver.service';
 import { GeoRollupService } from './geo-rollup.service';
+import { GeoRedisCacheService } from './geo-redis-cache.service';
 
 @Injectable()
 export class GeoBackfillService implements OnModuleInit {
@@ -11,18 +12,26 @@ export class GeoBackfillService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly geoResolver: GeoResolverService,
     private readonly geoRollup: GeoRollupService,
+    private readonly cache: GeoRedisCacheService,
   ) {}
 
   async onModuleInit() {
-    const missing = await this.prisma.userSession.count({
+    const missingSessions = await this.prisma.userSession.count({
       where: {
         ipAddress: { not: null },
         OR: [{ country: null }, { countryCode: null }],
       },
     });
-    if (missing === 0) return;
+    const missingLogs = await this.prisma.contentAccessLog.count({
+      where: {
+        ipAddress: { not: null },
+        OR: [{ country: null }, { countryCode: null }],
+      },
+    });
 
-    this.log.log(`Found ${missing} sessions with missing geo — starting auto-backfill...`);
+    this.log.log(`Geo status: ${missingSessions} sessions + ${missingLogs} logs missing geo data`);
+
+    if (missingSessions === 0 && missingLogs === 0) return;
 
     setTimeout(async () => {
       try {
@@ -36,9 +45,18 @@ export class GeoBackfillService implements OnModuleInit {
         }
         this.log.log(`Auto-backfill complete: ${total.contentLogs} logs, ${total.sessions} sessions`);
 
-        this.log.log('Running daily geo rollup after backfill...');
-        const rollup = await this.geoRollup.runRollup('daily', new Date());
-        this.log.log(`Post-backfill rollup done: ${rollup.rows} rows`);
+        this.log.log('Clearing stale geo rollups and Redis cache...');
+        await this.prisma.geoAnalyticsRollup.deleteMany({});
+        const cleared = await this.cache.clearGeoCache();
+        this.log.log(`Cleared ${cleared} cached geo keys`);
+
+        this.log.log('Regenerating daily rollups for the last 90 days...');
+        const now = new Date();
+        for (let daysBack = 0; daysBack < 90; daysBack++) {
+          const anchor = new Date(now.getTime() - daysBack * 86400000);
+          await this.geoRollup.runRollup('daily', anchor);
+        }
+        this.log.log('Post-backfill rollup regeneration complete');
       } catch (e) {
         this.log.warn(`Auto-backfill error: ${e}`);
       }

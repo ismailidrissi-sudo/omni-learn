@@ -7,6 +7,8 @@ import { DeepAnalyticsService } from './deep-analytics.service';
 import { CsvExportService } from './csv-export.service';
 import { GeoBackfillService } from './geo-backfill.service';
 import { GeoRollupService } from './geo-rollup.service';
+import { GeoResolverService } from './geo-resolver.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,6 +24,8 @@ export class AnalyticsController {
     private readonly csv: CsvExportService,
     private readonly geoBackfill: GeoBackfillService,
     private readonly geoRollup: GeoRollupService,
+    private readonly geoResolver: GeoResolverService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ── Legacy endpoints ──
@@ -202,7 +206,45 @@ export class AnalyticsController {
     return this.deep.getTopContent(filters, limit ? +limit : 10);
   }
 
-  // ── Geo backfill + rollup refresh ──
+  // ── Geo backfill + rollup refresh + diagnostics ──
+
+  @Get('geo/diagnostics')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async geoDiagnostics(@Req() req: Request) {
+    const incomingIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
+
+    const totalSessions = await this.prisma.userSession.count();
+    const sessionsWithIp = await this.prisma.userSession.count({ where: { ipAddress: { not: null } } });
+    const sessionsWithCountry = await this.prisma.userSession.count({ where: { country: { not: null } } });
+    const sessionsNoGeo = await this.prisma.userSession.count({
+      where: { ipAddress: { not: null }, OR: [{ country: null }, { countryCode: null }] },
+    });
+
+    const totalLogs = await this.prisma.contentAccessLog.count();
+    const logsWithCountry = await this.prisma.contentAccessLog.count({ where: { country: { not: null } } });
+
+    const rollupCount = await this.prisma.geoAnalyticsRollup.count();
+
+    const sampleSessions = await this.prisma.userSession.findMany({
+      take: 5,
+      orderBy: { startedAt: 'desc' },
+      select: { id: true, ipAddress: true, country: true, countryCode: true, city: true, startedAt: true },
+    });
+
+    const testResolve = await this.geoResolver.resolve(incomingIp);
+
+    return {
+      yourIp: incomingIp,
+      testResolve,
+      ipinfoTokenSet: !!process.env.IPINFO_TOKEN,
+      maxmindDbSet: !!process.env.MAXMIND_DB_PATH,
+      sessions: { total: totalSessions, withIp: sessionsWithIp, withCountry: sessionsWithCountry, needingBackfill: sessionsNoGeo },
+      contentAccessLogs: { total: totalLogs, withCountry: logsWithCountry },
+      rollups: rollupCount,
+      recentSessions: sampleSessions,
+    };
+  }
 
   @Post('geo/backfill')
   @UseGuards(AuthGuard('jwt'), RbacGuard)

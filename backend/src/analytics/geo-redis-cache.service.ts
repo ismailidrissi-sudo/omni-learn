@@ -84,4 +84,18 @@ export class GeoRedisCacheService implements OnModuleDestroy {
       /* ignore */
     }
   }
+
+  /** Delete all keys matching `analytics:geo:*` to force fresh queries. */
+  async clearGeoCache(): Promise<number> {
+    const r = this.getRedis();
+    if (!r) return 0;
+    try {
+      const keys = await r.keys('analytics:geo:*');
+      if (keys.length === 0) return 0;
+      await r.del(...keys);
+      return keys.length;
+    } catch {
+      return 0;
+    }
+  }
 }
