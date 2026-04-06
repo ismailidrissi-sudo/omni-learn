@@ -176,8 +176,20 @@ export class GeoAnalyticsGqlService {
       androidSessions: m.androidSessions,
     }));
 
-    if (countries.length === 0) {
-      countries = await this.fallbackOverviewFromSessions(tenantId, start, end, topCityByCode);
+    const hasActiveUsers = countries.some((c) => c.activeUsers > 0);
+    if (countries.length === 0 || !hasActiveUsers) {
+      const sessionCountries = await this.fallbackOverviewFromSessions(tenantId, start, end, topCityByCode);
+      if (sessionCountries.length > 0) {
+        const existing = new Map(countries.map((c) => [c.countryCode, c]));
+        for (const sc of sessionCountries) {
+          const ex = existing.get(sc.countryCode);
+          if (ex) {
+            ex.activeUsers = Math.max(ex.activeUsers, sc.activeUsers);
+          } else {
+            countries.push(sc);
+          }
+        }
+      }
     }
 
     countries.sort((a, b) => this.metricValue(b, metric) - this.metricValue(a, metric));

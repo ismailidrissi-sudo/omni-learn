@@ -305,9 +305,11 @@ export class GeoRollupService {
           country: { not: null },
         },
         select: {
+          userId: true,
           durationSeconds: true,
           country: true,
           countryCode: true,
+          deviceType: true,
         },
       });
       for (const s of sessions) {
@@ -334,7 +336,13 @@ export class GeoRollupService {
             quizScoreCount: 0,
           });
         }
-        map.get(k)!.totalTimeSpentMin += Math.round((s.durationSeconds || 0) / 60);
+        const agg = map.get(k)!;
+        agg.activeUserIds.add(s.userId);
+        agg.totalTimeSpentMin += Math.round((s.durationSeconds || 0) / 60);
+        const dt = (s.deviceType || 'DESKTOP').toUpperCase();
+        if (dt === 'MOBILE') agg.iosSessions += 1;
+        else if (dt === 'TABLET') agg.androidSessions += 1;
+        else agg.webSessions += 1;
       }
 
       for (const agg of map.values()) {

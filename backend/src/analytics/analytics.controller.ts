@@ -28,44 +28,6 @@ export class AnalyticsController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // ── Temporary geo diagnostic (remove after debugging) ──
-
-  @Get('geo/health')
-  async geoHealth(@Req() req: Request) {
-    const incomingIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
-
-    const totalSessions = await this.prisma.userSession.count();
-    const sessionsWithIp = await this.prisma.userSession.count({ where: { ipAddress: { not: null } } });
-    const sessionsIpNull = totalSessions - sessionsWithIp;
-    const sessionsWithCountry = await this.prisma.userSession.count({ where: { country: { not: null } } });
-    const sessionsCountryEmpty = await this.prisma.userSession.count({ where: { country: '' } });
-
-    const totalLogs = await this.prisma.contentAccessLog.count();
-    const logsWithIp = await this.prisma.contentAccessLog.count({ where: { ipAddress: { not: null } } });
-    const logsWithCountry = await this.prisma.contentAccessLog.count({ where: { country: { not: null } } });
-
-    const rollupCount = await this.prisma.geoAnalyticsRollup.count();
-
-    const sampleIps = await this.prisma.userSession.findMany({
-      take: 5,
-      orderBy: { startedAt: 'desc' },
-      select: { ipAddress: true, country: true, countryCode: true, startedAt: true },
-    });
-
-    const testResolve = await this.geoResolver.resolve(incomingIp);
-
-    return {
-      yourIp: incomingIp,
-      testResolveResult: testResolve,
-      ipinfoTokenSet: !!process.env.IPINFO_TOKEN,
-      trustProxy: true,
-      sessions: { total: totalSessions, withIp: sessionsWithIp, ipNull: sessionsIpNull, withCountry: sessionsWithCountry, countryEmptyString: sessionsCountryEmpty },
-      contentLogs: { total: totalLogs, withIp: logsWithIp, withCountry: logsWithCountry },
-      rollups: rollupCount,
-      recentSessions: sampleIps,
-    };
-  }
-
   // ── Legacy endpoints ──
 
   @Post('track')
