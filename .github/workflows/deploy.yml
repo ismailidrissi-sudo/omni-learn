@@ -1,26 +1,15 @@
 # omnilearn.space — CD Pipeline
 # Deploys to Hostinger VPS via SSH + Docker Compose
 #
+# Retries SSH (nick-fields/retry): GitHub Actions egress IPs change; some networks
+# intermittently time out TCP :22 — several attempts with backoff usually succeeds.
+#
 # Triggers:
 #   - Push to master (automatic)
-#   - Manual dispatch (trigger from Cursor terminal or GitHub UI)
+#   - Manual dispatch
 #
-# Required GitHub Secrets:
-#   DEPLOY_HOST          — VPS IP
-#   DEPLOY_USER          — SSH user (root or deploy user)
-#   DEPLOY_SSH_KEY       — Private SSH key for the VPS
-#   POSTGRES_PASSWORD    — Production database password
-#   JWT_SECRET           — JWT signing secret
-#   INTERNAL_SERVICE_KEY — Key for backend <-> microservice auth
-#
-# Optional GitHub Secrets:
-#   ADMIN_EMAIL, ADMIN_PASSWORD
-#   GOOGLE_CLIENT_ID, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET
-#   EMAIL_ENCRYPTION_KEY, MAIL_FROM
-#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-#   NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_LINKEDIN_CLIENT_ID
-#   YTDLP_COOKIES_PATH
-#   IPINFO_TOKEN — Free ipinfo.io token for IP geolocation (50k/month)
+# Secrets: see repository Settings → Secrets (DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, …)
+# Optional: DEPLOY_PORT if SSH is not on 22
 
 name: Deploy
 
@@ -36,77 +25,66 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1
+      - name: Checkout (for scripts/ci/*)
+        uses: actions/checkout@v4
+
+      - name: Build production .env on runner
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_LINKEDIN_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
+          INTERNAL_SERVICE_KEY: ${{ secrets.INTERNAL_SERVICE_KEY }}
+          EMAIL_ENCRYPTION_KEY: ${{ secrets.EMAIL_ENCRYPTION_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          YTDLP_COOKIES_PATH: ${{ secrets.YTDLP_COOKIES_PATH }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+        run: bash scripts/ci/write-prod-env.sh /tmp/prod.env
+
+      - name: Push .env + pull + Docker rollout (SSH, with retries)
+        uses: nick-fields/retry@v3
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || '22' }}
-          timeout: 20m
-          command_timeout: 45m
-          envs: APP_DIR
-          script: |
-            set -e
+          timeout_minutes: 45
+          max_attempts: 5
+          retry_wait_seconds: 90
+          command: |
+            set -euo pipefail
+            PORT="${DEPLOY_PORT:-22}"
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            echo "${{ secrets.DEPLOY_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            ssh-keyscan -p "$PORT" -T 60 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-            cd $APP_DIR
+            # ssh uses -p for port; scp uses -P
+            SSH_OPTS=( -i ~/.ssh/deploy_key
+              -o BatchMode=yes
+              -o StrictHostKeyChecking=accept-new
+              -o ConnectTimeout=90
+              -o ConnectionAttempts=5
+              -o TCPKeepAlive=yes
+              -o ServerAliveInterval=30
+              -o ServerAliveCountMax=12
+              -p "$PORT" )
+            SCP_OPTS=( -i ~/.ssh/deploy_key
+              -o BatchMode=yes
+              -o StrictHostKeyChecking=accept-new
+              -o ConnectTimeout=90
+              -P "$PORT" )
 
-            echo "==> Pulling latest code..."
-            git pull origin master
+            scp "${SCP_OPTS[@]}" /tmp/prod.env "${DEPLOY_USER}@${DEPLOY_HOST}:${{ env.APP_DIR }}/.env"
 
-            echo "==> Writing production .env..."
-            cat > .env << 'ENVEOF'
-            POSTGRES_USER=omnilearn
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            POSTGRES_DB=omnilearn
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            CORS_ORIGINS=https://omnilearn.space,https://www.omnilearn.space
-            FRONTEND_URL=https://omnilearn.space
-            NEXT_PUBLIC_API_URL=https://omnilearn.space/api
-            ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
-            ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
-            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-            LINKEDIN_CLIENT_ID=${{ secrets.LINKEDIN_CLIENT_ID }}
-            LINKEDIN_CLIENT_SECRET=${{ secrets.LINKEDIN_CLIENT_SECRET }}
-            LINKEDIN_CALLBACK_URL=https://omnilearn.space/auth/linkedin/callback
-            LINKEDIN_SERVER_CALLBACK_URL=https://omnilearn.space/api/auth/linkedin/callback
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-            NEXT_PUBLIC_LINKEDIN_CLIENT_ID=${{ secrets.NEXT_PUBLIC_LINKEDIN_CLIENT_ID }}
-            INTERNAL_SERVICE_KEY=${{ secrets.INTERNAL_SERVICE_KEY }}
-            EMAIL_ENCRYPTION_KEY=${{ secrets.EMAIL_ENCRYPTION_KEY }}
-            MAIL_FROM=${{ secrets.MAIL_FROM }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-            YTDLP_MAX_QUALITY=720p
-            YTDLP_COOKIES_PATH=${{ secrets.YTDLP_COOKIES_PATH }}
-            IPINFO_TOKEN=${{ secrets.IPINFO_TOKEN }}
-            ENVEOF
-
-            mkdir -p video-proxy/cookies
-
-            echo "==> Building images (old containers keep running)..."
-            docker compose -f docker-compose.prod.yml build
-
-            echo "==> Rolling update: infrastructure..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build postgres redis
-            sleep 5
-
-            echo "==> Rolling update: backend services (entrypoint runs migrations automatically)..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build backend video-proxy recommendations
-            sleep 5
-
-            echo "==> Rolling update: frontend..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build frontend
-            sleep 5
-
-            echo "==> Reloading nginx..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps --no-build nginx
-            docker compose -f docker-compose.prod.yml restart nginx
-
-            echo "==> Container status..."
-            docker compose -f docker-compose.prod.yml ps
-
-            echo "==> Cleaning up old images..."
-            docker image prune -f
-
-            echo "==> Deploy complete!"
+            ssh "${SSH_OPTS[@]}" \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "cd ${{ env.APP_DIR }} && git pull origin master && bash scripts/ci/vps-rollout.sh"
