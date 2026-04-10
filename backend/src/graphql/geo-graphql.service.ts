@@ -4,7 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GeoRedisCacheService } from '../analytics/geo-redis-cache.service';
 import { RequestUserPayload } from '../auth/types/request-user.types';
 import { RbacRole } from '../constants/rbac.constant';
-import { continentFromCountryCode, englishCountryNameFromCode } from '../analytics/geo-constants';
+import {
+  continentFromCountryCode,
+  englishCountryNameFromCode,
+  normalizeCountryCodeForAggregation,
+} from '../analytics/geo-constants';
 import { GeoMetric } from './geo-graphql.enums';
 import type {
   CountryComparisonEntryGql,
@@ -72,7 +76,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<GeoOverviewGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const p = periodCacheKey(start, end);
-    const cacheKey = `analytics:geo:overview:v2:${tenantId}:${p}`;
+    const cacheKey = `analytics:geo:overview:v3:${tenantId}:${p}`;
     const cached = await this.cache.getJson<GeoOverviewGql>(cacheKey);
     if (cached) return cached;
 
@@ -105,7 +109,7 @@ export class GeoAnalyticsGqlService {
     >();
 
     for (const r of rollups) {
-      const k = (r.countryCode || 'ZZ').toUpperCase();
+      const k = normalizeCountryCodeForAggregation(r.countryCode);
       if (!merged.has(k)) {
         merged.set(k, {
           country: r.country,
@@ -154,8 +158,8 @@ export class GeoAnalyticsGqlService {
 
     const cityBuckets = new Map<string, { city: string; n: number }[]>();
     for (const row of topCitiesRows) {
-      const code = (row.countryCode || '').toUpperCase();
-      if (!code || !row.city) continue;
+      const code = normalizeCountryCodeForAggregation(row.countryCode);
+      if (code === 'ZZ' || !row.city) continue;
       if (!cityBuckets.has(code)) cityBuckets.set(code, []);
       cityBuckets.get(code)!.push({ city: row.city, n: row._count.id });
     }
@@ -171,7 +175,7 @@ export class GeoAnalyticsGqlService {
     }
 
     let countries: CountryStatsGql[] = [...merged.values()].map((m) => {
-      const cc = m.countryCode.toUpperCase();
+      const cc = normalizeCountryCodeForAggregation(m.countryCode);
       return {
         country: m.country,
         countryCode: cc,
@@ -276,25 +280,34 @@ export class GeoAnalyticsGqlService {
       },
       _count: { id: true },
     });
-    return groups.map((g) => {
-      const cc = (g.countryCode || '').toUpperCase() || 'ZZ';
-      return {
-        country: g.country || '',
-        countryCode: cc,
-        topCity: topCityByCode.get(cc) ?? null,
-        topCitiesPreview: topCitiesPreviewByCode.get(cc) ?? null,
-        activeUsers: g._count.id,
-        newRegistrations: 0,
-        courseCompletions: 0,
-        pathCompletions: 0,
-        certsIssued: 0,
-        totalTimeSpentMin: 0,
-        avgQuizScore: null,
-        webSessions: 0,
-        iosSessions: 0,
-        androidSessions: 0,
-      };
-    });
+    const sessionMerged = new Map<
+      string,
+      { activeUsers: number; countryLabel: string }
+    >();
+    for (const g of groups) {
+      const cc = normalizeCountryCodeForAggregation(g.countryCode);
+      if (!sessionMerged.has(cc)) {
+        sessionMerged.set(cc, { activeUsers: 0, countryLabel: g.country || '' });
+      }
+      const row = sessionMerged.get(cc)!;
+      row.activeUsers += g._count.id;
+    }
+    return [...sessionMerged.entries()].map(([cc, v]) => ({
+      country: v.countryLabel,
+      countryCode: cc,
+      topCity: topCityByCode.get(cc) ?? null,
+      topCitiesPreview: topCitiesPreviewByCode.get(cc) ?? null,
+      activeUsers: v.activeUsers,
+      newRegistrations: 0,
+      courseCompletions: 0,
+      pathCompletions: 0,
+      certsIssued: 0,
+      totalTimeSpentMin: 0,
+      avgQuizScore: null,
+      webSessions: 0,
+      iosSessions: 0,
+      androidSessions: 0,
+    }));
   }
 
   async getCountryAnalytics(
