@@ -11,6 +11,10 @@ export class CountryStatsGql {
   @Field(() => String, { nullable: true })
   topCity?: string | null;
 
+  /** Comma-separated top cities by traffic (approximate), up to 3. */
+  @Field(() => String, { nullable: true })
+  topCitiesPreview?: string | null;
+
   @Field(() => Int)
   activeUsers!: number;
 

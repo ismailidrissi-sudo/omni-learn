@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GeoRedisCacheService } from '../analytics/geo-redis-cache.service';
 import { RequestUserPayload } from '../auth/types/request-user.types';
 import { RbacRole } from '../constants/rbac.constant';
-import { continentFromCountryCode } from '../analytics/geo-constants';
+import { continentFromCountryCode, englishCountryNameFromCode } from '../analytics/geo-constants';
 import { GeoMetric } from './geo-graphql.enums';
 import type {
   CountryComparisonEntryGql,
@@ -72,7 +72,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<GeoOverviewGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const p = periodCacheKey(start, end);
-    const cacheKey = `analytics:geo:overview:${tenantId}:${p}`;
+    const cacheKey = `analytics:geo:overview:v2:${tenantId}:${p}`;
     const cached = await this.cache.getJson<GeoOverviewGql>(cacheKey);
     if (cached) return cached;
 
@@ -105,11 +105,11 @@ export class GeoAnalyticsGqlService {
     >();
 
     for (const r of rollups) {
-      const k = r.countryCode;
+      const k = (r.countryCode || 'ZZ').toUpperCase();
       if (!merged.has(k)) {
         merged.set(k, {
           country: r.country,
-          countryCode: r.countryCode,
+          countryCode: k,
           activeUsers: 0,
           newRegistrations: 0,
           courseCompletions: 0,
@@ -140,45 +140,65 @@ export class GeoAnalyticsGqlService {
       }
     }
 
-    const topCities = await this.prisma.contentAccessLog.groupBy({
+    const logWhereBase = {
+      createdAt: { gte: start, lte: end },
+      countryCode: { not: null },
+      city: { not: null },
+      ...(tenantId ? { user: { tenantId } } : {}),
+    };
+    const topCitiesRows = await this.prisma.contentAccessLog.groupBy({
       by: ['countryCode', 'city'],
-      where: {
-        createdAt: { gte: start, lte: end },
-        countryCode: { not: null },
-        city: { not: null },
-        user: { tenantId },
-      },
+      where: logWhereBase,
       _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 200,
     });
 
+    const cityBuckets = new Map<string, { city: string; n: number }[]>();
+    for (const row of topCitiesRows) {
+      const code = (row.countryCode || '').toUpperCase();
+      if (!code || !row.city) continue;
+      if (!cityBuckets.has(code)) cityBuckets.set(code, []);
+      cityBuckets.get(code)!.push({ city: row.city, n: row._count.id });
+    }
     const topCityByCode = new Map<string, string>();
-    for (const row of topCities) {
-      const code = row.countryCode || '';
-      if (!code || topCityByCode.has(code)) continue;
-      if (row.city) topCityByCode.set(code, row.city);
+    const topCitiesPreviewByCode = new Map<string, string>();
+    for (const [code, bucket] of cityBuckets) {
+      bucket.sort((a, b) => b.n - a.n);
+      const names = bucket.slice(0, 3).map((x) => x.city);
+      if (names.length) {
+        topCityByCode.set(code, names[0]);
+        topCitiesPreviewByCode.set(code, names.join(', '));
+      }
     }
 
-    let countries: CountryStatsGql[] = [...merged.values()].map((m) => ({
-      country: m.country,
-      countryCode: m.countryCode,
-      topCity: topCityByCode.get(m.countryCode) ?? null,
-      activeUsers: m.activeUsers,
-      newRegistrations: m.newRegistrations,
-      courseCompletions: m.courseCompletions,
-      pathCompletions: m.pathCompletions,
-      certsIssued: m.certsIssued,
-      totalTimeSpentMin: m.totalTimeSpentMin,
-      avgQuizScore: m.quizN > 0 ? m.quizW / m.quizN : null,
-      webSessions: m.webSessions,
-      iosSessions: m.iosSessions,
-      androidSessions: m.androidSessions,
-    }));
+    let countries: CountryStatsGql[] = [...merged.values()].map((m) => {
+      const cc = m.countryCode.toUpperCase();
+      return {
+        country: m.country,
+        countryCode: cc,
+        topCity: topCityByCode.get(cc) ?? null,
+        topCitiesPreview: topCitiesPreviewByCode.get(cc) ?? null,
+        activeUsers: m.activeUsers,
+        newRegistrations: m.newRegistrations,
+        courseCompletions: m.courseCompletions,
+        pathCompletions: m.pathCompletions,
+        certsIssued: m.certsIssued,
+        totalTimeSpentMin: m.totalTimeSpentMin,
+        avgQuizScore: m.quizN > 0 ? m.quizW / m.quizN : null,
+        webSessions: m.webSessions,
+        iosSessions: m.iosSessions,
+        androidSessions: m.androidSessions,
+      };
+    });
 
     const hasActiveUsers = countries.some((c) => c.activeUsers > 0);
     if (countries.length === 0 || !hasActiveUsers) {
-      const sessionCountries = await this.fallbackOverviewFromSessions(tenantId, start, end, topCityByCode);
+      const sessionCountries = await this.fallbackOverviewFromSessions(
+        tenantId,
+        start,
+        end,
+        topCityByCode,
+        topCitiesPreviewByCode,
+      );
       if (sessionCountries.length > 0) {
         const existing = new Map(countries.map((c) => [c.countryCode, c]));
         for (const sc of sessionCountries) {
@@ -219,10 +239,15 @@ export class GeoAnalyticsGqlService {
       where: {
         createdAt: { gte: start, lte: end },
         city: { not: null },
-        user: { tenantId },
+        ...(tenantId ? { user: { tenantId } } : {}),
       },
       _count: { id: true },
     });
+
+    countries = countries.map((c) => ({
+      ...c,
+      country: englishCountryNameFromCode(c.countryCode) ?? c.country,
+    }));
 
     const out: GeoOverviewGql = {
       countries,
@@ -240,6 +265,7 @@ export class GeoAnalyticsGqlService {
     start: Date,
     end: Date,
     topCityByCode: Map<string, string>,
+    topCitiesPreviewByCode: Map<string, string>,
   ): Promise<CountryStatsGql[]> {
     const groups = await this.prisma.userSession.groupBy({
       by: ['country', 'countryCode'],
@@ -250,21 +276,25 @@ export class GeoAnalyticsGqlService {
       },
       _count: { id: true },
     });
-    return groups.map((g) => ({
-      country: g.country || '',
-      countryCode: (g.countryCode || '').toUpperCase() || 'ZZ',
-      topCity: topCityByCode.get((g.countryCode || '').toUpperCase()) ?? null,
-      activeUsers: g._count.id,
-      newRegistrations: 0,
-      courseCompletions: 0,
-      pathCompletions: 0,
-      certsIssued: 0,
-      totalTimeSpentMin: 0,
-      avgQuizScore: null,
-      webSessions: 0,
-      iosSessions: 0,
-      androidSessions: 0,
-    }));
+    return groups.map((g) => {
+      const cc = (g.countryCode || '').toUpperCase() || 'ZZ';
+      return {
+        country: g.country || '',
+        countryCode: cc,
+        topCity: topCityByCode.get(cc) ?? null,
+        topCitiesPreview: topCitiesPreviewByCode.get(cc) ?? null,
+        activeUsers: g._count.id,
+        newRegistrations: 0,
+        courseCompletions: 0,
+        pathCompletions: 0,
+        certsIssued: 0,
+        totalTimeSpentMin: 0,
+        avgQuizScore: null,
+        webSessions: 0,
+        iosSessions: 0,
+        androidSessions: 0,
+      };
+    });
   }
 
   async getCountryAnalytics(
@@ -389,7 +419,7 @@ export class GeoAnalyticsGqlService {
       where: { ...(tenantId ? { tenantId } : {}), countryCode: code, country: { not: null } },
       select: { country: true },
     });
-    const countryName = named?.country ?? code;
+    const countryName = englishCountryNameFromCode(code) ?? named?.country ?? code;
 
     const detail: CountryDetailGql = {
       country: countryName,

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApolloProvider, useQuery } from "@apollo/client/react";
 import { apolloGeoClient } from "@/lib/apollo-geo-client";
-import { GEO_OVERVIEW, LIVE_ACTIVITY } from "@/lib/geo-analytics-gql";
+import { COUNTRY_ANALYTICS, GEO_OVERVIEW, LIVE_ACTIVITY } from "@/lib/geo-analytics-gql";
 import { useAnalyticsFilters } from "@/components/analytics/analytics-filters-context";
+import { CountryAnalyticsDetail, type CountryAnalyticsDetailModel } from "@/components/analytics/country-analytics-detail";
 import { WorldMapChoropleth, type CountryMetricRow } from "@/components/analytics/world-map-choropleth";
 import { LiveActivityFeed, type LiveRow } from "@/components/analytics/live-activity-feed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +47,7 @@ const GQL_METRIC: Record<MetricKey, string> = {
 
 function GeoInner() {
   const router = useRouter();
-  const { filters, filtersRecord } = useAnalyticsFilters();
+  const { filters, filtersRecord, setCountries } = useAnalyticsFilters();
   const [metric, setMetric] = useState<MetricKey>("activeUsers");
   const [token, setToken] = useState<string | null>(null);
   const [hideError, setHideError] = useState(false);
@@ -75,11 +76,26 @@ function GeoInner() {
     errorPolicy: "all",
   });
 
+  const filterCode = (filters.country || "").trim().toUpperCase();
+
   const { data: liveData } = useQuery(LIVE_ACTIVITY, {
-    variables: { tenantId, limit: 20 },
+    variables: { tenantId, limit: 20, countryCode: filterCode || null },
     pollInterval: 60_000,
     errorPolicy: "all",
   });
+
+  const { data: countryDetailData, loading: countryDetailLoading, error: countryDetailError } = useQuery(
+    COUNTRY_ANALYTICS,
+    {
+      variables: {
+        countryCode: filterCode,
+        tenantId,
+        period: { start: period.start.toISOString(), end: period.end.toISOString() },
+      },
+      skip: !filterCode,
+      errorPolicy: "all",
+    },
+  );
 
   type GeoOverviewData = {
     geoOverview?: {
@@ -87,6 +103,7 @@ function GeoInner() {
         countryCode: string;
         country: string;
         topCity?: string | null;
+        topCitiesPreview?: string | null;
         activeUsers: number;
         newRegistrations: number;
         courseCompletions: number;
@@ -98,24 +115,56 @@ function GeoInner() {
   };
   const geoData = data as GeoOverviewData | undefined;
 
+  const countriesFromGeo = geoData?.geoOverview?.countries;
+
+  useEffect(() => {
+    if (!countriesFromGeo?.length) return;
+    const seen = new Set<string>();
+    const deduped: { code: string; name: string }[] = [];
+    for (const c of countriesFromGeo) {
+      const code = (c.countryCode || "").toUpperCase();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      deduped.push({ code, name: c.country || code });
+    }
+    deduped.sort((a, b) => a.name.localeCompare(b.name));
+    setCountries(deduped);
+  }, [countriesFromGeo, setCountries]);
+
+  const filteredCountries = useMemo(() => {
+    const all = geoData?.geoOverview?.countries ?? [];
+    if (!filterCode) return all;
+    return all.filter((c) => (c.countryCode || "").toUpperCase() === filterCode);
+  }, [geoData, filterCode]);
+
   const mapRows: CountryMetricRow[] = useMemo(() => {
-    const countries = geoData?.geoOverview?.countries ?? [];
-    return countries.map((c: { countryCode: string; country: string; topCity?: string | null; activeUsers: number; newRegistrations: number; courseCompletions: number; certsIssued: number; totalTimeSpentMin: number }) => ({
-      countryCode: c.countryCode,
-      country: c.country,
-      topCity: c.topCity,
-      value:
-        metric === "activeUsers"
-          ? c.activeUsers
-          : metric === "newRegistrations"
-            ? c.newRegistrations
-            : metric === "courseCompletions"
-              ? c.courseCompletions
-              : metric === "certsIssued"
-                ? c.certsIssued
-                : c.totalTimeSpentMin,
-    }));
-  }, [geoData, metric]);
+    return filteredCountries.map(
+      (c: {
+        countryCode: string;
+        country: string;
+        topCity?: string | null;
+        activeUsers: number;
+        newRegistrations: number;
+        courseCompletions: number;
+        certsIssued: number;
+        totalTimeSpentMin: number;
+      }) => ({
+        countryCode: c.countryCode,
+        country: c.country,
+        topCity: c.topCity,
+        value:
+          metric === "activeUsers"
+            ? c.activeUsers
+            : metric === "newRegistrations"
+              ? c.newRegistrations
+              : metric === "courseCompletions"
+                ? c.courseCompletions
+                : metric === "certsIssued"
+                  ? c.certsIssued
+                  : c.totalTimeSpentMin,
+      }),
+    );
+  }, [filteredCountries, metric]);
 
   const initialLive: LiveRow[] = useMemo(() => {
     const rows =
@@ -131,8 +180,10 @@ function GeoInner() {
   }, [liveData]);
 
   const continents = geoData?.geoOverview?.continents ?? [];
-  const countries = geoData?.geoOverview?.countries ?? [];
   const maxCont = Math.max(...continents.map((x: { activeUsers: number }) => x.activeUsers), 1);
+
+  const countryDetail = (countryDetailData as { countryAnalytics?: CountryAnalyticsDetailModel } | undefined)
+    ?.countryAnalytics;
 
   return (
     <div className="space-y-6">
@@ -195,6 +246,12 @@ function GeoInner() {
 
       {!loading && (
         <>
+          {!filters.tenantId && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              All companies — geography metrics are aggregated across every tenant you can access.
+            </p>
+          )}
+
           <WorldMapChoropleth
             data={mapRows}
             metric={metric}
@@ -229,42 +286,99 @@ function GeoInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Top countries</CardTitle>
+              <CardTitle className="text-sm font-medium">Countries</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[var(--color-text-muted)] border-b border-[var(--color-bg-secondary)]">
-                      <th className="py-2 pr-4">#</th>
-                      <th className="py-2 pr-4">Country</th>
-                      <th className="py-2 pr-4">Top city</th>
-                      <th className="py-2 pr-4 text-right">Users</th>
-                      <th className="py-2 text-right">Compl.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {countries.slice(0, 15).map((c: { country: string; countryCode: string; topCity?: string | null; activeUsers: number; courseCompletions: number }, i: number) => (
-                      <tr key={c.countryCode} className="border-b border-[var(--color-bg-secondary)]/80">
-                        <td className="py-2 pr-4">{i + 1}</td>
-                        <td className="py-2 pr-4">
-                          <Link
-                            href={`/admin/analytics/geography/country/${c.countryCode}`}
-                            className="font-medium text-brand-purple hover:underline"
-                          >
-                            {c.country}
-                          </Link>
-                        </td>
-                        <td className="py-2 pr-4 text-[var(--color-text-muted)]">{c.topCity || "—"}</td>
-                        <td className="py-2 pr-4 text-right">{c.activeUsers.toLocaleString()}</td>
-                        <td className="py-2 text-right">{c.courseCompletions.toLocaleString()}</td>
+                <div className="max-h-[480px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-[var(--color-bg-primary)]">
+                      <tr className="text-left text-[var(--color-text-muted)] border-b border-[var(--color-bg-secondary)]">
+                        <th className="py-2 pr-4">#</th>
+                        <th className="py-2 pr-4">Country</th>
+                        <th className="py-2 pr-4">Approx. cities</th>
+                        <th className="py-2 pr-4 text-right">Users</th>
+                        <th className="py-2 text-right">Compl.</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredCountries.map(
+                        (
+                          c: {
+                            country: string;
+                            countryCode: string;
+                            topCity?: string | null;
+                            topCitiesPreview?: string | null;
+                            activeUsers: number;
+                            courseCompletions: number;
+                          },
+                          i: number,
+                        ) => {
+                          const approx =
+                            c.topCitiesPreview || c.topCity || "—";
+                          return (
+                            <tr key={c.countryCode} className="border-b border-[var(--color-bg-secondary)]/80">
+                              <td className="py-2 pr-4">{i + 1}</td>
+                              <td className="py-2 pr-4">
+                                <Link
+                                  href={`/admin/analytics/geography/country/${c.countryCode}`}
+                                  className="font-medium text-brand-purple hover:underline"
+                                >
+                                  {c.country}
+                                </Link>
+                              </td>
+                              <td className="py-2 pr-4 text-[var(--color-text-muted)] max-w-[220px]">
+                                {approx}
+                              </td>
+                              <td className="py-2 pr-4 text-right">{c.activeUsers.toLocaleString()}</td>
+                              <td className="py-2 text-right">{c.courseCompletions.toLocaleString()}</td>
+                            </tr>
+                          );
+                        },
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {filteredCountries.length === 0 && (
+                  <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">No countries in this view.</p>
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {filterCode && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Selected country</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {countryDetailError && (
+                  <ErrorBanner
+                    message={
+                      ("graphQLErrors" in countryDetailError
+                        ? (countryDetailError as unknown as { graphQLErrors: { message: string }[] })
+                            .graphQLErrors?.[0]?.message
+                        : undefined) ||
+                      countryDetailError.message ||
+                      "Failed to load country detail"
+                    }
+                    onDismiss={() => {}}
+                  />
+                )}
+                {countryDetailLoading && (
+                  <div className="flex justify-center py-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-purple border-t-transparent" />
+                  </div>
+                )}
+                {!countryDetailLoading && countryDetail && (
+                  <CountryAnalyticsDetail data={countryDetail} countryCodeUpper={filterCode} />
+                )}
+                {!countryDetailLoading && !countryDetail && !countryDetailError && (
+                  <p className="text-sm text-[var(--color-text-muted)]">No detail for this country.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <LiveActivityFeed initial={initialLive} token={token} />
         </>

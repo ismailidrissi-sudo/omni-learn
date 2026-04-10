@@ -9,6 +9,7 @@ export const GEO_OVERVIEW = gql`
         country
         countryCode
         topCity
+        topCitiesPreview
         activeUsers
         newRegistrations
         courseCompletions

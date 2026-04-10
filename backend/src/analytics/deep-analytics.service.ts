@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
+import { englishCountryNameFromCode } from './geo-constants';
 
 @Injectable()
 export class DeepAnalyticsService {
@@ -16,7 +17,14 @@ export class DeepAnalyticsService {
     }
     if (f.tenantId) where.tenantId = f.tenantId;
     if (f.userId) where.userId = f.userId;
-    if (f.country) where.country = f.country;
+    if (f.country) {
+      const code = f.country.trim().toUpperCase();
+      if (/^[A-Z]{2}$/.test(code)) {
+        where.OR = [{ countryCode: code }, { country: f.country }, { country: code }];
+      } else {
+        where.country = f.country;
+      }
+    }
     if (f.deviceType) where.deviceType = f.deviceType as any;
     if (f.gender) where.user = { gender: f.gender as any };
     return where;
@@ -26,14 +34,29 @@ export class DeepAnalyticsService {
     const where: Prisma.UserWhereInput = {};
     if (f.tenantId) where.tenantId = f.tenantId;
     if (f.gender) where.gender = f.gender as any;
-    if (f.country) where.country = f.country;
     if (f.userId) where.id = f.userId;
+
+    const and: Prisma.UserWhereInput[] = [];
     if (f.search) {
-      where.OR = [
-        { name: { contains: f.search, mode: 'insensitive' } },
-        { email: { contains: f.search, mode: 'insensitive' } },
-      ];
+      and.push({
+        OR: [
+          { name: { contains: f.search, mode: 'insensitive' } },
+          { email: { contains: f.search, mode: 'insensitive' } },
+        ],
+      });
     }
+    if (f.country) {
+      const code = f.country.trim().toUpperCase();
+      if (/^[A-Z]{2}$/.test(code)) {
+        and.push({
+          OR: [{ countryCode: code }, { country: f.country }, { country: code }],
+        });
+      } else {
+        and.push({ country: f.country });
+      }
+    }
+    if (and.length) where.AND = and;
+
     return where;
   }
 
@@ -339,11 +362,17 @@ export class DeepAnalyticsService {
     });
 
     return {
-      countries: countryGroups.map((g) => ({
-        country: g.country,
-        countryCode: g.countryCode,
-        sessions: g._count,
-      })).sort((a, b) => b.sessions - a.sessions),
+      countries: countryGroups
+        .map((g) => {
+          const cc = (g.countryCode || '').toUpperCase();
+          return {
+            country: englishCountryNameFromCode(cc) || g.country || '',
+            countryCode: cc || null,
+            sessions: g._count,
+          };
+        })
+        .filter((c) => c.countryCode)
+        .sort((a, b) => b.sessions - a.sessions),
       locations: locations.map((l) => ({
         lat: l.latitude,
         lng: l.longitude,

@@ -16,13 +16,15 @@ interface Filters {
   search: string;
 }
 
+type CountryOption = { code: string; name: string };
+
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
   tenants: { id: string; name: string }[];
   courses: { id: string; title: string }[];
   domains: { id: string; name: string }[];
-  countries: string[];
+  countries: CountryOption[];
 }
 
 const DATE_PRESETS = [
@@ -101,7 +103,11 @@ export function AnalyticsFilters({ filters, onChange, tenants, courses, domains,
         {countries.length > 0 && (
           <select value={filters.country} onChange={(e) => set("country", e.target.value)} className={inputCls}>
             <option value="">All Countries</option>
-            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
           </select>
         )}
 

@@ -11,6 +11,8 @@ import {
 } from "react";
 import { apiFetch } from "@/lib/api";
 
+export type AnalyticsCountryOption = { code: string; name: string };
+
 export type AnalyticsFiltersState = {
   from: string;
   to: string;
@@ -43,8 +45,8 @@ type Ctx = {
   tenants: { id: string; name: string }[];
   courses: { id: string; title: string }[];
   domains: { id: string; name: string }[];
-  countries: string[];
-  setCountries: (c: string[]) => void;
+  countries: AnalyticsCountryOption[];
+  setCountries: (c: AnalyticsCountryOption[]) => void;
   resetPages: () => void;
   usersPage: number;
   setUsersPage: (n: number) => void;
@@ -59,7 +61,7 @@ export function AnalyticsFiltersProvider({ children }: { children: ReactNode }) 
   const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
   const [courses, setCourses] = useState<{ id: string; title: string }[]>([]);
   const [domains] = useState<{ id: string; name: string }[]>([]);
-  const [countries, setCountries] = useState<string[]>([]);
+  const [countries, setCountries] = useState<AnalyticsCountryOption[]>([]);
   const [usersPage, setUsersPage] = useState(1);
   const [contentPage, setContentPage] = useState(1);
 
@@ -132,6 +134,7 @@ export function AnalyticsFiltersProvider({ children }: { children: ReactNode }) 
       courses,
       domains,
       countries,
+      setCountries,
       resetPages,
       usersPage,
       contentPage,

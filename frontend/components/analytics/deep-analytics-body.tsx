@@ -67,7 +67,7 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
   type FunnelStage = { stage: string; count: number };
   type VelocityRow = { courseId: string; title: string; avgDaysToComplete: number; completions: number };
   type RetentionRow = { cohort: string; months: { month: string; users: number }[] };
-  type GeoAnalytics = { countries?: { country: string }[] };
+  type GeoAnalytics = { countries?: { country: string; countryCode?: string | null }[] };
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const [overview, setOverview] = useState<OverviewData | null>(null);
@@ -134,7 +134,14 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
             parseAnalyticsJson<GeoAnalytics>(r),
           );
           if (geo.countries) {
-            setCountries(geo.countries.map((c) => c.country).filter(Boolean));
+            setCountries(
+              geo.countries
+                .map((c) => ({
+                  code: (c.countryCode || "").toUpperCase(),
+                  name: c.country || "",
+                }))
+                .filter((x) => x.code && x.name),
+            );
           }
         } catch {
           /* filters may be invalid; ignore country list */
