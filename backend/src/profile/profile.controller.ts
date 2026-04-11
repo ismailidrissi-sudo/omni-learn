@@ -17,6 +17,8 @@ import { ProfileService } from './profile.service';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { RequestUserPayload } from '../auth/types/request-user.types';
 
 /**
  * Profile Controller — User profile completion, tenant profile, trainer approval (admin)
@@ -100,6 +102,7 @@ export class ProfileController {
   @UseGuards(AuthGuard('jwt'))
   async completeTenantProfile(
     @Param('tenantId') tenantId: string,
+    @Req() req: { user?: { sub?: string } },
     @Body() body: {
       industryId?: string;
       linkedinProfileUrl?: string;
@@ -108,7 +111,9 @@ export class ProfileController {
       staffingLevel?: string;
     },
   ) {
-    return this.profile.completeTenantProfile(tenantId, body);
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.completeTenantProfile(tenantId, userId, body);
   }
 
   /** List industries, departments, positions for profile forms */
@@ -130,24 +135,33 @@ export class ProfileController {
   @Get('trainer-requests')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async getPendingTrainerRequests() {
-    return this.profile.getPendingTrainerRequests();
+  async getPendingTrainerRequests(@CurrentUser() actor: RequestUserPayload) {
+    return this.profile.getPendingTrainerRequests({
+      isAdmin: actor.isAdmin,
+      tenantId: actor.tenantId,
+    });
   }
 
   /** Approve a user as trainer — grants content creation access (admin only) */
   @Patch('users/:userId/trainer-approve')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async approveTrainer(@Param('userId') userId: string) {
-    return this.profile.approveTrainer(userId);
+  async approveTrainer(@Param('userId') userId: string, @CurrentUser() actor: RequestUserPayload) {
+    return this.profile.approveTrainer(userId, {
+      isAdmin: actor.isAdmin,
+      tenantId: actor.tenantId,
+    });
   }
 
   /** Reject trainer request (admin only) */
   @Patch('users/:userId/trainer-reject')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async rejectTrainer(@Param('userId') userId: string) {
-    return this.profile.rejectTrainer(userId);
+  async rejectTrainer(@Param('userId') userId: string, @CurrentUser() actor: RequestUserPayload) {
+    return this.profile.rejectTrainer(userId, {
+      isAdmin: actor.isAdmin,
+      tenantId: actor.tenantId,
+    });
   }
 
   /** List pending org affiliation requests for a tenant (company admin / super admin) */

@@ -2,10 +2,12 @@
 
 import { useMemo } from "react";
 import { useUser } from "@/lib/use-user";
+import { useI18n } from "@/lib/i18n/context";
 import { hasAnyPermission } from "@/lib/permissions";
 
 export function usePermissions() {
-  const { user } = useUser();
+  const { user, loading } = useUser();
+  const { t } = useI18n();
 
   const permissions = user?.permissions ?? [];
 
@@ -21,19 +23,19 @@ export function usePermissions() {
 
   const resolveAdminLabel = useMemo(() => {
     return () => {
-      if (permissions.includes("admin:platform")) return "Platform Admin";
-      if (permissions.includes("companies:manage")) return "Company Admin";
+      if (permissions.includes("admin:platform")) return t("admin.platformAdmin");
+      if (permissions.includes("companies:manage")) return t("admin.companyAdminRole");
       if (permissions.includes("company:manage_own") || permissions.includes("users:manage")) {
-        return "Company Admin";
+        return t("admin.companyAdminRole");
       }
-      if (permissions.includes("paths:assign")) return "Team Management";
+      if (permissions.includes("paths:assign")) return t("admin.teamManagement");
       if (permissions.includes("courses:create") || permissions.includes("courses:update")) {
-        return "My Courses";
+        return t("admin.myCourses");
       }
-      if (permissions.includes("moderation:review")) return "Moderation";
-      return "Admin";
+      if (permissions.includes("moderation:review")) return t("admin.moderation");
+      return t("admin.shellTitle");
     };
-  }, [permissions]);
+  }, [permissions, t]);
 
-  return { permissions, can, hasAny, resolveAdminLabel };
+  return { permissions, can, hasAny, resolveAdminLabel, loading };
 }

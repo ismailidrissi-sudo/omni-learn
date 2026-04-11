@@ -175,6 +175,8 @@ model User {
   emailVerifyExpiresAt DateTime? // Token expiry
   passwordResetTokenHash String? @db.VarChar(128) // bcrypt hash of one-time reset token
   passwordResetExpiresAt DateTime?
+  magicLinkTokenHash String?  @db.VarChar(128) // bcrypt hash of one-time magic link invite token
+  magicLinkExpiresAt DateTime?                 // TTL for magic link (24-48h)
   departmentId  String?
   positionId    String?
   tenantId      String?
@@ -224,6 +226,20 @@ model User {
   userContentInteractions  UserContentInteraction[]
   sessions                 UserSession[]
   contentAccessLogs        ContentAccessLog[]
+  pathEnrollments          PathEnrollment[]
+  courseEnrollments         CourseEnrollment[]
+  userPoints               UserPoints?
+  userStreak               UserStreak?
+  forumTopics              ForumTopic[]
+  forumPosts               ForumPost[]
+  courseReviews             CourseReview[]
+  microLearningLikes       MicroLearningLike[]
+  microLearningComments    MicroLearningComment[]
+  notifications            Notification[]
+
+  @@index([tenantId])
+  @@index([tenantId, orgApprovalStatus])
+  @@index([trainerRequested, trainerApprovedAt])
 }
 
 // ── TENANTS (rich company profile) ──
@@ -243,6 +259,7 @@ model Tenant {
   certifications   Json?    @default("[]")
   staffingLevel    String?
   internalErp      String?
+  /// JSON shape: { accountType?: string, plan?: string, maxUsers?: number, allowSelfSignup?: boolean, ...rest }
   settings         Json?    @default("{}")
   /// INDIVIDUAL | COMPANY | PRIVATE_LABEL
   tenantKind       String   @default("INDIVIDUAL") @db.VarChar(30)
@@ -418,10 +435,12 @@ model ContentItem {
 }
 
 model ContentTenantAssignment {
-  id        String   @id @default(uuid())
-  contentId String
-  tenantId  String
-  createdAt DateTime @default(now())
+  id                    String   @id @default(uuid())
+  contentId             String
+  tenantId              String
+  /// When true, tenant users get this content without hitting the public paywall (included in company plan)
+  bypassesPublicPaywall Boolean  @default(false)
+  createdAt             DateTime @default(now())
 
   content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
   tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -509,6 +528,7 @@ model PathEnrollment {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   path       LearningPath      @relation(fields: [pathId], references: [id], onDelete: Cascade)
   stepProgress PathStepProgress[]
   certificates IssuedCertificate[]
@@ -548,6 +568,7 @@ model CourseEnrollment {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   course       ContentItem                @relation(fields: [courseId], references: [id], onDelete: Cascade)
   itemProgress CourseSectionItemProgress[]
   certificates IssuedCertificate[]
@@ -625,6 +646,8 @@ model UserPoints {
   points      Int      @default(0)
   lastUpdated DateTime @updatedAt
   createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Badge {
@@ -659,6 +682,8 @@ model UserStreak {
   lastActivityAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ── xAPI (Learning Record Store) ──
@@ -698,6 +723,7 @@ model ForumTopic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  author  User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   channel ForumChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   posts   ForumPost[]
 }
@@ -711,7 +737,8 @@ model ForumPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  topic ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  topic  ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 }
 
 model ForumModeration {
@@ -737,6 +764,8 @@ model CourseReview {
   helpfulCount Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([contentId, userId])
   @@index([contentId])
@@ -1059,6 +1088,8 @@ model MicroLearningLike {
   userId    String
   createdAt DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([contentId, userId])
   @@index([contentId])
   @@index([userId])
@@ -1071,6 +1102,8 @@ model MicroLearningComment {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([contentId])
   @@index([userId])
@@ -1272,6 +1305,8 @@ model Notification {
   isRead    Boolean  @default(false)
   metadata  Json?    @default("{}")
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([tenantId])
@@ -1560,6 +1595,7 @@ model UserContentInteraction {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, contentId, contentType, interactionType])
   @@index([userId])
   @@index([contentId, contentType])
   @@map("user_content_interactions")

@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
+import { SeatLimitService } from '../company/seat-limit.service';
 
 export type ApprovalActor = {
   userId: string;
@@ -23,6 +24,7 @@ export class ApprovalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactionalEmail: TransactionalEmailService,
+    private readonly seatLimit: SeatLimitService,
   ) {}
 
   private canReviewAll(actor: ApprovalActor): boolean {
@@ -73,45 +75,59 @@ export class ApprovalsService {
       return row;
     }
 
+    // Pre-validate payload to prevent "approved but nothing happened" states
+    if (row.type === ApprovalRequestType.PLAN_UPGRADE) {
+      const payload = (row.payload ?? {}) as { requested_plan?: string };
+      if (!payload.requested_plan || !Object.values(SubscriptionPlan).includes(payload.requested_plan as SubscriptionPlan)) {
+        throw new ForbiddenException('Approval payload is missing a valid requested_plan');
+      }
+    } else if (row.type === ApprovalRequestType.COMPANY_JOIN) {
+      const payload = (row.payload ?? {}) as { company_tenant_id?: string };
+      if (!payload.company_tenant_id) {
+        throw new ForbiddenException('Approval payload is missing company_tenant_id');
+      }
+      if (payload.company_tenant_id !== row.tenantId) {
+        throw new ForbiddenException('Payload tenant does not match approval request tenant');
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.approvalRequest.update({
-        where: { id },
+      // Conditional update ensures only one concurrent approver succeeds
+      const claimed = await tx.approvalRequest.updateMany({
+        where: { id, status: ApprovalRequestStatus.PENDING },
         data: {
           status: ApprovalRequestStatus.APPROVED,
           reviewerId: actor.userId,
           reviewNote: reviewNote ?? null,
           reviewedAt: new Date(),
         },
-        include: {
-          requester: { select: { id: true, name: true, email: true } },
-        },
       });
+      if (claimed.count === 0) {
+        return tx.approvalRequest.findUniqueOrThrow({
+          where: { id },
+          include: { requester: { select: { id: true, name: true, email: true } } },
+        });
+      }
 
       if (row.type === ApprovalRequestType.PLAN_UPGRADE) {
         const payload = (row.payload ?? {}) as { requested_plan?: string };
-        const plan = payload.requested_plan;
-        if (plan && Object.values(SubscriptionPlan).includes(plan as SubscriptionPlan)) {
-          await tx.user.update({
-            where: { id: row.requesterId },
-            data: {
-              accountStatus: UserAccountStatus.ACTIVE,
-              planId: plan as SubscriptionPlan,
-            },
-          });
-        }
+        await tx.user.update({
+          where: { id: row.requesterId },
+          data: {
+            accountStatus: UserAccountStatus.ACTIVE,
+            planId: payload.requested_plan as SubscriptionPlan,
+          },
+        });
       } else if (row.type === ApprovalRequestType.COMPANY_JOIN) {
-        const payload = (row.payload ?? {}) as { company_tenant_id?: string };
-        const targetTenant = payload.company_tenant_id;
-        if (targetTenant) {
-          await tx.user.update({
-            where: { id: row.requesterId },
-            data: {
-              tenantId: targetTenant,
-              accountStatus: UserAccountStatus.ACTIVE,
-              orgApprovalStatus: OrgApprovalStatus.APPROVED,
-            },
-          });
-        }
+        await this.seatLimit.assertSeatAvailable(row.tenantId, 1, tx);
+        await tx.user.update({
+          where: { id: row.requesterId },
+          data: {
+            tenantId: row.tenantId,
+            accountStatus: UserAccountStatus.ACTIVE,
+            orgApprovalStatus: OrgApprovalStatus.APPROVED,
+          },
+        });
       } else if (row.type === ApprovalRequestType.PRIVATE_LABEL) {
         await tx.tenant.update({
           where: { id: row.tenantId },
@@ -119,7 +135,10 @@ export class ApprovalsService {
         });
       }
 
-      return updated;
+      return tx.approvalRequest.findUniqueOrThrow({
+        where: { id },
+        include: { requester: { select: { id: true, name: true, email: true } } },
+      });
     }).then((updated) => {
       if (row.type === ApprovalRequestType.PLAN_UPGRADE && updated.requester) {
         const u = updated.requester;
@@ -142,18 +161,21 @@ export class ApprovalsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.approvalRequest.update({
-        where: { id },
+      const claimed = await tx.approvalRequest.updateMany({
+        where: { id, status: ApprovalRequestStatus.PENDING },
         data: {
           status: ApprovalRequestStatus.REJECTED,
           reviewerId: actor.userId,
           reviewNote: reviewNote ?? null,
           reviewedAt: new Date(),
         },
-        include: {
-          requester: { select: { id: true, name: true, email: true } },
-        },
       });
+      if (claimed.count === 0) {
+        return tx.approvalRequest.findUniqueOrThrow({
+          where: { id },
+          include: { requester: { select: { id: true, name: true, email: true } } },
+        });
+      }
 
       if (row.type === ApprovalRequestType.PLAN_UPGRADE) {
         await tx.user.update({
@@ -173,7 +195,10 @@ export class ApprovalsService {
         });
       }
 
-      return updated;
+      return tx.approvalRequest.findUniqueOrThrow({
+        where: { id },
+        include: { requester: { select: { id: true, name: true, email: true } } },
+      });
     }).then((updated) => {
       if (row.type === ApprovalRequestType.PLAN_UPGRADE && updated.requester) {
         const u = updated.requester;

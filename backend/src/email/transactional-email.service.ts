@@ -42,6 +42,10 @@ import {
   planRejectedUserHtml,
   planRejectedUserSubject,
 } from './templates/approval-workflow.template';
+import {
+  magicLinkInviteHtml,
+  magicLinkInviteSubject,
+} from './templates/magic-link-invite.template';
 
 /** Event types that must always send (security / account recovery) */
 const ALWAYS_SEND = new Set([
@@ -458,6 +462,34 @@ export class TransactionalEmailService {
       userId: params.userId,
       idempotencyKey: `plan_rejected:${params.userId}`,
       metadata: { signInUrl },
+    });
+  }
+
+  async sendMagicLinkInvite(params: {
+    toEmail: string;
+    userId: string;
+    academyName: string;
+    tenantSlug: string;
+    rawToken: string;
+    expiresInHours: number;
+  }): Promise<void> {
+    const magicUrl = `${this.baseUrl()}/${encodeURIComponent(params.tenantSlug)}/invite?token=${encodeURIComponent(params.rawToken)}&email=${encodeURIComponent(params.toEmail)}`;
+    await this.emailService.enqueue({
+      toEmail: params.toEmail,
+      toName: params.toEmail.split('@')[0],
+      subject: magicLinkInviteSubject(params.academyName),
+      htmlBody: magicLinkInviteHtml(
+        params.academyName,
+        magicUrl,
+        params.expiresInHours,
+      ),
+      emailType: 'transactional',
+      eventType: 'magic_link_invite',
+      priority: EmailPriority.HIGH,
+      triggeredBy: 'bulk_invite',
+      userId: params.userId,
+      idempotencyKey: `magic_invite:${params.userId}`,
+      metadata: { tenantSlug: params.tenantSlug },
     });
   }
 }

@@ -1,8 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import Redis from 'ioredis';
 import {
   ApprovalRequestType,
   OrgApprovalStatus,
@@ -34,9 +35,9 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly log = new Logger(AuthService.name);
   private readonly googleClient: OAuth2Client;
-  /** In-memory rate limit for password reset requests (per process) */
-  private readonly passwordResetBuckets = new Map<string, number[]>();
+  private redis: Redis | null = null;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -44,6 +45,42 @@ export class AuthService {
     private readonly transactionalEmail: TransactionalEmailService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    this.initRedis();
+  }
+
+  private initRedis() {
+    if (process.env.REDIS_DISABLED === 'true') return;
+    try {
+      const url = process.env.REDIS_URL;
+      this.redis = url
+        ? new Redis(url, { maxRetriesPerRequest: null })
+        : new Redis({
+            host: process.env.REDIS_HOST ?? '127.0.0.1',
+            port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+            password: process.env.REDIS_PASSWORD || undefined,
+            maxRetriesPerRequest: null,
+          });
+      this.redis.on('error', (e) => this.log.warn(`Redis: ${e.message}`));
+    } catch {
+      this.redis = null;
+    }
+  }
+
+  /** Rate limit check via Redis sorted set with sliding window. Returns true if allowed. */
+  private async isRateLimited(key: string, maxRequests: number, windowMs: number): Promise<boolean> {
+    if (!this.redis) return false;
+    try {
+      const now = Date.now();
+      const windowStart = now - windowMs;
+      await this.redis.zremrangebyscore(key, '-inf', windowStart);
+      const count = await this.redis.zcard(key);
+      if (count >= maxRequests) return true;
+      await this.redis.zadd(key, now, `${now}:${Math.random()}`);
+      await this.redis.pexpire(key, windowMs);
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -85,7 +122,8 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const token = this.generateVerifyToken();
+    const rawVerifyToken = this.generateVerifyToken();
+    const verifyTokenHash = crypto.createHash('sha256').update(rawVerifyToken).digest('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     const user = await this.prisma.user.create({
@@ -94,7 +132,7 @@ export class AuthService {
         name: name || email.split('@')[0],
         passwordHash,
         emailVerified: false,
-        emailVerifyToken: token,
+        emailVerifyToken: verifyTokenHash,
         emailVerifyExpiresAt: expiresAt,
         trainerRequested: !!trainerRequested,
         tenantId,
@@ -142,7 +180,7 @@ export class AuthService {
       toEmail: emailNorm,
       toName: user.name,
       userId: user.id,
-      verifyToken: token,
+      verifyToken: rawVerifyToken,
     });
 
     return { message: 'Verification email sent. Please check your inbox.', userId: user.id };
@@ -158,14 +196,10 @@ export class AuthService {
     if (!user?.passwordHash) {
       return generic;
     }
-    const now = Date.now();
-    const windowMs = 3600_000;
-    const bucket = (this.passwordResetBuckets.get(normalized) || []).filter((t) => now - t < windowMs);
-    if (bucket.length >= 3) {
+    const rateLimited = await this.isRateLimited(`ratelimit:pwreset:${normalized}`, 3, 3600_000);
+    if (rateLimited) {
       return generic;
     }
-    bucket.push(now);
-    this.passwordResetBuckets.set(normalized, bucket);
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const passwordResetTokenHash = await bcrypt.hash(rawToken, 10);
@@ -323,7 +357,7 @@ export class AuthService {
       && password === adminPassword;
 
     if (isAdminLogin) {
-      let user = await this.prisma.user.findUnique({ where: { email } });
+      let user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
       const adminData = {
         isAdmin: true,
         trainerRequested: true,
@@ -333,9 +367,10 @@ export class AuthService {
         planId: 'NEXUS',
       } as any;
       if (!user) {
+        const emailLower = email.toLowerCase().trim();
         const passwordHash = await bcrypt.hash(password, 10);
         user = await this.prisma.user.create({
-          data: { email, name: email.split('@')[0], passwordHash, ...adminData },
+          data: { email: emailLower, name: emailLower.split('@')[0], passwordHash, ...adminData },
         });
       } else if (!user.isAdmin || !user.emailVerified) {
         user = await this.prisma.user.update({ where: { id: user.id }, data: adminData });
@@ -386,17 +421,18 @@ export class AuthService {
     if (!user || user.emailVerified) {
       return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
     }
-    const token = this.generateVerifyToken();
+    const rawVerifyToken = this.generateVerifyToken();
+    const verifyTokenHash = crypto.createHash('sha256').update(rawVerifyToken).digest('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { emailVerifyToken: token, emailVerifyExpiresAt: expiresAt },
+      data: { emailVerifyToken: verifyTokenHash, emailVerifyExpiresAt: expiresAt },
     });
     await this.transactionalEmail.sendEmailVerification({
       toEmail: user.email,
       toName: user.name,
       userId: user.id,
-      verifyToken: token,
+      verifyToken: rawVerifyToken,
     });
     return { message: 'If this email exists and is unverified, a new verification link has been sent.' };
   }
@@ -406,6 +442,9 @@ export class AuthService {
     const found = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!found) {
       throw new UnauthorizedException('User not found');
+    }
+    if (found.accountStatus === UserAccountStatus.SUSPENDED) {
+      throw new UnauthorizedException('Account is suspended');
     }
     const user = await this.promoteIfAdmin(found);
     const accessToken = this.signAccessToken(user);
@@ -423,6 +462,45 @@ export class AuthService {
       learner_basic: RbacRole.LEARNER_BASIC,
     };
     return mapping[keycloakRole.toLowerCase()] ?? null;
+  }
+
+  /**
+   * Shared OAuth user resolution: find by externalId or email, create if new, update if needed.
+   * Normalizes email to lowercase. Returns the resolved user and whether they are new.
+   */
+  private async resolveOrCreateOAuthUser(
+    externalId: string,
+    email: string,
+    name: string,
+  ): Promise<{ user: NonNullable<Awaited<ReturnType<typeof this.prisma.user.findFirst>>>; isNewUser: boolean }> {
+    const emailNorm = email.toLowerCase().trim();
+    const existing = await this.prisma.user.findFirst({
+      where: { OR: [{ externalId }, { email: emailNorm }] },
+    });
+
+    if (!existing) {
+      const created = await this.prisma.user.create({
+        data: {
+          email: emailNorm,
+          name: name || emailNorm.split('@')[0],
+          externalId,
+          emailVerified: true,
+        },
+      });
+      return { user: created, isNewUser: true };
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (!existing.externalId) updates.externalId = externalId;
+    if (!existing.emailVerified) updates.emailVerified = true;
+    if (Object.keys(updates).length > 0) {
+      const updated = await this.prisma.user.update({
+        where: { id: existing.id },
+        data: updates,
+      });
+      return { user: updated, isNewUser: false };
+    }
+    return { user: existing, isNewUser: false };
   }
 
   /** Extract RBAC roles from JWT payload (Keycloak format) */
@@ -451,10 +529,11 @@ export class AuthService {
     if (!adminEmail || !adminPassword) {
       throw new UnauthorizedException('Dev login not configured (ADMIN_EMAIL, ADMIN_PASSWORD)');
     }
-    if (email !== adminEmail || password !== adminPassword) {
+    if (email.toLowerCase().trim() !== adminEmail.toLowerCase().trim() || password !== adminPassword) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    let user = await this.prisma.user.findUnique({ where: { email } });
+    const emailLower = email.toLowerCase().trim();
+    let user = await this.prisma.user.findUnique({ where: { email: emailLower } });
     const adminData = {
       isAdmin: true,
       trainerRequested: true,
@@ -465,7 +544,7 @@ export class AuthService {
     } as any;
     if (!user) {
       user = await this.prisma.user.create({
-        data: { email, name: 'Admin User', ...adminData },
+        data: { email: emailLower, name: 'Admin User', ...adminData },
       });
     } else if (!user.isAdmin) {
       user = await this.prisma.user.update({
@@ -498,35 +577,11 @@ export class AuthService {
     if (!payload?.sub || !payload?.email) {
       throw new UnauthorizedException('Invalid Google token');
     }
-    const externalId = `google:${payload.sub}`;
-    const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ externalId }, { email: payload.email }] },
-    });
-    let isNewUser = false;
-    let resolved: NonNullable<typeof existing>;
-    if (!existing) {
-      isNewUser = true;
-      resolved = await this.prisma.user.create({
-        data: {
-          email: payload.email,
-          name: payload.name ?? payload.email.split('@')[0],
-          externalId,
-          emailVerified: true,
-        },
-      });
-    } else {
-      const updates: Record<string, unknown> = {};
-      if (!existing.externalId) updates.externalId = externalId;
-      if (!existing.emailVerified) updates.emailVerified = true;
-      if (Object.keys(updates).length > 0) {
-        resolved = await this.prisma.user.update({
-          where: { id: existing.id },
-          data: updates,
-        });
-      } else {
-        resolved = existing;
-      }
-    }
+    const { user: resolved, isNewUser } = await this.resolveOrCreateOAuthUser(
+      `google:${payload.sub}`,
+      payload.email,
+      payload.name ?? payload.email.split('@')[0],
+    );
     const user = await this.promoteIfAdmin(resolved);
     const accessToken = this.signAccessToken(user);
     return {
@@ -598,41 +653,15 @@ export class AuthService {
       throw new UnauthorizedException('LinkedIn profile missing required fields (sub, email)');
     }
 
-    const externalId = `linkedin:${profile.sub}`;
     const displayName = profile.name
       ?? [profile.given_name, profile.family_name].filter(Boolean).join(' ')
       ?? profile.email.split('@')[0];
 
-    const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ externalId }, { email: profile.email }] },
-    });
-
-    let isNewUser = false;
-    let resolved: NonNullable<typeof existing>;
-    if (!existing) {
-      isNewUser = true;
-      resolved = await this.prisma.user.create({
-        data: {
-          email: profile.email,
-          name: displayName,
-          externalId,
-          emailVerified: true,
-        },
-      });
-    } else {
-      const updates: Record<string, unknown> = {};
-      if (!existing.externalId) updates.externalId = externalId;
-      if (!existing.emailVerified) updates.emailVerified = true;
-      if (Object.keys(updates).length > 0) {
-        resolved = await this.prisma.user.update({
-          where: { id: existing.id },
-          data: updates,
-        });
-      } else {
-        resolved = existing;
-      }
-    }
-
+    const { user: resolved, isNewUser } = await this.resolveOrCreateOAuthUser(
+      `linkedin:${profile.sub}`,
+      profile.email,
+      displayName,
+    );
     const user = await this.promoteIfAdmin(resolved);
     const accessToken = this.signAccessToken(user);
 
@@ -663,35 +692,11 @@ export class AuthService {
       throw new UnauthorizedException('LinkedIn account has no email');
     }
 
-    const externalId = `linkedin:${profile.linkedinId}`;
-    const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ externalId }, { email: profile.email }] },
-    });
-
-    let resolved: NonNullable<typeof existing>;
-    if (!existing) {
-      resolved = await this.prisma.user.create({
-        data: {
-          email: profile.email,
-          name: profile.name ?? profile.email.split('@')[0],
-          externalId,
-          emailVerified: true,
-        },
-      });
-    } else {
-      const updates: Record<string, unknown> = {};
-      if (!existing.externalId) updates.externalId = externalId;
-      if (!existing.emailVerified) updates.emailVerified = true;
-      if (Object.keys(updates).length > 0) {
-        resolved = await this.prisma.user.update({
-          where: { id: existing.id },
-          data: updates,
-        });
-      } else {
-        resolved = existing;
-      }
-    }
-
+    const { user: resolved } = await this.resolveOrCreateOAuthUser(
+      `linkedin:${profile.linkedinId}`,
+      profile.email,
+      profile.name ?? profile.email.split('@')[0],
+    );
     const user = await this.promoteIfAdmin(resolved);
     const accessToken = this.signAccessToken(user);
 
@@ -704,6 +709,58 @@ export class AuthService {
         name: user.name,
         profileComplete: user.profileComplete,
         needsProfileCompletion: !user.profileComplete,
+      },
+    };
+  }
+
+  /**
+   * Redeem a magic link invite token: validates hash + expiry, issues JWT.
+   * Clears the token after successful redemption (one-time use).
+   */
+  async redeemMagicLink(
+    email: string,
+    rawToken: string,
+  ): Promise<{
+    accessToken: string;
+    user: { id: string; email: string; name: string; profileComplete: boolean; needsProfileCompletion: boolean };
+  }> {
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } },
+    });
+    if (!user?.magicLinkTokenHash || !user.magicLinkExpiresAt) {
+      throw new UnauthorizedException('Invalid or expired invitation link');
+    }
+    if (user.magicLinkExpiresAt < new Date()) {
+      throw new UnauthorizedException('This invitation link has expired. Please ask your administrator to send a new one.');
+    }
+    const match = await bcrypt.compare(rawToken, user.magicLinkTokenHash);
+    if (!match) {
+      throw new UnauthorizedException('Invalid or expired invitation link');
+    }
+
+    // Atomically clear the token so concurrent redemptions cannot both succeed
+    const claimed = await this.prisma.user.updateMany({
+      where: { id: user.id, magicLinkTokenHash: { not: null } },
+      data: {
+        magicLinkTokenHash: null,
+        magicLinkExpiresAt: null,
+        emailVerified: true,
+      },
+    });
+    if (claimed.count === 0) {
+      throw new UnauthorizedException('This invitation link has already been used');
+    }
+
+    const fresh = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    const accessToken = this.signAccessToken(fresh);
+    return {
+      accessToken,
+      user: {
+        id: fresh.id,
+        email: fresh.email,
+        name: fresh.name,
+        profileComplete: fresh.profileComplete,
+        needsProfileCompletion: !fresh.profileComplete,
       },
     };
   }

@@ -112,7 +112,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async me(@Req() req: { user?: { sub?: string } }) {
     const userId = req.user?.sub;
-    if (!userId) throw new BadRequestException('Not authenticated');
+    if (!userId) throw new UnauthorizedException('Not authenticated');
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -147,7 +147,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt-refresh'))
   async refresh(@Req() req: { user?: { sub?: string } }) {
     const userId = req.user?.sub;
-    if (!userId) throw new BadRequestException('Not authenticated');
+    if (!userId) throw new UnauthorizedException('Not authenticated');
     const { accessToken } = await this.authService.refreshToken(userId);
     return { accessToken };
   }
@@ -166,6 +166,14 @@ export class AuthController {
   @Post('password-reset/confirm')
   async confirmPasswordReset(@Body() body: PasswordResetConfirmDto) {
     return this.authService.confirmPasswordReset(body.email, body.token, body.newPassword);
+  }
+
+  @Post('magic-link')
+  async redeemMagicLink(@Body() body: { email: string; token: string }) {
+    if (!body?.email || !body?.token) {
+      throw new BadRequestException('email and token are required');
+    }
+    return this.authService.redeemMagicLink(body.email, body.token);
   }
 
   @Post('dev-login')

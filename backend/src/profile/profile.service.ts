@@ -1,7 +1,9 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { OrgApprovalStatus, Prisma } from '@prisma/client';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
+import { SeatLimitService } from '../company/seat-limit.service';
 
 /**
  * Profile Service — User & tenant profile completion for recommendation optimization
@@ -13,6 +15,7 @@ export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactionalEmail: TransactionalEmailService,
+    private readonly seatLimit: SeatLimitService,
   ) {}
 
   async completeUserProfile(
@@ -92,6 +95,10 @@ export class ProfileService {
     }
     if (userType === 'COMPANY_ADMIN') {
       updateData.companyAdminRequested = true;
+    }
+
+    if (tenantId && orgApprovalStatus === 'APPROVED') {
+      await this.seatLimit.assertSeatAvailable(tenantId);
     }
 
     const user = await this.prisma.user.update({
@@ -357,13 +364,14 @@ export class ProfileService {
 
   async verifyEmail(token: string) {
     const now = new Date();
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     // Single atomic UPDATE so concurrent verify requests cannot both enqueue welcome/activation emails.
     const applied = await this.prisma.$queryRaw<Array<{ id: string }>>`
       UPDATE "User"
       SET "emailVerified" = true,
           "emailVerifyToken" = null,
           "emailVerifyExpiresAt" = null
-      WHERE "emailVerifyToken" = ${token}
+      WHERE "emailVerifyToken" = ${tokenHash}
         AND "emailVerifyExpiresAt" > ${now}
       RETURNING id
     `;
@@ -402,6 +410,7 @@ export class ProfileService {
 
   async completeTenantProfile(
     tenantId: string,
+    actorUserId: string,
     data: {
       industryId?: string;
       linkedinProfileUrl?: string;
@@ -410,6 +419,12 @@ export class ProfileService {
       staffingLevel?: string;
     },
   ) {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
+    if (!actor) throw new ForbiddenException();
+    if (!actor.isAdmin && actor.tenantId !== tenantId) {
+      throw new ForbiddenException('You can only manage your own organization profile');
+    }
+
     const linkedinUrl = data.linkedinProfileUrl?.trim();
     if (linkedinUrl && !this.isValidLinkedInUrl(linkedinUrl)) {
       throw new BadRequestException('Invalid LinkedIn company URL');
@@ -456,22 +471,29 @@ export class ProfileService {
   }
 
   /** List users who requested trainer access and are pending approval (admin only) */
-  async getPendingTrainerRequests() {
+  async getPendingTrainerRequests(actor: { isAdmin: boolean; tenantId: string | null }) {
+    const where: Record<string, unknown> = { trainerRequested: true, trainerApprovedAt: null };
+    if (!actor.isAdmin && actor.tenantId) {
+      where.tenantId = actor.tenantId;
+    }
     return this.prisma.user.findMany({
-      where: { trainerRequested: true, trainerApprovedAt: null },
-      select: { id: true, email: true, name: true, createdAt: true },
+      where,
+      select: { id: true, email: true, name: true, tenantId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   /** Approve a user as trainer — they get INSTRUCTOR role and can create content (admin only) */
-  async approveTrainer(userId: string) {
+  async approveTrainer(userId: string, actor: { isAdmin: boolean; tenantId: string | null }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
     }
     if (!user.trainerRequested) {
       throw new BadRequestException('User has not requested trainer access');
+    }
+    if (!actor.isAdmin && actor.tenantId !== user.tenantId) {
+      throw new ForbiddenException('You can only approve trainers in your own organization');
     }
     await this.prisma.user.update({
       where: { id: userId },
@@ -481,10 +503,13 @@ export class ProfileService {
   }
 
   /** Reject trainer request — user can request again later (admin only) */
-  async rejectTrainer(userId: string) {
+  async rejectTrainer(userId: string, actor: { isAdmin: boolean; tenantId: string | null }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
+    }
+    if (!actor.isAdmin && actor.tenantId !== user.tenantId) {
+      throw new ForbiddenException('You can only reject trainers in your own organization');
     }
     await this.prisma.user.update({
       where: { id: userId },
@@ -523,9 +548,14 @@ export class ProfileService {
       if (!actor.companyAdminApprovedAt) throw new ForbiddenException();
       if (user.tenantId !== actor.tenantId) throw new ForbiddenException();
     }
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { orgApprovalStatus: OrgApprovalStatus.APPROVED },
+    await this.prisma.$transaction(async (tx) => {
+      if (user.tenantId) {
+        await this.seatLimit.assertSeatAvailable(user.tenantId, 1, tx);
+      }
+      await tx.user.update({
+        where: { id: userId },
+        data: { orgApprovalStatus: OrgApprovalStatus.APPROVED },
+      });
     });
     await this.transactionalEmail.sendAccountApproved({
       userId: user.id,
@@ -584,25 +614,20 @@ export class ProfileService {
     userId: string,
     dto: { contentId: string; contentType: string; interactionType: string },
   ) {
-    const existing = await this.prisma.userContentInteraction.findFirst({
+    return this.prisma.userContentInteraction.upsert({
       where: {
-        userId,
-        contentId: dto.contentId,
-        contentType: dto.contentType,
-        interactionType: dto.interactionType,
-      },
-    });
-    if (existing) {
-      return this.prisma.userContentInteraction.update({
-        where: { id: existing.id },
-        data: {
-          interactionCount: { increment: 1 },
-          lastInteractionAt: new Date(),
+        userId_contentId_contentType_interactionType: {
+          userId,
+          contentId: dto.contentId,
+          contentType: dto.contentType,
+          interactionType: dto.interactionType,
         },
-      });
-    }
-    return this.prisma.userContentInteraction.create({
-      data: {
+      },
+      update: {
+        interactionCount: { increment: 1 },
+        lastInteractionAt: new Date(),
+      },
+      create: {
         userId,
         contentId: dto.contentId,
         contentType: dto.contentType,

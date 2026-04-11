@@ -328,8 +328,65 @@ export class GeoAnalyticsGqlService {
         ...(tenantId ? { tenantId } : {}),
         countryCode: code,
       },
-      select: { id: true, city: true, name: true },
+      select: { id: true, city: true, name: true, createdAt: true },
     });
+    const allUserIds = users.map((u) => u.id);
+
+    const activeLogRows = await this.prisma.contentAccessLog.groupBy({
+      by: ['userId'],
+      where: {
+        createdAt: { gte: start, lte: end },
+        countryCode: code,
+        user: tenantId ? { tenantId } : undefined,
+      },
+    });
+    const activeUserIds = new Set(activeLogRows.map((r) => r.userId));
+
+    const newSignups = users.filter(
+      (u) => u.createdAt >= start && u.createdAt <= end,
+    ).length;
+
+    const courseCompletions = await this.prisma.courseEnrollment.count({
+      where: {
+        userId: { in: allUserIds },
+        status: 'COMPLETED',
+        completedAt: { gte: start, lte: end },
+      },
+    });
+
+    const pathCompletionCount = await this.prisma.pathEnrollment.count({
+      where: {
+        userId: { in: allUserIds },
+        status: 'COMPLETED',
+        completedAt: { gte: start, lte: end },
+      },
+    });
+    const totalCompletions = courseCompletions + pathCompletionCount;
+
+    const certN = await this.prisma.issuedCertificate.count({
+      where: {
+        issuedAt: { gte: start, lte: end },
+        OR: [
+          { enrollment: { userId: { in: allUserIds } } },
+          { courseEnrollment: { userId: { in: allUserIds } } },
+        ],
+      },
+    });
+
+    const activeLogsByCity = await this.prisma.contentAccessLog.groupBy({
+      by: ['userId', 'city'],
+      where: {
+        createdAt: { gte: start, lte: end },
+        countryCode: code,
+        user: tenantId ? { tenantId } : undefined,
+      },
+    });
+    const cityActiveMap = new Map<string, Set<string>>();
+    for (const row of activeLogsByCity) {
+      const city = row.city || 'Unknown';
+      if (!cityActiveMap.has(city)) cityActiveMap.set(city, new Set());
+      cityActiveMap.get(city)!.add(row.userId);
+    }
 
     const cityMap = new Map<string, { totalUsers: number; ids: Set<string> }>();
     for (const u of users) {
@@ -344,7 +401,7 @@ export class GeoAnalyticsGqlService {
       city,
       region: null as string | null,
       totalUsers: v.totalUsers,
-      activeUsers: v.totalUsers,
+      activeUsers: cityActiveMap.get(city)?.size ?? 0,
       completions: 0,
     }));
 
@@ -397,23 +454,15 @@ export class GeoAnalyticsGqlService {
     }));
 
     const pointsRows = await this.prisma.userPoints.findMany({
-      where: { userId: { in: users.map((u) => u.id) } },
+      where: { userId: { in: allUserIds } },
     });
     const pointsMap = new Map(pointsRows.map((p) => [p.userId, p.points]));
     const pathCounts = await this.prisma.pathEnrollment.groupBy({
       by: ['userId'],
-      where: { userId: { in: users.map((u) => u.id) }, status: 'COMPLETED' },
+      where: { userId: { in: allUserIds }, status: 'COMPLETED' },
       _count: { id: true },
     });
     const pathMap = new Map(pathCounts.map((p) => [p.userId, p._count.id]));
-    const certN = await this.prisma.issuedCertificate.count({
-      where: {
-        OR: [
-          { enrollment: { userId: { in: users.map((u) => u.id) } } },
-          { courseEnrollment: { userId: { in: users.map((u) => u.id) } } },
-        ],
-      },
-    });
 
     const topLearners = users
       .map((u) => ({
@@ -426,7 +475,6 @@ export class GeoAnalyticsGqlService {
       }))
       .sort((a, b) => b.points - a.points)
       .slice(0, 10);
-    void certN;
 
     const named = await this.prisma.user.findFirst({
       where: { ...(tenantId ? { tenantId } : {}), countryCode: code, country: { not: null } },
@@ -450,11 +498,11 @@ export class GeoAnalyticsGqlService {
       },
       topLearners,
       kpis: {
-        activeUsers: users.length,
+        activeUsers: activeUserIds.size,
         activeUsersDelta: 0,
-        newSignups: 0,
+        newSignups,
         newSignupsDelta: 0,
-        completions: 0,
+        completions: totalCompletions,
         completionsDelta: 0,
         certsIssued: certN,
       },

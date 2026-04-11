@@ -1,21 +1,40 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionPlan } from './subscription.constants';
+import {
+  TenantCacheService,
+  TenantContentAccessEntry,
+} from '../company/tenant-cache.service';
 
 /**
- * Access Service — Tier-based content filtering
- * omnilearn.space | 4-tier subscription system
+ * Access Service — Tier-based content filtering + tenant entitlements
+ * omnilearn.space | Multi-tenant access resolution
+ *
+ * Resolution order (Section 3.1 of architecture doc):
+ *   1. Org approval gate
+ *   2. Tenant assignment + bypassesPublicPaywall
+ *   3. Tier-based plan rules (fallback)
  */
 
 export interface UserAccessContext {
   planId: SubscriptionPlan;
   sectorFocus: string | null;
   tenantId: string | null;
+  orgApprovalStatus: string | null;
 }
+
+export type AccessResult = {
+  hasAccess: boolean;
+  /** True when access was granted via tenant assignment paywall bypass */
+  bypassedPaywall: boolean;
+};
 
 @Injectable()
 export class AccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantCache: TenantCacheService,
+  ) {}
 
   /** Get access context for a user (or null for anonymous = Explorer) */
   async getAccessContext(userId: string | null): Promise<UserAccessContext> {
@@ -24,25 +43,35 @@ export class AccessService {
         planId: SubscriptionPlan.EXPLORER,
         sectorFocus: null,
         tenantId: null,
+        orgApprovalStatus: null,
       };
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { planId: true, sectorFocus: true, tenantId: true },
+      select: {
+        planId: true,
+        sectorFocus: true,
+        tenantId: true,
+        orgApprovalStatus: true,
+      },
     });
     if (!user) {
       return {
         planId: SubscriptionPlan.EXPLORER,
         sectorFocus: null,
         tenantId: null,
+        orgApprovalStatus: null,
       };
     }
     return {
       planId: user.planId as SubscriptionPlan,
       sectorFocus: user.sectorFocus,
       tenantId: user.tenantId,
+      orgApprovalStatus: user.orgApprovalStatus,
     };
   }
+
+  // ── Prisma list-filter (unchanged — used for catalog queries) ──────────
 
   /** Build tenant-assignment filter: content with no assignments = public to all */
   private buildAssignmentFilter(ctx: UserAccessContext) {
@@ -68,10 +97,7 @@ export class AccessService {
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:
-        tierFilter.OR = [
-          { isFoundational: true },
-          planFilter,
-        ];
+        tierFilter.OR = [{ isFoundational: true }, planFilter];
         break;
 
       case SubscriptionPlan.SPECIALIST:
@@ -87,18 +113,12 @@ export class AccessService {
             },
           ];
         } else {
-          tierFilter.OR = [
-            { isFoundational: true },
-            planFilter,
-          ];
+          tierFilter.OR = [{ isFoundational: true }, planFilter];
         }
         break;
 
       case SubscriptionPlan.VISIONARY:
-        tierFilter.AND = [
-          { tenantId: null },
-          planFilter,
-        ];
+        tierFilter.AND = [{ tenantId: null }, planFilter];
         break;
 
       case SubscriptionPlan.NEXUS:
@@ -106,32 +126,134 @@ export class AccessService {
           tierFilter.AND = [
             planFilter,
             {
-              OR: [
-                { tenantId: null },
-                { tenantId: ctx.tenantId },
-              ],
+              OR: [{ tenantId: null }, { tenantId: ctx.tenantId }],
             },
           ];
         } else {
-          tierFilter.AND = [
-            { tenantId: null },
-            planFilter,
-          ];
+          tierFilter.AND = [{ tenantId: null }, planFilter];
         }
         break;
 
       default:
-        tierFilter.OR = [
-          { isFoundational: true },
-          planFilter,
-        ];
+        tierFilter.OR = [{ isFoundational: true }, planFilter];
+    }
+
+    // For tenant users with bypass, also include content assigned to their tenant
+    if (ctx.tenantId && ctx.orgApprovalStatus === 'APPROVED') {
+      return {
+        OR: [
+          { AND: [tierFilter, assignmentFilter] },
+          {
+            tenantAssignments: {
+              some: { tenantId: ctx.tenantId, bypassesPublicPaywall: true },
+            },
+          },
+        ],
+      };
     }
 
     return { AND: [tierFilter, assignmentFilter] };
   }
 
-  /** Check if user can access a specific content item */
+  // ── Single-item access check (rewritten with new resolution order) ─────
+
+  /**
+   * Check if user can access a specific content item.
+   * Returns both the access decision and whether the paywall was bypassed
+   * (so frontend can hide pricing).
+   */
+  async canAccessContentDetailed(
+    contentId: string,
+    ctx: UserAccessContext,
+  ): Promise<AccessResult> {
+    // Step 1: Org approval gate
+    if (ctx.tenantId && ctx.orgApprovalStatus !== 'APPROVED') {
+      return { hasAccess: false, bypassedPaywall: false };
+    }
+
+    // Step 2: Tenant assignment + paywall bypass (cached)
+    if (ctx.tenantId) {
+      const assignment = await this.resolveTenantAssignment(
+        ctx.tenantId,
+        contentId,
+      );
+      if (assignment.assigned && assignment.bypassesPublicPaywall) {
+        return { hasAccess: true, bypassedPaywall: true };
+      }
+      // If content is assigned to specific tenants but NOT this one, deny
+      if (await this.isExclusiveToOtherTenants(contentId, ctx.tenantId)) {
+        return { hasAccess: false, bypassedPaywall: false };
+      }
+    }
+
+    // Step 3: Fallback to tier-based access rules
+    const tierAccess = await this.checkTierAccess(contentId, ctx);
+    return { hasAccess: tierAccess, bypassedPaywall: false };
+  }
+
+  /** Backward-compatible boolean wrapper */
   async canAccessContent(
+    contentId: string,
+    ctx: UserAccessContext,
+  ): Promise<boolean> {
+    const result = await this.canAccessContentDetailed(contentId, ctx);
+    return result.hasAccess;
+  }
+
+  /** Whether ads should be shown for this user */
+  shouldShowAds(ctx: UserAccessContext): boolean {
+    return ctx.planId === SubscriptionPlan.EXPLORER;
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────
+
+  private async resolveTenantAssignment(
+    tenantId: string,
+    contentId: string,
+  ): Promise<TenantContentAccessEntry> {
+    const cached = await this.tenantCache.getTenantContentAccess(
+      tenantId,
+      contentId,
+    );
+    if (cached) return cached;
+
+    const row = await this.prisma.contentTenantAssignment.findUnique({
+      where: { contentId_tenantId: { contentId, tenantId } },
+      select: { bypassesPublicPaywall: true },
+    });
+
+    const entry: TenantContentAccessEntry = row
+      ? { assigned: true, bypassesPublicPaywall: row.bypassesPublicPaywall }
+      : { assigned: false, bypassesPublicPaywall: false };
+
+    await this.tenantCache.setTenantContentAccess(
+      tenantId,
+      contentId,
+      entry,
+    );
+    return entry;
+  }
+
+  /**
+   * Check if content has tenant assignments that exclude the current tenant.
+   * Content with zero assignments is "public to all."
+   */
+  private async isExclusiveToOtherTenants(
+    contentId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const assignmentCount = await this.prisma.contentTenantAssignment.count({
+      where: { contentId },
+    });
+    if (assignmentCount === 0) return false; // public content
+    const hasOurs = await this.prisma.contentTenantAssignment.count({
+      where: { contentId, tenantId },
+    });
+    return hasOurs === 0;
+  }
+
+  /** Original tier-based access check (unchanged logic) */
+  private async checkTierAccess(
     contentId: string,
     ctx: UserAccessContext,
   ): Promise<boolean> {
@@ -142,17 +264,13 @@ export class AccessService {
         sectorTag: true,
         tenantId: true,
         availablePlans: true,
-        tenantAssignments: { select: { tenantId: true } },
       },
     });
     if (!content) return false;
 
-    const assignedTenants = content.tenantAssignments.map((a) => a.tenantId);
-    if (assignedTenants.length > 0 && ctx.tenantId && !assignedTenants.includes(ctx.tenantId)) {
-      return false;
-    }
-
-    const plans = Array.isArray(content.availablePlans) ? content.availablePlans as string[] : [];
+    const plans = Array.isArray(content.availablePlans)
+      ? (content.availablePlans as string[])
+      : [];
     const planAllowed = plans.includes(ctx.planId);
 
     switch (ctx.planId) {
@@ -160,6 +278,7 @@ export class AccessService {
         return content.isFoundational === true || planAllowed;
 
       case SubscriptionPlan.SPECIALIST:
+        if (content.tenantId !== null) return false;
         return (
           planAllowed ||
           content.isFoundational ||
@@ -167,6 +286,7 @@ export class AccessService {
         );
 
       case SubscriptionPlan.VISIONARY:
+        if (content.tenantId !== null) return false;
         return planAllowed;
 
       case SubscriptionPlan.NEXUS:
@@ -178,10 +298,5 @@ export class AccessService {
       default:
         return content.isFoundational === true || planAllowed;
     }
-  }
-
-  /** Whether ads should be shown for this user */
-  shouldShowAds(ctx: UserAccessContext): boolean {
-    return ctx.planId === SubscriptionPlan.EXPLORER;
   }
 }
