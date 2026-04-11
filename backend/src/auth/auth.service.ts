@@ -207,7 +207,7 @@ export class AuthService {
       where: { id: user.id },
       data: {
         passwordResetTokenHash,
-        passwordResetExpiresAt: new Date(now + 3600_000),
+        passwordResetExpiresAt: new Date(Date.now() + 3600_000),
       },
     });
 

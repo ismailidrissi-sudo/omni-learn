@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { ApprovalsService } from './approvals.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
+import { SeatLimitService } from '../company/seat-limit.service';
 import { ApprovalRequestStatus, ApprovalRequestType } from '@prisma/client';
 
 describe('ApprovalsService', () => {
@@ -30,6 +31,7 @@ describe('ApprovalsService', () => {
         ApprovalsService,
         { provide: PrismaService, useValue: prisma },
         { provide: TransactionalEmailService, useValue: { sendPlanApprovedUser: jest.fn() } },
+        { provide: SeatLimitService, useValue: { assertSeatAvailable: jest.fn() } },
       ],
     }).compile();
     const svc = moduleRef.get(ApprovalsService);
