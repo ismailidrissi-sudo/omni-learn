@@ -30,26 +30,14 @@ export class CertificateService {
 
   private async generateAndStorePdf(
     certificateId: string,
-    userName: string,
-    contentTitle: string,
-    contentType: 'course' | 'path',
-    completionDate: Date,
-    verifyCode: string,
-    tenantId?: string | null,
+    data: import('./certificate-pdf.service').CertificatePdfData,
   ): Promise<string> {
-    const year = completionDate.getFullYear().toString();
-    const month = String(completionDate.getMonth() + 1).padStart(2, '0');
+    const year = data.completionDate.getFullYear().toString();
+    const month = String(data.completionDate.getMonth() + 1).padStart(2, '0');
     const dir = join(this.storagePath, year, month);
     mkdirSync(dir, { recursive: true });
 
-    const pdfBuffer = await this.certificatePdfService.generatePdf({
-      userName,
-      contentTitle,
-      contentType,
-      completionDate,
-      verifyCode,
-      tenantId,
-    });
+    const pdfBuffer = await this.certificatePdfService.generatePdf(data);
 
     const filePath = join(dir, `${certificateId}.pdf`);
     writeFileSync(filePath, pdfBuffer);
@@ -123,6 +111,7 @@ export class CertificateService {
     let contentTitle: string;
     let contentType: 'course' | 'path';
     let tenantId: string | null | undefined;
+    let domainName: string | undefined;
 
     if (cert.courseEnrollment) {
       contentTitle = cert.courseEnrollment.course.title;
@@ -136,15 +125,51 @@ export class CertificateService {
       throw new NotFoundException('Certificate PDF not found');
     }
 
-    const relativePath = await this.generateAndStorePdf(
-      certificateId,
-      user?.name || 'Learner',
+    const template = cert.templateId
+      ? await this.prisma.certificateTemplate.findUnique({
+          where: { id: cert.templateId },
+          include: { domain: true },
+        })
+      : null;
+    domainName = template?.domain?.name;
+
+    let totalLearningMinutes = 0;
+    if (cert.enrollmentId) {
+      const agg = await this.prisma.pathStepProgress.aggregate({
+        where: { enrollmentId: cert.enrollmentId },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = agg._sum.timeSpent ?? 0;
+    } else if (cert.courseEnrollmentId) {
+      const agg = await this.prisma.courseSectionItemProgress.aggregate({
+        where: { enrollmentId: cert.courseEnrollmentId },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = agg._sum.timeSpent ?? 0;
+    }
+
+    const tenant = tenantId
+      ? await this.prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { name: true },
+        })
+      : null;
+
+    const relativePath = await this.generateAndStorePdf(certificateId, {
+      userName: user?.name || 'Learner',
       contentTitle,
       contentType,
-      cert.issuedAt,
-      cert.verifyCode,
+      completionDate: cert.issuedAt,
+      verifyCode: cert.verifyCode,
       tenantId,
-    );
+      domainName,
+      grade: cert.grade,
+      totalLearningMinutes,
+      tenantName: tenant?.name,
+      themeConfig: template?.themeConfig as Record<string, unknown> | null,
+      elementsConfig: template?.elementsConfig as Record<string, unknown> | null,
+      signatories: template?.signatories as Array<{ name: string; title: string }> | null,
+    });
 
     return join(this.storagePath, relativePath);
   }
@@ -191,15 +216,34 @@ export class CertificateService {
         where: { id: enrollment.userId },
         select: { name: true },
       });
-      await this.generateAndStorePdf(
-        cert.id,
-        user?.name || 'Learner',
-        enrollment.path.name,
-        'path',
-        cert.issuedAt,
+
+      let totalLearningMinutes = 0;
+      const agg = await this.prisma.pathStepProgress.aggregate({
+        where: { enrollmentId: enrollment.id },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = agg._sum.timeSpent ?? 0;
+
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: enrollment.path.tenantId },
+        select: { name: true },
+      });
+
+      await this.generateAndStorePdf(cert.id, {
+        userName: user?.name || 'Learner',
+        contentTitle: enrollment.path.name,
+        contentType: 'path',
+        completionDate: cert.issuedAt,
         verifyCode,
-        enrollment.path.tenantId,
-      );
+        tenantId: enrollment.path.tenantId,
+        domainName: enrollment.path.domain.name,
+        grade: grade ?? null,
+        totalLearningMinutes,
+        tenantName: tenant?.name,
+        themeConfig: template.themeConfig as Record<string, unknown> | null,
+        elementsConfig: template.elementsConfig as Record<string, unknown> | null,
+        signatories: template.signatories as Array<{ name: string; title: string }> | null,
+      });
     } catch (err) {
       this.logger.error(`Failed to generate PDF for path certificate ${cert.id}: ${err}`);
     }
@@ -317,15 +361,34 @@ export class CertificateService {
         where: { id: enrollment.userId },
         select: { name: true },
       });
-      await this.generateAndStorePdf(
-        cert.id,
-        user?.name || 'Learner',
-        enrollment.course.title,
-        'course',
-        cert.issuedAt,
+
+      let totalLearningMinutes = 0;
+      const agg = await this.prisma.courseSectionItemProgress.aggregate({
+        where: { enrollmentId: courseEnrollmentId },
+        _sum: { timeSpent: true },
+      });
+      totalLearningMinutes = agg._sum.timeSpent ?? 0;
+
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { name: true },
+      });
+
+      await this.generateAndStorePdf(cert.id, {
+        userName: user?.name || 'Learner',
+        contentTitle: enrollment.course.title,
+        contentType: 'course',
+        completionDate: cert.issuedAt,
         verifyCode,
         tenantId,
-      );
+        domainName: domain.name,
+        grade: grade ?? null,
+        totalLearningMinutes,
+        tenantName: tenant?.name,
+        themeConfig: template.themeConfig as Record<string, unknown> | null,
+        elementsConfig: template.elementsConfig as Record<string, unknown> | null,
+        signatories: template.signatories as Array<{ name: string; title: string }> | null,
+      });
     } catch (err) {
       this.logger.error(`Failed to generate PDF for course certificate ${cert.id}: ${err}`);
     }
@@ -527,7 +590,7 @@ export class CertificateService {
     const pathIds = pathEnrollments.map((e) => e.id);
     const courseIds = courseEnrollments.map((e) => e.id);
 
-    return this.prisma.issuedCertificate.findMany({
+    const certs = await this.prisma.issuedCertificate.findMany({
       where: {
         OR: [
           ...(pathIds.length > 0 ? [{ enrollmentId: { in: pathIds } }] : []),
@@ -553,6 +616,14 @@ export class CertificateService {
         },
       },
       orderBy: { issuedAt: 'desc' },
+    });
+
+    return certs.map((cert) => {
+      const signed = this.certificateUrlService.generateSignedUrl(cert.id, 30);
+      return {
+        ...cert,
+        pdfDownloadUrl: `${signed.url}&attachment=1`,
+      };
     });
   }
 
@@ -610,11 +681,13 @@ export class CertificateService {
       totalLearningMinutes = totalHours._sum.timeSpent ?? 0;
     }
 
+    const signed = this.certificateUrlService.generateSignedUrl(cert.id, 30);
     return {
       ...cert,
       user,
       totalLearningMinutes,
       certType: cert.enrollmentId ? 'path' : 'course',
+      pdfDownloadUrl: `${signed.url}&attachment=1`,
     };
   }
 

@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n/context";
-import { downloadCertificatePdf, type CertificateData } from "@/lib/certificate-pdf";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_URL } from "@/lib/api";
 
 interface CompletionCelebrationProps {
   certificateId: string;
@@ -21,60 +20,38 @@ export function CompletionCelebration({
   domainName,
   onClose,
 }: CompletionCelebrationProps) {
-  const { t, locale } = useI18n();
-  const [certData, setCertData] = useState<CertificateData | null>(null);
+  const { t } = useI18n();
+  const [certDetail, setCertDetail] = useState<{
+    verifyCode: string;
+    grade?: string | null;
+    pdfDownloadUrl?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     apiFetch(`/certificates/detail/${certificateId}`)
       .then((r) => r.json())
       .then((detail) => {
-        const themeConfig = typeof detail.template?.themeConfig === "string"
-          ? JSON.parse(detail.template.themeConfig)
-          : detail.template?.themeConfig;
-        const elementsConfig = typeof detail.template?.elementsConfig === "string"
-          ? JSON.parse(detail.template.elementsConfig)
-          : detail.template?.elementsConfig;
-        const signatories = typeof detail.template?.signatories === "string"
-          ? JSON.parse(detail.template.signatories)
-          : detail.template?.signatories ?? [];
-
-        const isCourseCert = detail.certType === 'course';
-        setCertData({
-          userName: detail.user?.name ?? "Learner",
-          pathName: isCourseCert
-            ? (detail.courseEnrollment?.course?.title ?? pathName)
-            : (detail.enrollment?.path?.name ?? pathName),
-          domainName: isCourseCert
-            ? (detail.courseEnrollment?.course?.domain?.name ?? domainName)
-            : (detail.enrollment?.path?.domain?.name ?? domainName),
-          domainIcon: isCourseCert
-            ? detail.courseEnrollment?.course?.domain?.icon
-            : detail.enrollment?.path?.domain?.icon,
+        setCertDetail({
           verifyCode: detail.verifyCode,
           grade: detail.grade,
-          issuedAt: detail.issuedAt,
-          totalLearningMinutes: detail.totalLearningMinutes,
-          themeConfig,
-          elementsConfig,
-          signatories,
-          tenantName: detail.template?.domain?.name,
-          certType: isCourseCert ? 'course' : 'path',
-          locale,
+          pdfDownloadUrl: detail.pdfDownloadUrl,
         });
       })
-      .catch(() => setCertData(null))
+      .catch(() => setCertDetail(null))
       .finally(() => setLoading(false));
-  }, [certificateId, pathName, domainName]);
+  }, [certificateId]);
 
-  const handleDownload = async () => {
-    if (!certData) return;
-    setDownloading(true);
+  const handleDownload = () => {
+    if (!certDetail?.pdfDownloadUrl) return;
     try {
-      await downloadCertificatePdf(certData);
-    } finally {
-      setDownloading(false);
+      const u = new URL(certDetail.pdfDownloadUrl);
+      const api = new URL(API_URL);
+      u.protocol = api.protocol;
+      u.host = api.host;
+      window.open(u.toString(), "_blank", "noopener,noreferrer");
+    } catch {
+      window.open(certDetail.pdfDownloadUrl, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -146,26 +123,26 @@ export function CompletionCelebration({
               <div className="flex justify-center py-4">
                 <div className="h-8 w-8 rounded-full border-4 border-[var(--color-accent)] border-t-transparent animate-spin" />
               </div>
-            ) : certData ? (
+            ) : certDetail ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
                 className="space-y-3"
               >
-                {certData.grade && (
+                {certDetail.grade && (
                   <p className="text-sm font-medium text-[var(--color-accent)]">
-                    {t("certificate.grade")}: {certData.grade}
+                    {t("certificate.grade")}: {certDetail.grade}
                   </p>
                 )}
 
                 <p className="text-xs text-[var(--color-text-secondary)]">
-                  {t("certificate.code")}: {certData.verifyCode}
+                  {t("certificate.code")}: {certDetail.verifyCode}
                 </p>
 
                 <div className="flex gap-3 justify-center pt-2">
-                  <Button onClick={handleDownload} disabled={downloading}>
-                    {downloading ? t("certificate.generating") : t("certificate.downloadPdf")}
+                  <Button onClick={handleDownload} disabled={!certDetail.pdfDownloadUrl}>
+                    {t("certificate.downloadPdf")}
                   </Button>
                   <Button variant="outline" onClick={onClose}>
                     {t("common.close")}

@@ -12,14 +12,14 @@ import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useI18n } from "@/lib/i18n/context";
 import { useUser } from "@/lib/use-user";
-import { apiFetch } from "@/lib/api";
-import { downloadCertificatePdf, type CertificateData } from "@/lib/certificate-pdf";
+import { apiFetch, API_URL } from "@/lib/api";
 
 interface CertRecord {
   id: string;
   verifyCode: string;
   grade?: string | null;
   issuedAt: string;
+  pdfDownloadUrl?: string;
   template?: {
     id: string;
     templateName: string;
@@ -59,7 +59,7 @@ export default function UserCertificatesPage() {
   const params = useParams();
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const router = useRouter();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { tenant, branding, isLoading: tenantLoading } = useTenant();
   const { user, loading: userLoading } = useUser();
 
@@ -89,41 +89,30 @@ export default function UserCertificatesPage() {
     loadCerts();
   }, [loadCerts]);
 
+  const rewriteToApiOrigin = (url: string): string => {
+    try {
+      const u = new URL(url);
+      const api = new URL(API_URL);
+      u.protocol = api.protocol;
+      u.host = api.host;
+      return u.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const handleDownload = async (cert: CertRecord) => {
+    if (cert.pdfDownloadUrl) {
+      window.open(rewriteToApiOrigin(cert.pdfDownloadUrl), "_blank", "noopener,noreferrer");
+      return;
+    }
     setDownloadingId(cert.id);
     try {
       const res = await apiFetch(`/certificates/detail/${cert.id}`);
       const detail = await res.json();
-
-      const themeConfig = parseJson(detail.template?.themeConfig, {});
-      const elementsConfig = parseJson(detail.template?.elementsConfig, {});
-      const signatories = parseJson<Array<{ name: string; title: string }>>(detail.template?.signatories, []);
-
-      const isCourseCert = detail.certType === 'course';
-      const certData: CertificateData = {
-        userName: detail.user?.name ?? user?.name ?? "Learner",
-        pathName: isCourseCert
-          ? (detail.courseEnrollment?.course?.title ?? "Course")
-          : (detail.enrollment?.path?.name ?? "Learning Path"),
-        domainName: isCourseCert
-          ? (detail.courseEnrollment?.course?.domain?.name ?? "Domain")
-          : (detail.enrollment?.path?.domain?.name ?? "Domain"),
-        domainIcon: isCourseCert
-          ? detail.courseEnrollment?.course?.domain?.icon
-          : detail.enrollment?.path?.domain?.icon,
-        verifyCode: detail.verifyCode,
-        grade: detail.grade,
-        issuedAt: detail.issuedAt,
-        totalLearningMinutes: detail.totalLearningMinutes,
-        themeConfig,
-        elementsConfig,
-        signatories,
-        tenantName: academyName,
-        certType: isCourseCert ? 'course' : 'path',
-        locale,
-      };
-
-      await downloadCertificatePdf(certData);
+      if (detail.pdfDownloadUrl) {
+        window.open(rewriteToApiOrigin(detail.pdfDownloadUrl), "_blank", "noopener,noreferrer");
+      }
     } catch {
       // silently fail
     } finally {
