@@ -216,7 +216,7 @@ export class ContentService {
       return { ...content, adsEnabled: false };
     }
     const ctx = await this.accessService.getAccessContext(userId ?? null);
-    const canAccess = await this.accessService.canAccessContent(id, ctx);
+    const canAccess = await this.accessService.canAccessContent(id, ctx, userId);
     if (!canAccess) {
       throw new ForbiddenException('Access denied to this content');
     }

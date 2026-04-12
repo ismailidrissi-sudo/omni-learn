@@ -165,7 +165,16 @@ export class AccessService {
   async canAccessContentDetailed(
     contentId: string,
     ctx: UserAccessContext,
+    userId?: string | null,
   ): Promise<AccessResult> {
+    // Step 0: Enrolled users always have access
+    if (userId) {
+      const enrolled = await this.isEnrolled(userId, contentId);
+      if (enrolled) {
+        return { hasAccess: true, bypassedPaywall: false };
+      }
+    }
+
     // Step 1: Org approval gate
     if (ctx.tenantId && ctx.orgApprovalStatus !== 'APPROVED') {
       return { hasAccess: false, bypassedPaywall: false };
@@ -195,8 +204,9 @@ export class AccessService {
   async canAccessContent(
     contentId: string,
     ctx: UserAccessContext,
+    userId?: string | null,
   ): Promise<boolean> {
-    const result = await this.canAccessContentDetailed(contentId, ctx);
+    const result = await this.canAccessContentDetailed(contentId, ctx, userId);
     return result.hasAccess;
   }
 
@@ -206,6 +216,27 @@ export class AccessService {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────
+
+  /** Check if user is enrolled in this content (course enrollment or learning path step) */
+  private async isEnrolled(
+    userId: string,
+    contentId: string,
+  ): Promise<boolean> {
+    const courseEnrollment = await this.prisma.courseEnrollment.findUnique({
+      where: { userId_courseId: { userId, courseId: contentId } },
+      select: { id: true },
+    });
+    if (courseEnrollment) return true;
+
+    const pathStep = await this.prisma.pathEnrollment.findFirst({
+      where: {
+        userId,
+        path: { steps: { some: { contentItemId: contentId } } },
+      },
+      select: { id: true },
+    });
+    return !!pathStep;
+  }
 
   private async resolveTenantAssignment(
     tenantId: string,
