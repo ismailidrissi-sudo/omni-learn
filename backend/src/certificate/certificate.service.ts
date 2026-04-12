@@ -168,7 +168,7 @@ export class CertificateService {
       tenantName: tenant?.name,
       themeConfig: template?.themeConfig as Record<string, unknown> | null,
       elementsConfig: template?.elementsConfig as Record<string, unknown> | null,
-      signatories: template?.signatories as Array<{ name: string; title: string }> | null,
+      signatories: (template?.signatories as Array<{ name: string; title: string }>) ?? undefined,
     });
 
     return join(this.storagePath, relativePath);
@@ -242,7 +242,7 @@ export class CertificateService {
         tenantName: tenant?.name,
         themeConfig: template.themeConfig as Record<string, unknown> | null,
         elementsConfig: template.elementsConfig as Record<string, unknown> | null,
-        signatories: template.signatories as Array<{ name: string; title: string }> | null,
+        signatories: (template.signatories as Array<{ name: string; title: string }>) ?? undefined,
       });
     } catch (err) {
       this.logger.error(`Failed to generate PDF for path certificate ${cert.id}: ${err}`);
@@ -387,7 +387,7 @@ export class CertificateService {
         tenantName: tenant?.name,
         themeConfig: template.themeConfig as Record<string, unknown> | null,
         elementsConfig: template.elementsConfig as Record<string, unknown> | null,
-        signatories: template.signatories as Array<{ name: string; title: string }> | null,
+        signatories: (template.signatories as Array<{ name: string; title: string }>) ?? undefined,
       });
     } catch (err) {
       this.logger.error(`Failed to generate PDF for course certificate ${cert.id}: ${err}`);
