@@ -3,9 +3,10 @@ import { IntelligenceService } from './intelligence.service';
 import { IntelligenceController } from './intelligence.controller';
 import { EmbeddingService } from './embedding.service';
 import { AuthModule } from '../auth/auth.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, SubscriptionModule],
   controllers: [IntelligenceController],
   providers: [IntelligenceService, EmbeddingService],
   exports: [IntelligenceService, EmbeddingService],

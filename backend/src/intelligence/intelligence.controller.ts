@@ -5,6 +5,7 @@ import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 
 @Controller('intelligence')
 export class IntelligenceController {
@@ -26,8 +27,11 @@ export class IntelligenceController {
 
   @Get('trending')
   @UseGuards(OptionalJwtGuard)
-  getTrending(@Query('limit') limit?: string) {
-    return this.intelligence.getTrendingContent(limit ? +limit : 10);
+  getTrending(
+    @Query('limit') limit?: string,
+    @CurrentUser() user?: CurrentUserPayload | null,
+  ) {
+    return this.intelligence.getTrendingContent(limit ? +limit : 10, user?.sub ?? null);
   }
 
   @Get('search')
@@ -35,8 +39,9 @@ export class IntelligenceController {
   semanticSearch(
     @Query('q') q: string,
     @Query('limit') limit?: string,
+    @CurrentUser() user?: CurrentUserPayload | null,
   ) {
-    return this.intelligence.semanticSearch(q || '', limit ? +limit : 20);
+    return this.intelligence.semanticSearch(q || '', limit ? +limit : 20, user?.sub ?? null);
   }
 
   @Get('path-suggestions')

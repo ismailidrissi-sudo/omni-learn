@@ -945,6 +945,7 @@
   "content": {
     "backToLearn": "← Retour à Apprendre",
     "contentNotFound": "Contenu introuvable",
+    "contentAccessDenied": "Vous n'avez pas accès à ce contenu. Mettez à niveau votre abonnement pour le débloquer.",
     "noMedia": "Aucun média pour ce type de contenu ({type}). Ajoutez scormPackageUrl, hlsUrl, audioUrl ou fileUrl dans les métadonnées.",
     "startCourse": "Commencer le cours",
     "coursePlayer": "Lecteur de cours",

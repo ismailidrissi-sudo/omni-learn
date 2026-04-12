@@ -59,6 +59,7 @@ export default function ContentPage() {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentStatus, setEnrollmentStatus] = useState<"none" | "enrolled" | "completed">("none");
+  const [errorKind, setErrorKind] = useState<"not_found" | "access_denied">("not_found");
 
   useEffect(() => {
     if (!id) return;
@@ -82,7 +83,12 @@ export default function ContentPage() {
             .catch(() => setCurriculum([]));
         }
       })
-      .catch(() => setContent(null))
+      .catch((err) => {
+        setContent(null);
+        if (err instanceof Error && err.message.includes("403")) {
+          setErrorKind("access_denied");
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -499,7 +505,11 @@ export default function ContentPage() {
             </>
           )
         ) : (
-          <p className="text-brand-grey py-20 text-center">{t("content.contentNotFound")}</p>
+          <p className="text-brand-grey py-20 text-center">
+            {errorKind === "access_denied"
+              ? t("content.contentAccessDenied")
+              : t("content.contentNotFound")}
+          </p>
         )}
       </main>
     </div>

@@ -47,6 +47,7 @@ export default function TenantContentPage() {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentStatus, setEnrollmentStatus] = useState<"none" | "enrolled" | "completed">("none");
+  const [errorKind, setErrorKind] = useState<"not_found" | "access_denied">("not_found");
 
   const academyName = branding?.appName || tenant?.name || "Academy";
 
@@ -71,7 +72,12 @@ export default function TenantContentPage() {
             .catch(() => setCurriculum([]));
         }
       })
-      .catch(() => setContent(null))
+      .catch((err) => {
+        setContent(null);
+        if (err instanceof Error && err.message.includes("403")) {
+          setErrorKind("access_denied");
+        }
+      })
       .finally(() => setLoading(false));
   }, [contentId]);
 
@@ -130,8 +136,12 @@ export default function TenantContentPage() {
   if (!content) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-bg-primary)]">
-        <div className="text-4xl mb-4">📄</div>
-        <h1 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">{t("content.contentNotFound")}</h1>
+        <div className="text-4xl mb-4">{errorKind === "access_denied" ? "🔒" : "📄"}</div>
+        <h1 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">
+          {errorKind === "access_denied"
+            ? t("content.contentAccessDenied")
+            : t("content.contentNotFound")}
+        </h1>
         <Link href={`/${slug}/discover`} className="text-[var(--color-accent)] hover:underline text-sm">{t("content.backToDiscover")}</Link>
       </div>
     );

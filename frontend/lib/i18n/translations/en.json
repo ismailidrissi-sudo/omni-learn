@@ -1033,6 +1033,7 @@
   "content": {
     "backToLearn": "← Back to Learn",
     "contentNotFound": "Content not found.",
+    "contentAccessDenied": "You don't have access to this content. Upgrade your plan to unlock it.",
     "noMedia": "No media for this content type ({type}). Add scormPackageUrl, hlsUrl, audioUrl, or fileUrl in metadata.",
     "startCourse": "Start Course",
     "coursePlayer": "Course Player",

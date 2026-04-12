@@ -888,6 +888,7 @@
   "content": {
     "backToLearn": "← العودة للتعلم",
     "contentNotFound": "المحتوى غير موجود",
+    "contentAccessDenied": "ليس لديك صلاحية الوصول إلى هذا المحتوى. قم بترقية اشتراكك لفتحه.",
     "noMedia": "لا يوجد وسائط لهذا النوع ({type}). أضف scormPackageUrl أو hlsUrl أو audioUrl أو fileUrl في البيانات الوصفية.",
     "startCourse": "بدء الدورة",
     "coursePlayer": "مشغل الدورة",

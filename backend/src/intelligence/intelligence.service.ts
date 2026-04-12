@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingService } from './embedding.service';
+import { AccessService } from '../subscription/access.service';
 
 /**
  * Intelligence Service — AI recommendations, semantic search, path suggestions, predictive analytics
@@ -34,6 +35,7 @@ export class IntelligenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embedding: EmbeddingService,
+    private readonly accessService: AccessService,
   ) {}
 
   /** Build a personalized query string from user profile and learning history */
@@ -96,6 +98,11 @@ export class IntelligenceService {
     /** When set (e.g. MICRO_LEARNING), only score matching items — avoids loading the full catalog */
     restrictType?: string,
   ) {
+    const ctx = await this.accessService.getAccessContext(
+      userId !== 'anonymous' ? userId : null,
+    );
+    const accessWhere = this.accessService.buildContentWhere(ctx);
+
     const lightfmUrl = process.env.LIGHTFM_SERVICE_URL;
     if (lightfmUrl) {
       try {
@@ -116,7 +123,7 @@ export class IntelligenceService {
           const ids = (data.recommendations || []).map((r) => r.contentId);
           if (ids.length > 0) {
             const items = await this.prisma.contentItem.findMany({
-              where: { id: { in: ids } },
+              where: { AND: [{ id: { in: ids } }, accessWhere] },
               include: { pathSteps: { include: { path: true } }, domain: true },
             });
             const order = new Map(ids.map((id, i) => [id, i]));
@@ -151,8 +158,11 @@ export class IntelligenceService {
 
     const items = await this.prisma.contentItem.findMany({
       where: {
-        id: { notIn: [...excludeIds, ...enrolledContentIds] },
-        ...(restrictType ? { type: restrictType as 'MICRO_LEARNING' } : {}),
+        AND: [
+          { id: { notIn: [...excludeIds, ...enrolledContentIds] } },
+          ...(restrictType ? [{ type: restrictType as 'MICRO_LEARNING' }] : []),
+          accessWhere,
+        ],
       },
       include: { pathSteps: { include: { path: true } }, domain: true },
     });
@@ -176,9 +186,13 @@ export class IntelligenceService {
   }
 
   /** Semantic search over content */
-  async semanticSearch(query: string, limit = 20) {
+  async semanticSearch(query: string, limit = 20, userId?: string | null) {
+    const ctx = await this.accessService.getAccessContext(userId ?? null);
+    const accessWhere = this.accessService.buildContentWhere(ctx);
+
     const embedding = await this.embedding.embed(query);
     const items = await this.prisma.contentItem.findMany({
+      where: accessWhere,
       include: { pathSteps: { include: { path: true } } },
     });
 
@@ -209,8 +223,13 @@ export class IntelligenceService {
     seedContentId: string | undefined,
     limit: number,
   ): Promise<string[]> {
+    const ctx = await this.accessService.getAccessContext(
+      userId !== 'anonymous' ? userId : null,
+    );
+    const accessWhere = this.accessService.buildContentWhere(ctx);
+
     const microItems = await this.prisma.contentItem.findMany({
-      where: { type: 'MICRO_LEARNING' },
+      where: { AND: [{ type: 'MICRO_LEARNING' }, accessWhere] },
       select: { id: true, title: true, description: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take: 500,
@@ -276,7 +295,10 @@ export class IntelligenceService {
   }
 
   /** Trending content based on real engagement signals */
-  async getTrendingContent(limit = 10) {
+  async getTrendingContent(limit = 10, userId?: string | null) {
+    const ctx = await this.accessService.getAccessContext(userId ?? null);
+    const accessWhere = this.accessService.buildContentWhere(ctx);
+
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [recentEvents, recentLikes, recentReviews] = await Promise.all([
@@ -323,6 +345,7 @@ export class IntelligenceService {
 
     if (topIds.length === 0) {
       return this.prisma.contentItem.findMany({
+        where: accessWhere,
         take: limit,
         include: { domain: true },
         orderBy: { createdAt: 'desc' },
@@ -330,7 +353,7 @@ export class IntelligenceService {
     }
 
     const items = await this.prisma.contentItem.findMany({
-      where: { id: { in: topIds } },
+      where: { AND: [{ id: { in: topIds } }, accessWhere] },
       include: { domain: true },
     });
 
