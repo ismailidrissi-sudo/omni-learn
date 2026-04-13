@@ -36,6 +36,7 @@ export class ProfileController {
     @Req() req: { user?: { sub?: string } },
     @Body() body: {
       tenantId?: string;
+      joinCode?: string;
       companyName?: string;
       companyLogoUrl?: string;
       industryId?: string;
@@ -49,6 +50,21 @@ export class ProfileController {
     const userId = req.user?.sub;
     if (!userId) throw new BadRequestException('Not authenticated');
     return this.profile.completeUserProfile(userId, body);
+  }
+
+  /** Resolve a company join code to tenant name (public) */
+  @Get('resolve-join-code/:code')
+  async resolveJoinCode(@Param('code') code: string) {
+    return this.profile.resolveJoinCode(code);
+  }
+
+  /** Get the referrer's company for the current user (auto-assignment on profile completion) */
+  @Get('referral-company')
+  @UseGuards(AuthGuard('jwt'))
+  async getReferralCompany(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.getReferralCompany(userId);
   }
 
   /** Get current user profile status */

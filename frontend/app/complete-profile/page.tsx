@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,8 +16,13 @@ type Options = {
   industries: Option[];
   departments: Option[];
   positions: Option[];
-  tenants: { id: string; name: string; slug: string }[];
 };
+
+type ReferralCompany = {
+  tenantId: string;
+  tenantName: string;
+  tenantLogoUrl: string | null;
+} | null;
 
 const STEPS = [
   { key: "company", label: "Organization" },
@@ -33,7 +38,14 @@ export default function CompleteProfilePage() {
   const [step, setStep] = useState(0);
 
   const [userType, setUserType] = useState<"TRAINEE" | "TRAINER" | "COMPANY_ADMIN" | "">("");
-  const [tenantId, setTenantId] = useState("");
+  const [orgMode, setOrgMode] = useState<"join" | "new" | "">("");
+  const [joinCode, setJoinCode] = useState("");
+  const [joinCodeVerified, setJoinCodeVerified] = useState(false);
+  const [resolvedTenantId, setResolvedTenantId] = useState("");
+  const [resolvedCompanyName, setResolvedCompanyName] = useState("");
+  const [resolvedCompanyLogo, setResolvedCompanyLogo] = useState("");
+  const [verifyingCode, setVerifyingCode] = useState(false);
+
   const [companyName, setCompanyName] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [industryId, setIndustryId] = useState("");
@@ -45,6 +57,9 @@ export default function CompleteProfilePage() {
   const [loading, setLoading] = useState(false);
   const [token, setTokenValue] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  const [referralCompany, setReferralCompany] = useState<ReferralCompany>(null);
+  const [referralChecked, setReferralChecked] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("omnilearn_token");
@@ -59,59 +74,98 @@ export default function CompleteProfilePage() {
       .then((r) => r.json())
       .then(setOptions)
       .catch(() =>
-        setOptions({ industries: [], departments: [], positions: [], tenants: [] })
+        setOptions({ industries: [], departments: [], positions: [] })
       );
+
+    apiFetch("/profile/referral-company")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.tenantId) setReferralCompany(data);
+        setReferralChecked(true);
+      })
+      .catch(() => setReferralChecked(true));
   }, [router]);
+
+  const handleVerifyCode = useCallback(async () => {
+    if (!joinCode.trim()) return;
+    setVerifyingCode(true);
+    setError("");
+    try {
+      const res = await apiFetch(`/profile/resolve-join-code/${encodeURIComponent(joinCode.trim())}`);
+      const data = await res.json();
+      if (data?.valid) {
+        setResolvedTenantId(data.tenantId);
+        setResolvedCompanyName(data.tenantName);
+        setResolvedCompanyLogo(data.tenantLogoUrl || "");
+        setJoinCodeVerified(true);
+      } else {
+        setJoinCodeVerified(false);
+        setResolvedTenantId("");
+        setResolvedCompanyName("");
+        setError("Invalid company code. Please check with your company admin.");
+      }
+    } catch {
+      setError("Could not verify company code. Please try again.");
+    } finally {
+      setVerifyingCode(false);
+    }
+  }, [joinCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!industryId) {
-      setError("Please select your industry so we can recommend the right content.");
+      setError(t("completeProfile.errors.selectIndustry") || "Please select your industry so we can recommend the right content.");
       return;
     }
     if (!departmentId) {
-      setError("Please select your department to personalize your learning path.");
+      setError(t("completeProfile.errors.selectDepartment") || "Please select your department to personalize your learning path.");
       return;
     }
     if (!positionId) {
-      setError("Please select your position so we match content to your level.");
+      setError(t("completeProfile.errors.selectPosition") || "Please select your position so we match content to your level.");
       return;
     }
 
     setLoading(true);
     try {
+      const payload: Record<string, string | undefined> = {
+        industryId: industryId || undefined,
+        departmentId: departmentId || undefined,
+        positionId: positionId || undefined,
+        linkedinProfileUrl: linkedinProfileUrl || undefined,
+        sectorFocus: sectorFocus || undefined,
+        userType: userType || undefined,
+      };
+
+      if (referralCompany) {
+        payload.tenantId = referralCompany.tenantId;
+      } else if (orgMode === "join" && joinCodeVerified && resolvedTenantId) {
+        payload.joinCode = joinCode.trim().toUpperCase();
+      } else if (orgMode === "new" && companyName) {
+        payload.companyName = companyName;
+        payload.companyLogoUrl = companyLogoUrl || undefined;
+      }
+
       const res = await apiFetch("/profile/complete", {
         method: "POST",
-        body: JSON.stringify({
-          tenantId: tenantId || undefined,
-          companyName: companyName || undefined,
-          companyLogoUrl: companyLogoUrl || undefined,
-          industryId: industryId || undefined,
-          departmentId: departmentId || undefined,
-          positionId: positionId || undefined,
-          linkedinProfileUrl: linkedinProfileUrl || undefined,
-          sectorFocus: sectorFocus || undefined,
-          userType: userType || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.message || "Failed to save profile");
+        setError(data?.message || t("completeProfile.errors.saveFailed") || "Failed to save profile");
         return;
       }
       router.push("/learn");
     } catch {
-      setError("Something went wrong");
+      setError(t("completeProfile.errors.somethingWrong") || "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
   if (!mounted || !token) return null;
-
-  const canCreateOrg = userType === "TRAINER" || userType === "COMPANY_ADMIN";
 
   const canAdvance = (s: number) => {
     if (s === 0) return !!userType && !!industryId;
@@ -126,6 +180,13 @@ export default function CompleteProfilePage() {
 
   const labelCls =
     "mb-2 block text-sm font-medium text-gray-700 dark:text-brand-stardustLight";
+
+  const radioCls = (active: boolean) =>
+    `flex-1 rounded-lg border px-4 py-3 text-center text-sm font-medium cursor-pointer transition-all ${
+      active
+        ? "border-[#059669] bg-[#059669]/10 text-[#059669] dark:border-[#10b981] dark:bg-[#10b981]/10 dark:text-[#10b981]"
+        : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+    }`;
 
   return (
     <div className="min-h-screen font-landing flex flex-col bg-[#F5F5DC] dark:bg-[#0f1510]">
@@ -144,50 +205,56 @@ export default function CompleteProfilePage() {
           className="w-full max-w-lg rounded-2xl border border-gray-200 dark:border-[#059669]/30 bg-white dark:bg-[#1a1e18] p-8 shadow-lg"
         >
           <h1 className="text-2xl font-bold text-[#1a1212] dark:text-brand-heading">
-            Complete your profile
+            {t("completeProfile.title")}
           </h1>
           <p className="mt-2 text-gray-600 dark:text-brand-stardustLight">
-            Help us match the best learning content to your role, industry, and
-            goals.
+            {t("completeProfile.subtitle")}
           </p>
 
           {/* Step indicator */}
           <div className="mt-6 flex items-center gap-1">
-            {STEPS.map((s, i) => (
-              <div key={s.key} className="flex items-center flex-1">
-                <button
-                  type="button"
-                  onClick={() => setStep(i)}
-                  className={`flex items-center gap-2 text-xs font-semibold transition-colors ${
-                    i <= step
-                      ? "text-[#059669] dark:text-[#10b981]"
-                      : "text-gray-400 dark:text-gray-600"
-                  }`}
-                >
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${
-                      i < step
-                        ? "bg-[#059669] text-white"
-                        : i === step
-                        ? "bg-[#059669]/20 text-[#059669] dark:bg-[#059669]/30 dark:text-[#10b981]"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+            {STEPS.map((s, i) => {
+              const stepLabels: Record<string, string> = {
+                company: t("completeProfile.steps.organization"),
+                role: t("completeProfile.steps.role"),
+                interests: t("completeProfile.steps.interests"),
+              };
+              return (
+                <div key={s.key} className="flex items-center flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setStep(i)}
+                    className={`flex items-center gap-2 text-xs font-semibold transition-colors ${
+                      i <= step
+                        ? "text-[#059669] dark:text-[#10b981]"
+                        : "text-gray-400 dark:text-gray-600"
                     }`}
                   >
-                    {i < step ? "✓" : i + 1}
-                  </span>
-                  <span className="hidden sm:inline">{s.label}</span>
-                </button>
-                {i < STEPS.length - 1 && (
-                  <div
-                    className={`mx-2 h-px flex-1 transition-colors ${
-                      i < step
-                        ? "bg-[#059669]"
-                        : "bg-gray-200 dark:bg-gray-700"
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
+                    <span
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${
+                        i < step
+                          ? "bg-[#059669] text-white"
+                          : i === step
+                          ? "bg-[#059669]/20 text-[#059669] dark:bg-[#059669]/30 dark:text-[#10b981]"
+                          : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+                      }`}
+                    >
+                      {i < step ? "\u2713" : i + 1}
+                    </span>
+                    <span className="hidden sm:inline">{stepLabels[s.key]}</span>
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <div
+                      className={`mx-2 h-px flex-1 transition-colors ${
+                        i < step
+                          ? "bg-[#059669]"
+                          : "bg-gray-200 dark:bg-gray-700"
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <form onSubmit={handleSubmit} className="mt-6">
@@ -205,113 +272,183 @@ export default function CompleteProfilePage() {
                 >
                   <div>
                     <label className={labelCls}>
-                      I am a <span className="text-[#059669]">*</span>
+                      {t("completeProfile.iAmA")} <span className="text-[#059669]">*</span>
                     </label>
                     <select
                       value={userType}
                       onChange={(e) => {
-                        const val = e.target.value as typeof userType;
-                        setUserType(val);
-                        if (val === "TRAINEE") {
-                          setCompanyName("");
-                          setCompanyLogoUrl("");
-                        }
+                        setUserType(e.target.value as typeof userType);
                       }}
                       className={selectCls}
                     >
-                      <option value="">Select your role</option>
-                      <option value="TRAINEE">Trainee</option>
-                      <option value="TRAINER">Trainer</option>
-                      <option value="COMPANY_ADMIN">Company Admin</option>
+                      <option value="">{t("completeProfile.selectRole")}</option>
+                      <option value="TRAINEE">{t("completeProfile.trainee")}</option>
+                      <option value="TRAINER">{t("completeProfile.trainer")}</option>
+                      <option value="COMPANY_ADMIN">{t("completeProfile.companyAdmin")}</option>
                     </select>
                     {userType === "TRAINER" && (
                       <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                        Trainer access requires platform admin approval
+                        {t("completeProfile.trainerApproval")}
                       </p>
                     )}
                     {userType === "COMPANY_ADMIN" && (
                       <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                        Company admin access requires platform admin approval
+                        {t("completeProfile.companyAdminApproval")}
                       </p>
                     )}
                   </div>
 
+                  {/* Organization section */}
                   <div>
-                    <label className={labelCls}>
-                      Your organization
-                    </label>
-                    <select
-                      value={tenantId}
-                      onChange={(e) => {
-                        setTenantId(e.target.value);
-                        if (e.target.value) setCompanyName("");
-                      }}
-                      className={selectCls}
-                    >
-                      <option value="">
-                        {canCreateOrg
-                          ? "Select existing company or enter new below"
-                          : "Select an organization (optional)"}
-                      </option>
-                      {options?.tenants?.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                    {tenantId && userType && (
-                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                        Your affiliation will be reviewed by the company admin
-                      </p>
-                    )}
-                  </div>
+                    <label className={labelCls}>{t("completeProfile.yourOrganization")}</label>
 
-                  {!tenantId && canCreateOrg && (
-                    <>
-                      <div>
-                        <label className={labelCls}>
-                          Company name (if new)
-                        </label>
-                        <input
-                          type="text"
-                          value={companyName}
-                          onChange={(e) => setCompanyName(e.target.value)}
-                          placeholder="Acme Inc."
-                          className={inputCls}
-                        />
-                      </div>
-
-                      <div>
-                        <label className={labelCls}>Company logo URL</label>
-                        <input
-                          type="url"
-                          value={companyLogoUrl}
-                          onChange={(e) => setCompanyLogoUrl(e.target.value)}
-                          placeholder="https://yourcompany.com/logo.png"
-                          className={inputCls}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Your logo will appear on our trusted companies wall
-                        </p>
-                        {companyLogoUrl && (
-                          <div className="mt-2 flex items-center gap-3 rounded-lg border border-dashed border-[#059669]/30 p-3">
+                    {referralCompany && referralChecked ? (
+                      <div className="rounded-lg border border-[#059669]/30 bg-[#059669]/5 dark:bg-[#059669]/10 p-4">
+                        <div className="flex items-center gap-3">
+                          {referralCompany.tenantLogoUrl && (
                             <img
-                              src={companyLogoUrl}
-                              alt="Logo preview"
-                              className="h-8 w-auto max-w-[120px] object-contain"
-                              onError={(e) =>
-                                ((e.target as HTMLImageElement).style.display =
-                                  "none")
-                              }
+                              src={referralCompany.tenantLogoUrl}
+                              alt=""
+                              className="h-8 w-auto max-w-[80px] object-contain"
                             />
-                            <span className="text-xs text-gray-500">
-                              Preview
-                            </span>
+                          )}
+                          <div>
+                            <p className="text-sm font-semibold text-[#059669] dark:text-[#10b981]">
+                              {referralCompany.tenantName}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              You were invited by this company. You&apos;ll be added automatically.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrgMode("join");
+                              setCompanyName("");
+                              setCompanyLogoUrl("");
+                            }}
+                            className={radioCls(orgMode === "join")}
+                          >
+                            Join existing company
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrgMode("new");
+                              setJoinCode("");
+                              setJoinCodeVerified(false);
+                              setResolvedTenantId("");
+                              setResolvedCompanyName("");
+                            }}
+                            className={radioCls(orgMode === "new")}
+                          >
+                            Register a new company
+                          </button>
+                        </div>
+
+                        {orgMode === "join" && (
+                          <div className="mt-3 space-y-3">
+                            <div>
+                              <label className={labelCls}>Company join code</label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={joinCode}
+                                  onChange={(e) => {
+                                    setJoinCode(e.target.value.toUpperCase());
+                                    setJoinCodeVerified(false);
+                                    setResolvedTenantId("");
+                                    setResolvedCompanyName("");
+                                  }}
+                                  placeholder="e.g. ACME4F2B"
+                                  className={inputCls}
+                                  maxLength={12}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyCode}
+                                  disabled={!joinCode.trim() || verifyingCode}
+                                  className="shrink-0 rounded-lg px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 bg-gradient-to-br from-[#059669] to-[#10b981]"
+                                >
+                                  {verifyingCode ? "..." : "Verify"}
+                                </button>
+                              </div>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Ask your company admin for the join code
+                              </p>
+                            </div>
+
+                            {joinCodeVerified && resolvedCompanyName && (
+                              <div className="flex items-center gap-3 rounded-lg border border-[#059669]/30 bg-[#059669]/5 dark:bg-[#059669]/10 p-3">
+                                {resolvedCompanyLogo && (
+                                  <img
+                                    src={resolvedCompanyLogo}
+                                    alt=""
+                                    className="h-8 w-auto max-w-[80px] object-contain"
+                                  />
+                                )}
+                                <div>
+                                  <p className="text-sm font-semibold text-[#059669] dark:text-[#10b981]">
+                                    {resolvedCompanyName}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Company verified. Your affiliation will be reviewed by the company admin.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
-                    </>
-                  )}
+
+                        {orgMode === "new" && (
+                          <div className="mt-3 space-y-3">
+                            <div>
+                              <label className={labelCls}>Company name</label>
+                              <input
+                                type="text"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                placeholder="Acme Inc."
+                                className={inputCls}
+                              />
+                            </div>
+
+                            <div>
+                              <label className={labelCls}>Company logo URL</label>
+                              <input
+                                type="url"
+                                value={companyLogoUrl}
+                                onChange={(e) => setCompanyLogoUrl(e.target.value)}
+                                placeholder="https://yourcompany.com/logo.png"
+                                className={inputCls}
+                              />
+                              <p className="mt-1 text-xs text-gray-500">
+                                Your logo will appear on our trusted companies wall
+                              </p>
+                              {companyLogoUrl && (
+                                <div className="mt-2 flex items-center gap-3 rounded-lg border border-dashed border-[#059669]/30 p-3">
+                                  <img
+                                    src={companyLogoUrl}
+                                    alt="Logo preview"
+                                    className="h-8 w-auto max-w-[120px] object-contain"
+                                    onError={(e) =>
+                                      ((e.target as HTMLImageElement).style.display = "none")
+                                    }
+                                  />
+                                  <span className="text-xs text-gray-500">Preview</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
 
                   <div>
                     <label className={labelCls}>
@@ -455,7 +592,7 @@ export default function CompleteProfilePage() {
                   onClick={() => setStep(step - 1)}
                   className="rounded-lg border border-gray-200 dark:border-[#059669]/30 px-5 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
                 >
-                  Back
+                  {t("common.back")}
                 </button>
               )}
               <div className="flex-1" />
@@ -467,8 +604,8 @@ export default function CompleteProfilePage() {
                     if (!canAdvance(step)) {
                       setError(
                         step === 0
-                          ? "Please select your role and industry."
-                          : "Please select your department and position."
+                          ? t("completeProfile.errors.selectRoleAndIndustry")
+                          : t("completeProfile.errors.selectDeptAndPosition")
                       );
                       return;
                     }
@@ -476,7 +613,7 @@ export default function CompleteProfilePage() {
                   }}
                   className="rounded-lg px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90 bg-gradient-to-br from-[#059669] to-[#10b981]"
                 >
-                  Continue
+                  {t("completeProfile.continue")}
                 </button>
               ) : (
                 <button
@@ -484,7 +621,7 @@ export default function CompleteProfilePage() {
                   disabled={loading}
                   className="rounded-lg px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 bg-gradient-to-br from-[#059669] to-[#10b981]"
                 >
-                  {loading ? "Saving..." : "Complete profile"}
+                  {loading ? t("common.saving") : t("completeProfile.completeProfileBtn")}
                 </button>
               )}
             </div>
@@ -492,7 +629,7 @@ export default function CompleteProfilePage() {
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-brand-stardustLight">
             <Link href="/learn" className="text-[#059669] hover:underline">
-              Skip for now
+              {t("completeProfile.skipForNow")}
             </Link>
           </p>
         </motion.div>

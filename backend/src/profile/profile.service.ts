@@ -5,6 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
 import { SeatLimitService } from '../company/seat-limit.service';
 
+function generateJoinCode(): string {
+  return crypto.randomBytes(4).toString('hex').toUpperCase();
+}
+
 /**
  * Profile Service — User & tenant profile completion for recommendation optimization
  * omnilearn.space | Afflatus Consulting Group
@@ -22,6 +26,7 @@ export class ProfileService {
     userId: string,
     data: {
       tenantId?: string;
+      joinCode?: string;
       companyName?: string;
       companyLogoUrl?: string;
       industryId?: string;
@@ -34,14 +39,20 @@ export class ProfileService {
   ) {
     const userType = data.userType as 'TRAINEE' | 'TRAINER' | 'COMPANY_ADMIN' | undefined;
 
-    if (userType === 'TRAINEE' && data.companyName && !data.tenantId) {
-      throw new BadRequestException('Trainees cannot create new organizations. Please select an existing one or leave it empty.');
-    }
-
     let tenantId = data.tenantId;
     let createdNewOrg = false;
 
-    if (data.companyName && !tenantId && (userType === 'TRAINER' || userType === 'COMPANY_ADMIN')) {
+    if (data.joinCode && !tenantId) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { joinCode: data.joinCode.trim().toUpperCase() },
+      });
+      if (!tenant) {
+        throw new BadRequestException('Invalid company join code. Please check with your company admin.');
+      }
+      tenantId = tenant.id;
+    }
+
+    if (data.companyName && !tenantId) {
       const slug = data.companyName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -60,6 +71,7 @@ export class ProfileService {
           data: {
             name: data.companyName,
             slug: slug || `company-${Date.now()}`,
+            joinCode: generateJoinCode(),
             industryId: data.industryId || undefined,
             logoUrl: data.companyLogoUrl || undefined,
           },
@@ -445,16 +457,41 @@ export class ProfileService {
   }
 
   async getProfileOptions() {
-    const [industries, departments, positions, tenants] = await Promise.all([
+    const [industries, departments, positions] = await Promise.all([
       this.prisma.industry.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.position.findMany({ orderBy: { name: 'asc' } }),
-      this.prisma.tenant.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true, slug: true },
-      }),
     ]);
-    return { industries, departments, positions, tenants };
+    return { industries, departments, positions };
+  }
+
+  async resolveJoinCode(code: string) {
+    if (!code?.trim()) return { valid: false };
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { joinCode: code.trim().toUpperCase() },
+      select: { id: true, name: true, logoUrl: true },
+    });
+    if (!tenant) return { valid: false };
+    return { valid: true, tenantId: tenant.id, tenantName: tenant.name, tenantLogoUrl: tenant.logoUrl };
+  }
+
+  async getReferralCompany(userId: string) {
+    const referral = await this.prisma.referral.findFirst({
+      where: { referredUserId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: { referrerId: true },
+    });
+    if (!referral) return null;
+    const referrer = await this.prisma.user.findUnique({
+      where: { id: referral.referrerId },
+      select: { tenantId: true, tenant: { select: { id: true, name: true, logoUrl: true } } },
+    });
+    if (!referrer?.tenant) return null;
+    return {
+      tenantId: referrer.tenant.id,
+      tenantName: referrer.tenant.name,
+      tenantLogoUrl: referrer.tenant.logoUrl,
+    };
   }
 
   private isValidLinkedInUrl(url: string): boolean {

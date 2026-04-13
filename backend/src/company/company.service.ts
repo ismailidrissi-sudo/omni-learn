@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TenantBranding } from '@prisma/client';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -234,7 +235,7 @@ export class CompanyService {
 
   async createTenant(name: string, slug: string) {
     return this.prisma.tenant.create({
-      data: { name, slug },
+      data: { name, slug, joinCode: crypto.randomBytes(4).toString('hex').toUpperCase() },
     });
   }
 

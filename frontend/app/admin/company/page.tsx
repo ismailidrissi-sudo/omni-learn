@@ -25,6 +25,8 @@ import {
   Loader2,
   ExternalLink,
   ImageIcon,
+  Copy,
+  Check,
 } from "lucide-react";
 
 type AccountType = "company" | "branded_academy";
@@ -42,6 +44,7 @@ type Tenant = {
   id: string;
   name: string;
   slug: string;
+  joinCode?: string | null;
   industryId?: string;
   linkedinProfileUrl?: string;
   companyProfileComplete?: boolean;
@@ -192,6 +195,8 @@ export default function CompanyAdminPage() {
   const [maxUsers, setMaxUsers] = useState<number | "">(50);
   const [settingsLoading, setSettingsLoading] = useState(false);
 
+  const [selectedJoinCode, setSelectedJoinCode] = useState("");
+  const [joinCodeCopied, setJoinCodeCopied] = useState(false);
   const [orgSaving, setOrgSaving] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [brandingSaving, setBrandingSaving] = useState(false);
@@ -239,6 +244,8 @@ export default function CompanyAdminPage() {
       .then(([b, tenantData]) => {
         setBranding(b || {});
         setLogoVersion((v) => v + 1);
+        setSelectedJoinCode(tenantData?.joinCode ?? "");
+        setJoinCodeCopied(false);
         setOrgForm({
           name: tenantData?.name ?? "",
           slug: tenantData?.slug ?? "",
@@ -694,6 +701,37 @@ export default function CompanyAdminPage() {
                               className="mt-1"
                             />
                           </div>
+                          {selectedJoinCode && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Join code
+                              </label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="flex-1 flex items-center rounded-lg border border-gray-200 dark:border-white/15 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+                                  <span className="font-mono text-sm font-semibold text-gray-900 dark:text-white tracking-wider">
+                                    {selectedJoinCode}
+                                  </span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(selectedJoinCode);
+                                    setJoinCodeCopied(true);
+                                    setTimeout(() => setJoinCodeCopied(false), 2000);
+                                  }}
+                                  className="shrink-0"
+                                >
+                                  {joinCodeCopied ? <Check size={14} /> : <Copy size={14} />}
+                                  <span className="ml-1.5">{joinCodeCopied ? "Copied" : "Copy"}</span>
+                                </Button>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Share this code with employees so they can join your organization during signup.
+                              </p>
+                            </div>
+                          )}
                           <div>
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">URL slug</label>
                             <Input

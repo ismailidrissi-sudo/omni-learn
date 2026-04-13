@@ -248,6 +248,7 @@ model Tenant {
   id               String   @id @default(uuid())
   name             String
   slug             String   @unique
+  joinCode         String?  @unique
   industryId       String?
   logoUrl          String?
   linkedinProfileUrl String?    // Company LinkedIn page
