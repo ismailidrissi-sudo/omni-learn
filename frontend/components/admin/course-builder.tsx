@@ -59,8 +59,9 @@ function parseItemMetadata(item: CourseSectionItem): Record<string, unknown> {
 
 function normalizeQuizQuestionsFromMeta(raw: unknown): QuizQuestion[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((q) => {
-    const o = q as Record<string, unknown>;
+  return raw
+    .filter((q): q is Record<string, unknown> => q != null && typeof q === "object")
+    .map((o) => {
     let options = Array.isArray(o.options) ? o.options.map((x) => String(x ?? "")) : ["", ""];
     if (options.length < 2) {
       options = [...options, ...Array.from({ length: 2 - options.length }, () => "")];
@@ -1592,11 +1593,18 @@ function ParticipantsPanel({ courseId }: { courseId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch(`/content/${courseId}?admin=true`)
+    apiFetch(`/course-enrollments/course/${courseId}`)
       .then((r) => r.json())
       .then((data) => {
-        const users = data.userAssignments ?? [];
-        setParticipants(users);
+        const enrollments = Array.isArray(data) ? data : [];
+        setParticipants(
+          enrollments.map((e: { userId: string; user?: { name?: string; email?: string }; status?: string; progressPct?: number }) => ({
+            userId: e.userId,
+            user: e.user,
+            status: e.status,
+            progressPct: e.progressPct,
+          })),
+        );
       })
       .catch(() => setParticipants([]))
       .finally(() => setLoading(false));
@@ -1621,6 +1629,7 @@ function ParticipantsPanel({ courseId }: { courseId: string }) {
                   <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsName")}</th>
                   <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsEmail")}</th>
                   <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsStatus")}</th>
+                  <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsProgress") ?? "Progress"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-grey-light">
@@ -1629,10 +1638,15 @@ function ParticipantsPanel({ courseId }: { courseId: string }) {
                     <td className="px-4 py-2 text-brand-grey-dark">{p.user?.name ?? p.userId}</td>
                     <td className="px-4 py-2 text-brand-grey">{p.user?.email ?? "—"}</td>
                     <td className="px-4 py-2">
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200">
-                        {p.status ?? "Enrolled"}
+                      <span className={`px-2 py-0.5 rounded-full text-xs border ${
+                        p.status === "COMPLETED"
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-blue-50 text-blue-700 border-blue-200"
+                      }`}>
+                        {p.status === "COMPLETED" ? t("admin.participantsCompleted") ?? "Completed" : t("admin.participantsActive") ?? "Active"}
                       </span>
                     </td>
+                    <td className="px-4 py-2 text-brand-grey-dark">{p.progressPct ?? 0}%</td>
                   </tr>
                 ))}
               </tbody>

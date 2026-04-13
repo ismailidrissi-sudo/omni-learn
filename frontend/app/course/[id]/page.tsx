@@ -103,17 +103,27 @@ function normalizeCourseQuizQuestions(meta: Record<string, unknown>): Array<{
 }> {
   const raw = meta.questions;
   if (!Array.isArray(raw)) return [];
-  return raw.map((q, i) => {
+  const out: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctIndex: number;
+  }> = [];
+  let idx = 0;
+  for (const q of raw) {
+    if (q == null || typeof q !== "object") continue;
     const o = q as Record<string, unknown>;
     const options = Array.isArray(o.options) ? o.options.map((x) => String(x ?? "")) : [];
     const ci = normalizeQuizCorrectIndex(o.correctIndex, options.length);
-    return {
-      id: String(o.id ?? `q-${i}`),
+    out.push({
+      id: String(o.id ?? `q-${idx}`),
       question: String(o.question ?? ""),
       options,
       correctIndex: ci,
-    };
-  });
+    });
+    idx += 1;
+  }
+  return out;
 }
 
 export default function CoursePlayerPage() {
@@ -805,7 +815,7 @@ export default function CoursePlayerPage() {
                                   {item.title}
                                 </p>
                                 <p className="text-xs text-brand-grey mt-0.5">
-                                  {item.itemType.replace("_", " ")}
+                                  {(item.itemType ?? "LESSON").replace(/_/g, " ")}
                                   {item.durationMinutes
                                     ? ` · ${item.durationMinutes} min`
                                     : ""}
@@ -894,6 +904,9 @@ function QuizPlayer({
   }
 
   const q = questions[step];
+  if (!q) {
+    return <EmptyState label="No quiz questions" />;
+  }
   const correctIdx = q.correctIndex;
 
   const handleCheck = () => {

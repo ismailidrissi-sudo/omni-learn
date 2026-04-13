@@ -34,6 +34,12 @@ export class CourseEnrollmentController {
     return this.courseEnrollmentService.getEnrollment(userId, courseId);
   }
 
+  @Get('course/:courseId')
+  @UseGuards(AuthGuard('jwt'))
+  async getCourseEnrollments(@Param('courseId') courseId: string) {
+    return this.courseEnrollmentService.getCourseEnrollments(courseId);
+  }
+
   @Get('for-course')
   @UseGuards(AuthGuard('jwt'))
   async findEnrollmentForCourse(

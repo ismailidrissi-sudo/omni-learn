@@ -553,7 +553,10 @@
     "participantsNone": "Aucun participant inscrit pour le moment.",
     "participantsName": "Nom",
     "participantsEmail": "E-mail",
-    "participantsStatus": "Statut"
+    "participantsStatus": "Statut",
+    "participantsProgress": "Progression",
+    "participantsActive": "Actif",
+    "participantsCompleted": "Terminé"
   },
   "trainer": {
     "title": "Espace Formateur",

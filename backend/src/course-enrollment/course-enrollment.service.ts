@@ -428,6 +428,16 @@ export class CourseEnrollmentService {
     };
   }
 
+  async getCourseEnrollments(courseId: string) {
+    return this.prisma.courseEnrollment.findMany({
+      where: { courseId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getUserCourseEnrollments(userId: string) {
     return this.prisma.courseEnrollment.findMany({
       where: { userId },

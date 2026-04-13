@@ -561,7 +561,10 @@
     "participantsNone": "No participants enrolled yet.",
     "participantsName": "Name",
     "participantsEmail": "Email",
-    "participantsStatus": "Status"
+    "participantsStatus": "Status",
+    "participantsProgress": "Progress",
+    "participantsActive": "Active",
+    "participantsCompleted": "Completed"
   },
   "trainer": {
     "title": "Trainer Hub",
