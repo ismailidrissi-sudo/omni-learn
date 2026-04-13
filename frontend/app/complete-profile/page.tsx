@@ -102,10 +102,10 @@ export default function CompleteProfilePage() {
         setJoinCodeVerified(false);
         setResolvedTenantId("");
         setResolvedCompanyName("");
-        setError("Invalid company code. Please check with your company admin.");
+        setError(t("completeProfile.invalidJoinCode"));
       }
     } catch {
-      setError("Could not verify company code. Please try again.");
+      setError(t("completeProfile.verifyCodeFailed"));
     } finally {
       setVerifyingCode(false);
     }
@@ -116,15 +116,15 @@ export default function CompleteProfilePage() {
     setError("");
 
     if (!industryId) {
-      setError(t("completeProfile.errors.selectIndustry") || "Please select your industry so we can recommend the right content.");
+      setError(t("completeProfile.errors.selectIndustry"));
       return;
     }
     if (!departmentId) {
-      setError(t("completeProfile.errors.selectDepartment") || "Please select your department to personalize your learning path.");
+      setError(t("completeProfile.errors.selectDepartment"));
       return;
     }
     if (!positionId) {
-      setError(t("completeProfile.errors.selectPosition") || "Please select your position so we match content to your level.");
+      setError(t("completeProfile.errors.selectPosition"));
       return;
     }
 
@@ -154,12 +154,12 @@ export default function CompleteProfilePage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.message || t("completeProfile.errors.saveFailed") || "Failed to save profile");
+        setError(data?.message || t("completeProfile.errors.saveFailed"));
         return;
       }
       router.push("/learn");
     } catch {
-      setError(t("completeProfile.errors.somethingWrong") || "Something went wrong");
+      setError(t("completeProfile.errors.somethingWrong"));
     } finally {
       setLoading(false);
     }
@@ -317,7 +317,7 @@ export default function CompleteProfilePage() {
                               {referralCompany.tenantName}
                             </p>
                             <p className="text-xs text-gray-600 dark:text-gray-400">
-                              You were invited by this company. You&apos;ll be added automatically.
+                              {t("completeProfile.invitedByCompany")}
                             </p>
                           </div>
                         </div>
@@ -334,7 +334,7 @@ export default function CompleteProfilePage() {
                             }}
                             className={radioCls(orgMode === "join")}
                           >
-                            Join existing company
+                            {t("completeProfile.joinExisting")}
                           </button>
                           <button
                             type="button"
@@ -347,14 +347,14 @@ export default function CompleteProfilePage() {
                             }}
                             className={radioCls(orgMode === "new")}
                           >
-                            Register a new company
+                            {t("completeProfile.registerNew")}
                           </button>
                         </div>
 
                         {orgMode === "join" && (
                           <div className="mt-3 space-y-3">
                             <div>
-                              <label className={labelCls}>Company join code</label>
+                              <label className={labelCls}>{t("completeProfile.joinCode")}</label>
                               <div className="flex gap-2">
                                 <input
                                   type="text"
@@ -365,7 +365,7 @@ export default function CompleteProfilePage() {
                                     setResolvedTenantId("");
                                     setResolvedCompanyName("");
                                   }}
-                                  placeholder="e.g. ACME4F2B"
+                                  placeholder={t("completeProfile.joinCodePlaceholder")}
                                   className={inputCls}
                                   maxLength={12}
                                 />
@@ -375,11 +375,11 @@ export default function CompleteProfilePage() {
                                   disabled={!joinCode.trim() || verifyingCode}
                                   className="shrink-0 rounded-lg px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 bg-gradient-to-br from-[#059669] to-[#10b981]"
                                 >
-                                  {verifyingCode ? "..." : "Verify"}
+                                  {verifyingCode ? "..." : t("completeProfile.verify")}
                                 </button>
                               </div>
                               <p className="mt-1 text-xs text-gray-500">
-                                Ask your company admin for the join code
+                                {t("completeProfile.joinCodeHint")}
                               </p>
                             </div>
 
@@ -397,7 +397,7 @@ export default function CompleteProfilePage() {
                                     {resolvedCompanyName}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    Company verified. Your affiliation will be reviewed by the company admin.
+                                    {t("completeProfile.companyVerified")}
                                   </p>
                                 </div>
                               </div>
@@ -408,7 +408,7 @@ export default function CompleteProfilePage() {
                         {orgMode === "new" && (
                           <div className="mt-3 space-y-3">
                             <div>
-                              <label className={labelCls}>Company name</label>
+                              <label className={labelCls}>{t("completeProfile.companyName")}</label>
                               <input
                                 type="text"
                                 value={companyName}
@@ -419,7 +419,7 @@ export default function CompleteProfilePage() {
                             </div>
 
                             <div>
-                              <label className={labelCls}>Company logo URL</label>
+                              <label className={labelCls}>{t("completeProfile.companyLogoUrl")}</label>
                               <input
                                 type="url"
                                 value={companyLogoUrl}
@@ -428,19 +428,19 @@ export default function CompleteProfilePage() {
                                 className={inputCls}
                               />
                               <p className="mt-1 text-xs text-gray-500">
-                                Your logo will appear on our trusted companies wall
+                                {t("completeProfile.logoHint")}
                               </p>
                               {companyLogoUrl && (
                                 <div className="mt-2 flex items-center gap-3 rounded-lg border border-dashed border-[#059669]/30 p-3">
                                   <img
                                     src={companyLogoUrl}
-                                    alt="Logo preview"
+                                    alt={t("completeProfile.logoPreview")}
                                     className="h-8 w-auto max-w-[120px] object-contain"
                                     onError={(e) =>
                                       ((e.target as HTMLImageElement).style.display = "none")
                                     }
                                   />
-                                  <span className="text-xs text-gray-500">Preview</span>
+                                  <span className="text-xs text-gray-500">{t("completeProfile.preview")}</span>
                                 </div>
                               )}
                             </div>
@@ -452,7 +452,7 @@ export default function CompleteProfilePage() {
 
                   <div>
                     <label className={labelCls}>
-                      Industry / Sector{" "}
+                      {t("completeProfile.industrySector")}{" "}
                       <span className="text-[#059669]">*</span>
                     </label>
                     <select
@@ -460,7 +460,7 @@ export default function CompleteProfilePage() {
                       onChange={(e) => setIndustryId(e.target.value)}
                       className={selectCls}
                     >
-                      <option value="">Select industry</option>
+                      <option value="">{t("completeProfile.selectIndustry")}</option>
                       {options?.industries?.map((i) => (
                         <option key={i.id} value={i.id}>
                           {(i.code && t(`industries.${i.code}`)) !== `industries.${i.code}` ? t(`industries.${i.code}`) : i.name}
@@ -468,7 +468,7 @@ export default function CompleteProfilePage() {
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      We use this to recommend industry-specific content
+                      {t("completeProfile.industryHint")}
                     </p>
                   </div>
                 </motion.div>
@@ -485,14 +485,14 @@ export default function CompleteProfilePage() {
                 >
                   <div>
                     <label className={labelCls}>
-                      Department <span className="text-[#059669]">*</span>
+                      {t("completeProfile.department")} <span className="text-[#059669]">*</span>
                     </label>
                     <select
                       value={departmentId}
                       onChange={(e) => setDepartmentId(e.target.value)}
                       className={selectCls}
                     >
-                      <option value="">Select department</option>
+                      <option value="">{t("completeProfile.selectDepartment")}</option>
                       {options?.departments?.map((d) => (
                         <option key={d.id} value={d.id}>
                           {(d.code && t(`departments.${d.code}`)) !== `departments.${d.code}` ? t(`departments.${d.code}`) : d.name}
@@ -503,14 +503,14 @@ export default function CompleteProfilePage() {
 
                   <div>
                     <label className={labelCls}>
-                      Position <span className="text-[#059669]">*</span>
+                      {t("completeProfile.position")} <span className="text-[#059669]">*</span>
                     </label>
                     <select
                       value={positionId}
                       onChange={(e) => setPositionId(e.target.value)}
                       className={selectCls}
                     >
-                      <option value="">Select position</option>
+                      <option value="">{t("completeProfile.selectPosition")}</option>
                       {options?.positions?.map((p) => (
                         <option key={p.id} value={p.id}>
                           {(p.code && t(`positions.${p.code}`)) !== `positions.${p.code}` ? t(`positions.${p.code}`) : p.name}
@@ -518,12 +518,12 @@ export default function CompleteProfilePage() {
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      Helps us tailor content difficulty and scope to your level
+                      {t("completeProfile.positionHint")}
                     </p>
                   </div>
 
                   <div>
-                    <label className={labelCls}>LinkedIn profile URL</label>
+                    <label className={labelCls}>{t("completeProfile.linkedinUrl")}</label>
                     <input
                       type="url"
                       value={linkedinProfileUrl}
@@ -532,7 +532,7 @@ export default function CompleteProfilePage() {
                       className={inputCls}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Helps us optimize recommendations based on your expertise
+                      {t("completeProfile.linkedinHint")}
                     </p>
                   </div>
                 </motion.div>
@@ -548,35 +548,35 @@ export default function CompleteProfilePage() {
                   className="space-y-5"
                 >
                   <div>
-                    <label className={labelCls}>Sector focus</label>
+                    <label className={labelCls}>{t("completeProfile.sectorFocus")}</label>
                     <input
                       type="text"
                       value={sectorFocus}
                       onChange={(e) => setSectorFocus(e.target.value)}
-                      placeholder="e.g. Biotech, Food Safety, AI, ESG"
+                      placeholder={t("completeProfile.sectorFocusPlaceholder")}
                       className={inputCls}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      We&apos;ll prioritize content in your focus areas
+                      {t("completeProfile.sectorFocusHint")}
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-[#059669]/20 bg-[#059669]/5 dark:bg-[#059669]/10 p-4">
                     <h3 className="text-sm font-semibold text-[#059669] dark:text-[#10b981]">
-                      What happens next?
+                      {t("completeProfile.whatHappensNext")}
                     </h3>
                     <ul className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
                       <li className="flex items-start gap-2">
                         <span className="mt-0.5 text-[#059669]">&#10003;</span>
-                        AI-powered content matched to your industry &amp; role
+                        {t("completeProfile.nextStep1")}
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="mt-0.5 text-[#059669]">&#10003;</span>
-                        Personalized learning paths tailored to your goals
+                        {t("completeProfile.nextStep2")}
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="mt-0.5 text-[#059669]">&#10003;</span>
-                        Your company joins our trusted organizations wall
+                        {t("completeProfile.nextStep3")}
                       </li>
                     </ul>
                   </div>
