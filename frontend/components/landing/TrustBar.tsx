@@ -36,52 +36,33 @@ export function TrustBar() {
   }, []);
 
   const companies = stats?.trustedCompanies ?? [];
-  const dedupedCompanies = companies.filter(
-    (c, i, arr) => arr.findIndex((o) => o.name === c.name) === i,
-  );
-  const items = dedupedCompanies.filter((c) => !!c.logoUrl);
+  const dedupedCompanies = (() => {
+    const seenNames = new Set<string>();
+    const seenLogoKeys = new Set<string>();
+    const out: TrustedCompany[] = [];
+    for (const c of companies) {
+      if (!c.logoUrl?.trim()) continue;
+      const nameKey = c.name.trim().toLowerCase();
+      const rawUrl = c.logoUrl.split("?")[0] ?? "";
+      const logoKey = rawUrl.toLowerCase();
+      if (seenNames.has(nameKey)) continue;
+      if (logoKey && seenLogoKeys.has(logoKey)) continue;
+      seenNames.add(nameKey);
+      if (logoKey) seenLogoKeys.add(logoKey);
+      out.push(c);
+    }
+    return out;
+  })();
+  const items = dedupedCompanies;
   const visibleItems = items.filter((c) => !brokenLogos.has(c.id));
 
   const userCount = stats?.userCount ?? 0;
   const displayCount = userCount > 0 ? formatUserCount(userCount) : "2,000,000+";
 
-  const renderItem = (item: (typeof items)[0], idx: number) => {
-    if (!item.logoUrl || brokenLogos.has(item.id)) return null;
-
-    return (
-      <div
-        key={`${item.id}-${idx}`}
-        className="flex-shrink-0 px-6 md:px-10 flex items-center justify-center"
-      >
-        <img
-          src={apiAbsoluteMediaUrl(item.logoUrl) ?? item.logoUrl}
-          alt={item.name}
-          title={item.name}
-          className="h-8 w-auto max-w-[100px] md:h-10 md:max-w-[130px] object-contain object-center mix-blend-multiply dark:mix-blend-normal dark:brightness-0 dark:invert dark:opacity-80"
-          loading="lazy"
-          onError={() => handleImgError(item.id)}
-        />
-      </div>
-    );
-  };
-
   if (!loading && visibleItems.length === 0) return null;
 
   return (
     <section className="border-y border-[#D4B896]/30 dark:border-[#D4B896]/10 py-6 md:py-8">
-      <style>{`
-        @keyframes trustbar-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .trustbar-marquee {
-          animation: trustbar-scroll 25s linear infinite;
-        }
-        .trustbar-marquee:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
-
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -102,13 +83,23 @@ export function TrustBar() {
         </p>
       </motion.div>
 
-      <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-20 z-10 bg-gradient-to-r from-[#F5F5DC] to-transparent dark:from-[#0f1510]" />
-        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-20 z-10 bg-gradient-to-l from-[#F5F5DC] to-transparent dark:from-[#0f1510]" />
-
-        <div className="trustbar-marquee flex w-max items-center">
-          {items.map((item, i) => renderItem(item, i))}
-          {items.map((item, i) => renderItem(item, i + items.length))}
+      <div className="relative px-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5 md:gap-x-14 md:gap-y-6">
+          {visibleItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex h-14 shrink-0 items-center justify-center md:h-16"
+            >
+              <img
+                src={apiAbsoluteMediaUrl(item.logoUrl) ?? item.logoUrl}
+                alt={item.name}
+                title={item.name}
+                className="h-10 w-auto max-w-[120px] object-contain object-center mix-blend-multiply dark:mix-blend-normal dark:brightness-0 dark:invert dark:opacity-80 md:h-12 md:max-w-[150px]"
+                loading="lazy"
+                onError={() => handleImgError(item.id)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </section>
