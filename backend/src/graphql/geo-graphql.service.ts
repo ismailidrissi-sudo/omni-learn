@@ -78,7 +78,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<GeoOverviewGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const p = periodCacheKey(start, end);
-    const cacheKey = `analytics:geo:overview:v3:${tenantId}:${p}`;
+    const cacheKey = `analytics:geo:overview:v4:${tenantId}:${p}`;
     const cached = await this.cache.getJson<GeoOverviewGql>(cacheKey);
     if (cached) return cached;
 
@@ -153,23 +153,25 @@ export class GeoAnalyticsGqlService {
       ...(tenantId ? { user: { tenantId } } : {}),
     };
     const topCitiesRows = await this.prisma.contentAccessLog.groupBy({
-      by: ['countryCode', 'city'],
+      by: ['countryCode', 'city', 'region'],
       where: logWhereBase,
       _count: { id: true },
     });
 
-    const cityBuckets = new Map<string, { city: string; n: number }[]>();
+    const cityBuckets = new Map<string, { label: string; n: number }[]>();
     for (const row of topCitiesRows) {
       const code = normalizeCountryCodeForAggregation(row.countryCode);
       if (code === 'ZZ' || !row.city) continue;
       if (!cityBuckets.has(code)) cityBuckets.set(code, []);
-      cityBuckets.get(code)!.push({ city: row.city, n: row._count.id });
+      const r = row.region?.trim();
+      const label = r ? `${row.city}, ${r}` : row.city;
+      cityBuckets.get(code)!.push({ label, n: row._count.id });
     }
     const topCityByCode = new Map<string, string>();
     const topCitiesPreviewByCode = new Map<string, string>();
     for (const [code, bucket] of cityBuckets) {
       bucket.sort((a, b) => b.n - a.n);
-      const names = bucket.slice(0, 3).map((x) => x.city);
+      const names = bucket.slice(0, 3).map((x) => x.label);
       if (names.length) {
         topCityByCode.set(code, names[0]);
         topCitiesPreviewByCode.set(code, names.join(', '));
@@ -333,13 +335,19 @@ export class GeoAnalyticsGqlService {
 
     const logRows = await this.prisma.contentAccessLog.findMany({
       where: logWhere,
-      select: { userId: true, city: true },
+      select: { userId: true, city: true, region: true },
     });
 
     const normalizeCity = (raw: string | null | undefined) => {
       const t = raw?.trim();
       return t && t.length > 0 ? t : 'Unknown';
     };
+
+    const rowsByUser = new Map<string, typeof logRows>();
+    for (const row of logRows) {
+      if (!rowsByUser.has(row.userId)) rowsByUser.set(row.userId, []);
+      rowsByUser.get(row.userId)!.push(row);
+    }
 
     const countsByUser = new Map<string, Map<string, number>>();
     for (const row of logRows) {
@@ -360,6 +368,27 @@ export class GeoAnalyticsGqlService {
         }
       }
       primaryCityByUser.set(uid, best);
+    }
+
+    /** Dominant region (from IP geo) for each user's primary city in the period. */
+    const regionForUser = new Map<string, string | null>();
+    for (const [uid, primaryCity] of primaryCityByUser) {
+      const rows = rowsByUser.get(uid) ?? [];
+      const matching = rows.filter((r) => normalizeCity(r.city) === primaryCity);
+      const regCounts = new Map<string, number>();
+      for (const r of matching) {
+        const key = r.region?.trim() ?? '';
+        regCounts.set(key, (regCounts.get(key) ?? 0) + 1);
+      }
+      let bestReg = '';
+      let bestRN = -1;
+      for (const [reg, n] of regCounts) {
+        if (n > bestRN || (n === bestRN && reg.localeCompare(bestReg) < 0)) {
+          bestRN = n;
+          bestReg = reg;
+        }
+      }
+      regionForUser.set(uid, bestReg.length > 0 ? bestReg : null);
     }
 
     const cityToUsers = new Map<string, Set<string>>();
@@ -416,6 +445,24 @@ export class GeoAnalyticsGqlService {
     for (const r of courseRows) bumpComp(r.userId);
     for (const r of pathRows) bumpComp(r.userId);
 
+    const regionLabelForCityBucket = (userIds: Set<string>): string | null => {
+      const counts = new Map<string, number>();
+      for (const id of userIds) {
+        const r = regionForUser.get(id);
+        const key = r?.trim() ? r : '';
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      let best = '';
+      let bestN = -1;
+      for (const [k, n] of counts) {
+        if (n > bestN || (n === bestN && k.localeCompare(best) < 0)) {
+          bestN = n;
+          best = k;
+        }
+      }
+      return best.length > 0 ? best : null;
+    };
+
     return [...cityToUsers.entries()]
       .map(([city, userIds]) => {
         let active = 0;
@@ -424,7 +471,7 @@ export class GeoAnalyticsGqlService {
         }
         return {
           city,
-          region: null as string | null,
+          region: regionLabelForCityBucket(userIds),
           totalUsers: userIds.size,
           activeUsers: active,
           completions: compByCity.get(city) ?? 0,
@@ -442,7 +489,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<CountryDetailGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const code = countryCode.toUpperCase();
-    const cacheKey = `analytics:geo:country:v4:${tenantId}:${code}:${periodCacheKey(start, end)}`;
+    const cacheKey = `analytics:geo:country:v5:${tenantId}:${code}:${periodCacheKey(start, end)}`;
     const cached = await this.cache.getJson<CountryDetailGql>(cacheKey);
     if (cached) return cached;
 

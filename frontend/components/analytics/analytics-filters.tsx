@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { ALL_COUNTRY_OPTIONS } from "@/lib/all-country-options";
 import { Download, X } from "lucide-react";
 import { downloadCsv } from "@/lib/csv-download";
 
@@ -38,6 +39,15 @@ const inputCls =
   "px-2.5 py-1.5 text-xs border border-[var(--color-bg-secondary)] rounded-lg bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-brand-purple/40 transition-colors";
 
 export function AnalyticsFilters({ filters, onChange, tenants, courses, domains, countries }: Props) {
+  const mergedCountries = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of ALL_COUNTRY_OPTIONS) map.set(c.code, c.name);
+    for (const c of countries) map.set(c.code, c.name);
+    return [...map.entries()]
+      .map(([code, name]) => ({ code, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [countries]);
+
   const set = useCallback(
     (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value }),
     [filters, onChange],
@@ -100,16 +110,14 @@ export function AnalyticsFilters({ filters, onChange, tenants, courses, domains,
           </select>
         )}
 
-        {countries.length > 0 && (
-          <select value={filters.country} onChange={(e) => set("country", e.target.value)} className={inputCls}>
-            <option value="">All Countries</option>
-            {countries.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        )}
+        <select value={filters.country} onChange={(e) => set("country", e.target.value)} className={inputCls} title="Filter by country (ISO code)">
+          <option value="">All Countries</option>
+          {mergedCountries.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
 
         <select value={filters.deviceType} onChange={(e) => set("deviceType", e.target.value)} className={inputCls}>
           <option value="">All Devices</option>

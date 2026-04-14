@@ -12,7 +12,7 @@ export type CountryAnalyticsDetailModel = {
     completions: number;
     certsIssued: number;
   };
-  cities: { city: string; totalUsers: number; completions: number }[];
+  cities: { city: string; region?: string | null; totalUsers: number; activeUsers?: number; completions: number }[];
   deviceBreakdown: { webPct: number; iosPct: number; androidPct: number };
   topLearners: { displayName: string; city?: string | null; points: number; pathsDone: number }[];
 };
@@ -69,14 +69,17 @@ export function CountryAnalyticsDetail({ data: d, countryCodeUpper }: Props) {
         </CardHeader>
         <CardContent>
           <ul className="text-sm space-y-2 max-h-80 overflow-y-auto">
-            {d.cities.slice(0, 24).map((c) => (
-              <li key={c.city} className="flex justify-between border-b border-[var(--color-bg-secondary)]/80 py-2">
-                <span>{c.city}</span>
-                <span className="text-[var(--color-text-muted)]">
-                  {c.totalUsers} users · {c.completions} compl.
-                </span>
-              </li>
-            ))}
+            {d.cities.slice(0, 24).map((c) => {
+              const label = c.region ? `${c.city}, ${c.region}` : c.city;
+              return (
+                <li key={label} className="flex justify-between border-b border-[var(--color-bg-secondary)]/80 py-2">
+                  <span>{label}</span>
+                  <span className="text-[var(--color-text-muted)]">
+                    {c.totalUsers} users · {c.completions} compl.
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           {d.cities.length === 0 && (
             <p className="text-sm text-[var(--color-text-muted)]">No city breakdown for this period.</p>
