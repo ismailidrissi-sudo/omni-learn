@@ -125,7 +125,6 @@ export function nexusCompanyNavItems(t: T): BurgerNavItem[] {
 export function trainerNavItemsApproved(t: T): BurgerNavItem[] {
   return [
     { href: "/trainer", label: t("nav.trainer"), match: "prefix" },
-    { href: "/trainer/profile", label: t("profile.editProfile"), match: "exact" },
     { href: "/admin/paths", label: t("admin.sectionPaths"), match: "exact" },
     { href: "/admin/content", label: t("admin.sectionContent"), match: "exact" },
     { href: "/admin/company", label: t("admin.sectionCompany"), match: "exact" },

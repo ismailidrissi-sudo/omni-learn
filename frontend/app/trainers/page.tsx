@@ -96,7 +96,7 @@ export default function TrainersDirectoryPage() {
             <p className="text-sm text-brand-grey mb-4">{total} trainer{total !== 1 ? "s" : ""}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {trainers.map((t) => (
-                <Link key={t.id} href={`/trainers/${t.slug}`}>
+                <Link key={t.id} href={`/trainer/${t.slug}`}>
                   <Card className="p-0 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full">
                     <div className="h-20 bg-gradient-to-r from-brand-purple/20 to-brand-purple/5" />
                     <div className="px-5 pb-5 -mt-8">

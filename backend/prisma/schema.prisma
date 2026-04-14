@@ -1340,6 +1340,8 @@ model TrainerProfile {
   socialLinks      Json?                @default("{}")
   education        Json?                @default("[]")
   experience       Json?                @default("[]")
+  expertiseDomains Json?                @default("[]")
+  availability     Json?                @default("{}")
 
   websiteUrl       String?
   location         String?

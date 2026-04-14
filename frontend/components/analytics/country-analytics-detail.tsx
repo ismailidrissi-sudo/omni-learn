@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "@/lib/i18n/context";
 
 export type CountryAnalyticsDetailModel = {
   country: string;
@@ -22,6 +23,7 @@ type Props = {
 };
 
 export function CountryAnalyticsDetail({ data: d, countryCodeUpper }: Props) {
+  const { t } = useI18n();
   const code = countryCodeUpper.toUpperCase();
 
   return (
@@ -63,6 +65,7 @@ export function CountryAnalyticsDetail({ data: d, countryCodeUpper }: Props) {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">Cities (approximate)</CardTitle>
+          <p className="text-xs text-[var(--color-text-muted)] font-normal mt-1">{t("admin.geoCityBreakdownHint")}</p>
         </CardHeader>
         <CardContent>
           <ul className="text-sm space-y-2 max-h-80 overflow-y-auto">

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { countries as countriesData } from 'countries-list';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeoRedisCacheService } from '../analytics/geo-redis-cache.service';
@@ -11,6 +12,7 @@ import {
 } from '../analytics/geo-constants';
 import { GeoMetric } from './geo-graphql.enums';
 import type {
+  CityStatsGql,
   CountryComparisonEntryGql,
   CountryComparisonGql,
   CountryDetailGql,
@@ -310,6 +312,127 @@ export class GeoAnalyticsGqlService {
     }));
   }
 
+  /**
+   * City rows from IP geolocation on content access logs (ipinfo-like): each user is assigned
+   * to their dominant city in the period, then merged with profile-country users who had no logs.
+   */
+  private async buildCountryCityBreakdownIpLike(
+    countryCode: string,
+    start: Date,
+    end: Date,
+    tenantId: string | null,
+    profileUsers: { id: string; city: string | null }[],
+    activeUserIdsGlobal: Set<string>,
+  ): Promise<CityStatsGql[]> {
+    const code = countryCode.toUpperCase();
+    const logWhere: Prisma.ContentAccessLogWhereInput = {
+      createdAt: { gte: start, lte: end },
+      countryCode: code,
+      ...(tenantId ? { user: { tenantId } } : {}),
+    };
+
+    const logRows = await this.prisma.contentAccessLog.findMany({
+      where: logWhere,
+      select: { userId: true, city: true },
+    });
+
+    const normalizeCity = (raw: string | null | undefined) => {
+      const t = raw?.trim();
+      return t && t.length > 0 ? t : 'Unknown';
+    };
+
+    const countsByUser = new Map<string, Map<string, number>>();
+    for (const row of logRows) {
+      const cityLabel = normalizeCity(row.city);
+      if (!countsByUser.has(row.userId)) countsByUser.set(row.userId, new Map());
+      const m = countsByUser.get(row.userId)!;
+      m.set(cityLabel, (m.get(cityLabel) ?? 0) + 1);
+    }
+
+    const primaryCityByUser = new Map<string, string>();
+    for (const [uid, cityCounts] of countsByUser) {
+      let best = 'Unknown';
+      let bestN = -1;
+      for (const [ct, n] of cityCounts) {
+        if (n > bestN || (n === bestN && ct.localeCompare(best) < 0)) {
+          bestN = n;
+          best = ct;
+        }
+      }
+      primaryCityByUser.set(uid, best);
+    }
+
+    const cityToUsers = new Map<string, Set<string>>();
+    for (const [uid, city] of primaryCityByUser) {
+      if (!cityToUsers.has(city)) cityToUsers.set(city, new Set());
+      cityToUsers.get(city)!.add(uid);
+    }
+
+    for (const u of profileUsers) {
+      if (primaryCityByUser.has(u.id)) continue;
+      const c = normalizeCity(u.city);
+      if (!cityToUsers.has(c)) cityToUsers.set(c, new Set());
+      cityToUsers.get(c)!.add(u.id);
+    }
+
+    const allInCities = new Set<string>();
+    for (const ids of cityToUsers.values()) for (const id of ids) allInCities.add(id);
+    const allIdsArr = [...allInCities];
+
+    let courseRows: { userId: string }[] = [];
+    let pathRows: { userId: string }[] = [];
+    if (allIdsArr.length > 0) {
+      [courseRows, pathRows] = await Promise.all([
+        this.prisma.courseEnrollment.findMany({
+          where: {
+            userId: { in: allIdsArr },
+            status: 'COMPLETED',
+            completedAt: { gte: start, lte: end },
+          },
+          select: { userId: true },
+        }),
+        this.prisma.pathEnrollment.findMany({
+          where: {
+            userId: { in: allIdsArr },
+            status: 'COMPLETED',
+            completedAt: { gte: start, lte: end },
+          },
+          select: { userId: true },
+        }),
+      ]);
+    }
+
+    const userCityAssignment = new Map<string, string>();
+    for (const [city, ids] of cityToUsers) {
+      for (const id of ids) userCityAssignment.set(id, city);
+    }
+
+    const compByCity = new Map<string, number>();
+    const bumpComp = (uid: string) => {
+      const city = userCityAssignment.get(uid);
+      if (!city) return;
+      compByCity.set(city, (compByCity.get(city) ?? 0) + 1);
+    };
+    for (const r of courseRows) bumpComp(r.userId);
+    for (const r of pathRows) bumpComp(r.userId);
+
+    return [...cityToUsers.entries()]
+      .map(([city, userIds]) => {
+        let active = 0;
+        for (const id of userIds) {
+          if (activeUserIdsGlobal.has(id)) active += 1;
+        }
+        return {
+          city,
+          region: null as string | null,
+          totalUsers: userIds.size,
+          activeUsers: active,
+          completions: compByCity.get(city) ?? 0,
+        };
+      })
+      .sort((a, b) => b.totalUsers - a.totalUsers);
+  }
+
   async getCountryAnalytics(
     user: RequestUserPayload,
     countryCode: string,
@@ -319,7 +442,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<CountryDetailGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const code = countryCode.toUpperCase();
-    const cacheKey = `analytics:geo:country:${tenantId}:${code}:${periodCacheKey(start, end)}`;
+    const cacheKey = `analytics:geo:country:v4:${tenantId}:${code}:${periodCacheKey(start, end)}`;
     const cached = await this.cache.getJson<CountryDetailGql>(cacheKey);
     if (cached) return cached;
 
@@ -373,37 +496,14 @@ export class GeoAnalyticsGqlService {
       },
     });
 
-    const activeLogsByCity = await this.prisma.contentAccessLog.groupBy({
-      by: ['userId', 'city'],
-      where: {
-        createdAt: { gte: start, lte: end },
-        countryCode: code,
-        user: tenantId ? { tenantId } : undefined,
-      },
-    });
-    const cityActiveMap = new Map<string, Set<string>>();
-    for (const row of activeLogsByCity) {
-      const city = row.city || 'Unknown';
-      if (!cityActiveMap.has(city)) cityActiveMap.set(city, new Set());
-      cityActiveMap.get(city)!.add(row.userId);
-    }
-
-    const cityMap = new Map<string, { totalUsers: number; ids: Set<string> }>();
-    for (const u of users) {
-      const city = u.city || 'Unknown';
-      if (!cityMap.has(city)) cityMap.set(city, { totalUsers: 0, ids: new Set() });
-      const c = cityMap.get(city)!;
-      c.totalUsers += 1;
-      c.ids.add(u.id);
-    }
-
-    const cities = [...cityMap.entries()].map(([city, v]) => ({
-      city,
-      region: null as string | null,
-      totalUsers: v.totalUsers,
-      activeUsers: cityActiveMap.get(city)?.size ?? 0,
-      completions: 0,
-    }));
+    const cities = await this.buildCountryCityBreakdownIpLike(
+      code,
+      start,
+      end,
+      tenantId,
+      users,
+      activeUserIds,
+    );
 
     const logs = await this.prisma.contentAccessLog.groupBy({
       by: ['deviceType'],
