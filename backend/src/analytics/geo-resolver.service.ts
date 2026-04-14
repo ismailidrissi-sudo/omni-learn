@@ -228,14 +228,17 @@ export class GeoResolverService implements OnModuleDestroy {
       return empty;
     }
 
+    // Prefer IPinfo when token is set so admin analytics match IPinfo dashboards (city/region).
+    if (process.env.IPINFO_TOKEN) {
+      const info = await this.fromIpinfo(cleanIp);
+      if (info?.country || info?.countryCode) return info;
+    }
+
     const reader = await this.ensureMaxMind();
     if (reader) {
       const mm = this.fromMaxMind(cleanIp, reader);
       if (mm?.country || mm?.countryCode) return mm;
     }
-
-    const info = await this.fromIpinfo(cleanIp);
-    if (info?.country || info?.countryCode) return info;
 
     const lite = this.fromGeoipLite(cleanIp);
     if (lite) return lite;

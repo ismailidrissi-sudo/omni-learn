@@ -8,6 +8,7 @@ interface AggRow {
   country: string;
   countryCode: string;
   city: string;
+  region: string | null;
   contentViews: number;
   activeUserIds: Set<string>;
   webSessions: number;
@@ -64,6 +65,15 @@ export class GeoRollupService {
     return `${tenantId}|${country}|${countryCode}|${city}`;
   }
 
+  /** City bucket for rollups: mirrors IPinfo-style "City, Region" when region is present. */
+  private cityBucket(city: string | null | undefined, region: string | null | undefined): string {
+    const c = (city || '').trim();
+    if (!c) return '';
+    const r = (region || '').trim();
+    const label = r ? `${c}, ${r}` : c;
+    return label.length > 100 ? label.slice(0, 100) : label;
+  }
+
   async runRollup(period: RollupPeriod, anchor: Date): Promise<{ rows: number }> {
     const { start, end, periodStart } = this.windowFor(period, anchor);
     this.log.log(`Geo rollup ${period} ${periodStart.toISOString()} [${start.toISOString()}, ${end.toISOString()})`);
@@ -84,6 +94,7 @@ export class GeoRollupService {
           country: true,
           countryCode: true,
           city: true,
+          region: true,
           deviceType: true,
         },
       });
@@ -91,13 +102,14 @@ export class GeoRollupService {
       for (const row of logs) {
         const cc = (row.countryCode || '').toUpperCase() || 'ZZ';
         const cname = row.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const city = '';
+        const city = this.cityBucket(row.city, row.region);
         const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
             city,
+            region: row.region?.trim() || null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -127,18 +139,19 @@ export class GeoRollupService {
           tenantId,
           createdAt: { gte: start, lt: end },
         },
-        select: { id: true, country: true, countryCode: true },
+        select: { id: true, country: true, countryCode: true, city: true },
       });
       for (const u of newUsers) {
         const cc = (u.countryCode || '').toUpperCase() || 'ZZ';
         const cname = u.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const city = '';
+        const city = this.cityBucket(u.city, null);
         const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
             city,
+            region: null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -168,7 +181,7 @@ export class GeoRollupService {
       const courseUserIds = [...new Set(courseDone.map((e) => e.userId))];
       const courseUsers = await this.prisma.user.findMany({
         where: { id: { in: courseUserIds } },
-        select: { id: true, country: true, countryCode: true },
+        select: { id: true, country: true, countryCode: true, city: true },
       });
       const courseUserMap = new Map(courseUsers.map((u) => [u.id, u]));
       for (const e of courseDone) {
@@ -176,12 +189,14 @@ export class GeoRollupService {
         if (!u) continue;
         const cc = (u.countryCode || '').toUpperCase() || 'ZZ';
         const cname = u.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const k = this.keyCountry(tenantId, cname, cc, '');
+        const city = this.cityBucket(u.city, null);
+        const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
-            city: '',
+            city,
+            region: null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -211,7 +226,7 @@ export class GeoRollupService {
       const pathUserIds = [...new Set(pathDone.map((e) => e.userId))];
       const pathUsers = await this.prisma.user.findMany({
         where: { id: { in: pathUserIds } },
-        select: { id: true, country: true, countryCode: true },
+        select: { id: true, country: true, countryCode: true, city: true },
       });
       const pathUserMap = new Map(pathUsers.map((u) => [u.id, u]));
       for (const e of pathDone) {
@@ -219,12 +234,14 @@ export class GeoRollupService {
         if (!u) continue;
         const cc = (u.countryCode || '').toUpperCase() || 'ZZ';
         const cname = u.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const k = this.keyCountry(tenantId, cname, cc, '');
+        const city = this.cityBucket(u.city, null);
+        const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
-            city: '',
+            city,
+            region: null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -265,7 +282,7 @@ export class GeoRollupService {
       ];
       const certUsers = await this.prisma.user.findMany({
         where: { id: { in: certUserIds } },
-        select: { id: true, country: true, countryCode: true },
+        select: { id: true, country: true, countryCode: true, city: true },
       });
       const certUserMap = new Map(certUsers.map((u) => [u.id, u]));
       for (const cert of certs) {
@@ -274,12 +291,14 @@ export class GeoRollupService {
         if (!u) continue;
         const cc = (u.countryCode || '').toUpperCase() || 'ZZ';
         const cname = u.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const k = this.keyCountry(tenantId, cname, cc, '');
+        const city = this.cityBucket(u.city, null);
+        const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
-            city: '',
+            city,
+            region: null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -309,18 +328,22 @@ export class GeoRollupService {
           durationSeconds: true,
           country: true,
           countryCode: true,
+          city: true,
+          region: true,
           deviceType: true,
         },
       });
       for (const s of sessions) {
         const cc = (s.countryCode || '').toUpperCase() || 'ZZ';
         const cname = s.country || englishCountryNameFromCode(cc) || 'Unknown';
-        const k = this.keyCountry(tenantId, cname, cc, '');
+        const city = this.cityBucket(s.city, s.region);
+        const k = this.keyCountry(tenantId, cname, cc, city);
         if (!map.has(k)) {
           map.set(k, {
             country: cname,
             countryCode: cc,
-            city: '',
+            city,
+            region: s.region?.trim() || null,
             contentViews: 0,
             activeUserIds: new Set(),
             webSessions: 0,
@@ -367,6 +390,7 @@ export class GeoRollupService {
             country: agg.country,
             countryCode: agg.countryCode,
             city: agg.city,
+            region: agg.region,
             activeUsers,
             newRegistrations: agg.newRegistrations,
             contentViews: agg.contentViews,
@@ -382,6 +406,7 @@ export class GeoRollupService {
           },
           update: {
             countryCode: agg.countryCode,
+            region: agg.region,
             activeUsers,
             newRegistrations: agg.newRegistrations,
             contentViews: agg.contentViews,
