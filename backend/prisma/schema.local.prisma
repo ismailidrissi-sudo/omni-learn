@@ -567,6 +567,8 @@ model TrainerProfile {
   socialLinks      String? @default("{}")
   education        String? @default("[]")
   experience       String? @default("[]")
+  expertiseDomains String? @default("[]")
+  availability     String? @default("{}")
 
   websiteUrl       String?
   location         String?

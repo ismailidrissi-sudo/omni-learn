@@ -28,7 +28,16 @@ export class UpsertTrainerProfileDto {
 
   @IsOptional()
   @IsArray()
-  certifications?: Array<{ name: string; issuer?: string; year?: number; url?: string }>;
+  certifications?: Array<{
+    name: string;
+    issuer?: string;
+    year?: number;
+    url?: string;
+    numero?: string;
+    badgeUrl?: string;
+    expire?: boolean;
+    dateExpiration?: string;
+  }>;
 
   @IsOptional()
   @IsArray()
@@ -36,12 +45,18 @@ export class UpsertTrainerProfileDto {
 
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  languages?: string[];
+  languages?: unknown[];
 
   @IsOptional()
   @IsObject()
-  socialLinks?: { linkedin?: string; twitter?: string; github?: string; youtube?: string; website?: string };
+  socialLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    github?: string;
+    youtube?: string;
+    website?: string;
+    researchgate?: string;
+  };
 
   @IsOptional()
   @IsArray()
@@ -50,6 +65,14 @@ export class UpsertTrainerProfileDto {
   @IsOptional()
   @IsArray()
   experience?: Array<{ company: string; role: string; from?: string; to?: string; description?: string }>;
+
+  @IsOptional()
+  @IsArray()
+  expertiseDomains?: Array<{ domain: string; level: number; source?: string }>;
+
+  @IsOptional()
+  @IsObject()
+  availability?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()

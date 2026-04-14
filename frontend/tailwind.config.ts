@@ -39,6 +39,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        trainer: {
+          primary: "#1D9E75",
+          secondary: "#6B2D8B",
+          amber: "#BA7517",
+          linkedin: "#0A66C2",
+        },
         brand: brandColors,
       },
       fontFamily: {

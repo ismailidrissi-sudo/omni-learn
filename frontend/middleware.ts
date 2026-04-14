@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { ADMIN_NAV_ANY_PERMISSIONS, hasAnyPermission } from "@/lib/permissions";
+import { isPublicTrainerProfilePath } from "@/lib/trainer-reserved-paths";
 
 const PROTECTED_PATHS = [
   "/learn",
   "/admin",
   "/checkout",
   "/complete-profile",
-  "/trainer",
   "/referrals",
 ];
 
@@ -39,6 +39,8 @@ function isTenantAdminPath(pathname: string): boolean {
 
 function isProtected(pathname: string): boolean {
   if (isTenantAdminPath(pathname)) return true;
+  if (isPublicTrainerProfilePath(pathname)) return false;
+  if (pathname === "/trainer" || pathname.startsWith("/trainer/")) return true;
   return PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   );
