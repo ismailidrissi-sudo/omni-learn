@@ -76,6 +76,7 @@ model User {
   tenant                Tenant?                @relation(fields: [tenantId], references: [id])
   contentUserAssignments ContentUserAssignment[]
   createdContentItems    ContentItem[]            @relation("ContentCreatedBy")
+  createdLearningPaths   LearningPath[]           @relation("LearningPathCreatedBy")
   trainerProfile         TrainerProfile?
 }
 
@@ -148,17 +149,20 @@ model LearningPath {
   description String?
   isPublished Boolean  @default(false)
   settings    String?  @default("{}")
+  createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   domain     Domain               @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  createdBy  User?                @relation("LearningPathCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   steps      LearningPathStep[]
   enrollments PathEnrollment[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([domainId])
+  @@index([createdById])
 }
 
 model LearningPathStep {

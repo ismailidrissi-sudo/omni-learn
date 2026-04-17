@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewContentPublisherService } from '../email/new-content-publisher.service';
+import { RbacRole } from '../constants/rbac.constant';
 
 /**
  * Learning Path CRUD — Full create, read, update, delete
@@ -29,6 +30,12 @@ export interface CreateStepDto {
   timeGateHours?: number;
 }
 
+export type PathEditor = { userId: string; roles: string[] };
+
+function canBypassPathOwnership(roles: string[]): boolean {
+  return roles.includes(RbacRole.SUPER_ADMIN) || roles.includes(RbacRole.COMPANY_ADMIN);
+}
+
 @Injectable()
 export class LearningPathCrudService {
   private readonly logger = new Logger(LearningPathCrudService.name);
@@ -38,7 +45,32 @@ export class LearningPathCrudService {
     private readonly newContentPublisher: NewContentPublisherService,
   ) {}
 
-  async createPath(data: CreatePathDto) {
+  private async assertCanMutatePath(pathId: string, editor: PathEditor) {
+    if (canBypassPathOwnership(editor.roles)) return;
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+      select: { createdById: true },
+    });
+    if (!path) {
+      throw new NotFoundException('Learning path not found');
+    }
+    if (!path.createdById || path.createdById !== editor.userId) {
+      throw new ForbiddenException('You can only modify learning paths you created');
+    }
+  }
+
+  private async resolvePathIdFromStep(stepId: string): Promise<string> {
+    const step = await this.prisma.learningPathStep.findUnique({
+      where: { id: stepId },
+      select: { pathId: true },
+    });
+    if (!step) {
+      throw new NotFoundException('Learning path step not found');
+    }
+    return step.pathId;
+  }
+
+  async createPath(data: CreatePathDto, opts?: { createdById?: string | null }) {
     const created = await this.prisma.learningPath.create({
       data: {
         tenantId: data.tenantId,
@@ -50,6 +82,7 @@ export class LearningPathCrudService {
         isPublished: data.isPublished ?? false,
         availablePlans: data.availablePlans ?? ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'],
         availableInEnterprise: data.availableInEnterprise ?? false,
+        ...(opts?.createdById != null ? { createdById: opts.createdById } : {}),
       },
     });
     if (created.isPublished) {
@@ -86,7 +119,8 @@ export class LearningPathCrudService {
     });
   }
 
-  async updatePath(id: string, data: Partial<CreatePathDto>) {
+  async updatePath(id: string, data: Partial<CreatePathDto>, editor: PathEditor) {
+    await this.assertCanMutatePath(id, editor);
     const before = await this.prisma.learningPath.findUnique({ where: { id } });
     const updated = await this.prisma.learningPath.update({
       where: { id },
@@ -109,11 +143,13 @@ export class LearningPathCrudService {
     return updated;
   }
 
-  async deletePath(id: string) {
+  async deletePath(id: string, editor: PathEditor) {
+    await this.assertCanMutatePath(id, editor);
     return this.prisma.learningPath.delete({ where: { id } });
   }
 
-  async addStep(data: CreateStepDto) {
+  async addStep(data: CreateStepDto, editor: PathEditor) {
+    await this.assertCanMutatePath(data.pathId, editor);
     return this.prisma.learningPathStep.create({
       data: {
         pathId: data.pathId,
@@ -127,7 +163,9 @@ export class LearningPathCrudService {
     });
   }
 
-  async updateStep(stepId: string, data: Partial<CreateStepDto>) {
+  async updateStep(stepId: string, data: Partial<CreateStepDto>, editor: PathEditor) {
+    const pathId = await this.resolvePathIdFromStep(stepId);
+    await this.assertCanMutatePath(pathId, editor);
     return this.prisma.learningPathStep.update({
       where: { id: stepId },
       data: {
@@ -140,11 +178,14 @@ export class LearningPathCrudService {
     });
   }
 
-  async removeStep(stepId: string) {
+  async removeStep(stepId: string, editor: PathEditor) {
+    const pathId = await this.resolvePathIdFromStep(stepId);
+    await this.assertCanMutatePath(pathId, editor);
     return this.prisma.learningPathStep.delete({ where: { id: stepId } });
   }
 
-  async replaceSteps(pathId: string, steps: Omit<CreateStepDto, 'pathId'>[]) {
+  async replaceSteps(pathId: string, steps: Omit<CreateStepDto, 'pathId'>[], editor: PathEditor) {
+    await this.assertCanMutatePath(pathId, editor);
     return this.prisma.$transaction(async (tx) => {
       await tx.learningPathStep.deleteMany({ where: { pathId } });
       if (steps.length === 0) return [];

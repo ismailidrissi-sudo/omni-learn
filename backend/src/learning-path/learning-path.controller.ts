@@ -7,6 +7,7 @@ import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { EnrollDto, UpdateStepProgressDto } from '../dto/learning-path.dto';
 import { AccountStatusGuard } from '../auth/guards/account-status.guard';
 import { PremiumAction } from '../auth/decorators/premium-action.decorator';
@@ -86,29 +87,40 @@ export class LearningPathController {
   @Post()
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async createPath(@Body() body: CreatePathDto) {
-    return this.crudService.createPath(body);
+  async createPath(@Body() body: CreatePathDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.crudService.createPath(body, { createdById: user.sub });
   }
 
   @Put(':id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async updatePath(@Param('id') id: string, @Body() body: Partial<CreatePathDto>) {
-    return this.crudService.updatePath(id, body);
+  async updatePath(
+    @Param('id') id: string,
+    @Body() body: Partial<CreatePathDto>,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.crudService.updatePath(id, body, { userId: user.sub, roles: user.roles });
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async deletePath(@Param('id') id: string) {
-    return this.crudService.deletePath(id);
+  async deletePath(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.crudService.deletePath(id, { userId: user.sub, roles: user.roles });
   }
 
   @Post(':pathId/steps')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async addStep(@Param('pathId') pathId: string, @Body() body: Omit<CreateStepDto, 'pathId'>) {
-    return this.crudService.addStep({ ...body, pathId });
+  async addStep(
+    @Param('pathId') pathId: string,
+    @Body() body: Omit<CreateStepDto, 'pathId'>,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.crudService.addStep(
+      { ...body, pathId },
+      { userId: user.sub, roles: user.roles },
+    );
   }
 
   @Put(':pathId/steps')
@@ -117,22 +129,36 @@ export class LearningPathController {
   async replaceSteps(
     @Param('pathId') pathId: string,
     @Body() body: { steps: Omit<CreateStepDto, 'pathId'>[] },
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.crudService.replaceSteps(pathId, body.steps);
+    return this.crudService.replaceSteps(pathId, body.steps, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Put('steps/:stepId')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async updateStep(@Param('stepId') stepId: string, @Body() body: Partial<CreateStepDto>) {
-    return this.crudService.updateStep(stepId, body);
+  async updateStep(
+    @Param('stepId') stepId: string,
+    @Body() body: Partial<CreateStepDto>,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.crudService.updateStep(stepId, body, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Delete('steps/:stepId')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
-  async removeStep(@Param('stepId') stepId: string) {
-    return this.crudService.removeStep(stepId);
+  async removeStep(@Param('stepId') stepId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.crudService.removeStep(stepId, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Post('enrollments/:enrollmentId/steps/:stepId/progress')

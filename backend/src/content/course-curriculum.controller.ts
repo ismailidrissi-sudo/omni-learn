@@ -13,6 +13,7 @@ import { CourseCurriculumService } from './course-curriculum.service';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import type {
   CreateSectionDto,
   UpdateSectionDto,
@@ -36,8 +37,12 @@ export class CourseCurriculumController {
   async createSection(
     @Param('courseId') courseId: string,
     @Body() body: Omit<CreateSectionDto, 'courseId'>,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.createSection({ ...body, courseId });
+    return this.curriculum.createSection(
+      { ...body, courseId },
+      { userId: user.sub, roles: user.roles },
+    );
   }
 
   @Put('sections/:sectionId')
@@ -45,14 +50,24 @@ export class CourseCurriculumController {
   async updateSection(
     @Param('sectionId') sectionId: string,
     @Body() body: UpdateSectionDto,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.updateSection(sectionId, body);
+    return this.curriculum.updateSection(sectionId, body, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Delete('sections/:sectionId')
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async deleteSection(@Param('sectionId') sectionId: string) {
-    return this.curriculum.deleteSection(sectionId);
+  async deleteSection(
+    @Param('sectionId') sectionId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.curriculum.deleteSection(sectionId, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Post('sections/:sectionId/items')
@@ -60,8 +75,12 @@ export class CourseCurriculumController {
   async createSectionItem(
     @Param('sectionId') sectionId: string,
     @Body() body: Omit<CreateSectionItemDto, 'sectionId'>,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.createSectionItem({ ...body, sectionId });
+    return this.curriculum.createSectionItem(
+      { ...body, sectionId },
+      { userId: user.sub, roles: user.roles },
+    );
   }
 
   @Put('sections/items/:itemId')
@@ -69,14 +88,24 @@ export class CourseCurriculumController {
   async updateSectionItem(
     @Param('itemId') itemId: string,
     @Body() body: UpdateSectionItemDto,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.updateSectionItem(itemId, body);
+    return this.curriculum.updateSectionItem(itemId, body, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Delete('sections/items/:itemId')
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
-  async deleteSectionItem(@Param('itemId') itemId: string) {
-    return this.curriculum.deleteSectionItem(itemId);
+  async deleteSectionItem(
+    @Param('itemId') itemId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.curriculum.deleteSectionItem(itemId, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Put('courses/:courseId/sections/reorder')
@@ -84,8 +113,12 @@ export class CourseCurriculumController {
   async reorderSections(
     @Param('courseId') courseId: string,
     @Body() body: { sectionIds: string[] },
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.reorderSections(courseId, body.sectionIds);
+    return this.curriculum.reorderSections(courseId, body.sectionIds, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 
   @Put('sections/:sectionId/items/reorder')
@@ -93,7 +126,11 @@ export class CourseCurriculumController {
   async reorderSectionItems(
     @Param('sectionId') sectionId: string,
     @Body() body: { itemIds: string[] },
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.curriculum.reorderSectionItems(sectionId, body.itemIds);
+    return this.curriculum.reorderSectionItems(sectionId, body.itemIds, {
+      userId: user.sub,
+      roles: user.roles,
+    });
   }
 }

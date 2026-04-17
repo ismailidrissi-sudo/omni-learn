@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Headers, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Headers, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { IntelligenceService } from './intelligence.service';
 import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
@@ -6,10 +6,14 @@ import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('intelligence')
 export class IntelligenceController {
-  constructor(private readonly intelligence: IntelligenceService) {}
+  constructor(
+    private readonly intelligence: IntelligenceService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('recommendations')
   @UseGuards(OptionalJwtGuard)
@@ -63,7 +67,22 @@ export class IntelligenceController {
   @Post('content/:contentId/embed')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.INSTRUCTOR)
-  updateEmbedding(@Param('contentId') contentId: string) {
+  async updateEmbedding(
+    @Param('contentId') contentId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (!user.roles.includes(RbacRole.SUPER_ADMIN)) {
+      const item = await this.prisma.contentItem.findUnique({
+        where: { id: contentId },
+        select: { createdById: true },
+      });
+      if (!item) {
+        throw new NotFoundException('Content not found');
+      }
+      if (!item.createdById || item.createdById !== user.sub) {
+        throw new ForbiddenException('You can only re-embed content you created');
+      }
+    }
     return this.intelligence.updateContentEmbedding(contentId);
   }
 

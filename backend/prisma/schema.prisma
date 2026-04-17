@@ -219,6 +219,7 @@ model User {
   seatAssignments          SeatAssignment[]
   contentUserAssignments   ContentUserAssignment[]
   createdContentItems        ContentItem[]            @relation("ContentCreatedBy")
+  createdLearningPaths       LearningPath[]           @relation("LearningPathCreatedBy")
   trainerProfile           TrainerProfile?
   videoWatchProgress       VideoWatchProgress[]
   emailLogs                EmailLog[]
@@ -355,17 +356,21 @@ model LearningPath {
   availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
   availableInEnterprise Boolean   @default(false) // Available in company white-label academies
 
+  createdById String?  // Trainer / author who created this path (admin isolation)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   domain     Domain               @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  createdBy  User?                @relation("LearningPathCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   steps      LearningPathStep[]
   enrollments PathEnrollment[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([domainId])
+  @@index([createdById])
 }
 
 model LearningPathStep {

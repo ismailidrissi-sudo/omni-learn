@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RbacRole } from '../constants/rbac.constant';
 
 export interface CreateSectionDto {
   courseId: string;
@@ -39,9 +40,51 @@ export interface QuizQuestion {
   correctIndex: number;
 }
 
+export type CurriculumEditor = { userId: string; roles: string[] };
+
+function canBypassCurriculumOwnership(roles: string[]): boolean {
+  return roles.includes(RbacRole.SUPER_ADMIN) || roles.includes(RbacRole.COMPANY_ADMIN);
+}
+
 @Injectable()
 export class CourseCurriculumService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async assertCanMutateCourse(courseId: string, editor: CurriculumEditor) {
+    if (canBypassCurriculumOwnership(editor.roles)) return;
+    const course = await this.prisma.contentItem.findUnique({
+      where: { id: courseId },
+      select: { createdById: true },
+    });
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+    if (!course.createdById || course.createdById !== editor.userId) {
+      throw new ForbiddenException('You can only modify curriculum of courses you created');
+    }
+  }
+
+  private async resolveCourseIdFromSection(sectionId: string): Promise<string> {
+    const section = await this.prisma.courseSection.findUnique({
+      where: { id: sectionId },
+      select: { courseId: true },
+    });
+    if (!section) {
+      throw new NotFoundException('Section not found');
+    }
+    return section.courseId;
+  }
+
+  private async resolveCourseIdFromSectionItem(itemId: string): Promise<string> {
+    const item = await this.prisma.courseSectionItem.findUnique({
+      where: { id: itemId },
+      select: { section: { select: { courseId: true } } },
+    });
+    if (!item) {
+      throw new NotFoundException('Section item not found');
+    }
+    return item.section.courseId;
+  }
 
   async getCourseCurriculum(courseId: string) {
     return this.prisma.courseSection.findMany({
@@ -55,7 +98,8 @@ export class CourseCurriculumService {
     });
   }
 
-  async createSection(data: CreateSectionDto) {
+  async createSection(data: CreateSectionDto, editor: CurriculumEditor) {
+    await this.assertCanMutateCourse(data.courseId, editor);
     const maxOrder = await this.prisma.courseSection
       .aggregate({
         where: { courseId: data.courseId },
@@ -72,7 +116,9 @@ export class CourseCurriculumService {
     });
   }
 
-  async updateSection(sectionId: string, data: UpdateSectionDto) {
+  async updateSection(sectionId: string, data: UpdateSectionDto, editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSection(sectionId);
+    await this.assertCanMutateCourse(courseId, editor);
     return this.prisma.courseSection.update({
       where: { id: sectionId },
       data: {
@@ -83,13 +129,17 @@ export class CourseCurriculumService {
     });
   }
 
-  async deleteSection(sectionId: string) {
+  async deleteSection(sectionId: string, editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSection(sectionId);
+    await this.assertCanMutateCourse(courseId, editor);
     return this.prisma.courseSection.delete({
       where: { id: sectionId },
     });
   }
 
-  async createSectionItem(data: CreateSectionItemDto) {
+  async createSectionItem(data: CreateSectionItemDto, editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSection(data.sectionId);
+    await this.assertCanMutateCourse(courseId, editor);
     const maxOrder = await this.prisma.courseSectionItem
       .aggregate({
         where: { sectionId: data.sectionId },
@@ -113,7 +163,9 @@ export class CourseCurriculumService {
     });
   }
 
-  async updateSectionItem(itemId: string, data: UpdateSectionItemDto) {
+  async updateSectionItem(itemId: string, data: UpdateSectionItemDto, editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSectionItem(itemId);
+    await this.assertCanMutateCourse(courseId, editor);
     const updateData: Record<string, unknown> = {};
     if (data.title) updateData.title = data.title;
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
@@ -129,13 +181,16 @@ export class CourseCurriculumService {
     });
   }
 
-  async deleteSectionItem(itemId: string) {
+  async deleteSectionItem(itemId: string, editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSectionItem(itemId);
+    await this.assertCanMutateCourse(courseId, editor);
     return this.prisma.courseSectionItem.delete({
       where: { id: itemId },
     });
   }
 
-  async reorderSections(courseId: string, sectionIds: string[]) {
+  async reorderSections(courseId: string, sectionIds: string[], editor: CurriculumEditor) {
+    await this.assertCanMutateCourse(courseId, editor);
     const updates = sectionIds.map((id, i) =>
       this.prisma.courseSection.update({
         where: { id },
@@ -145,7 +200,9 @@ export class CourseCurriculumService {
     return this.prisma.$transaction(updates);
   }
 
-  async reorderSectionItems(sectionId: string, itemIds: string[]) {
+  async reorderSectionItems(sectionId: string, itemIds: string[], editor: CurriculumEditor) {
+    const courseId = await this.resolveCourseIdFromSection(sectionId);
+    await this.assertCanMutateCourse(courseId, editor);
     const updates = itemIds.map((id, i) =>
       this.prisma.courseSectionItem.update({
         where: { id },

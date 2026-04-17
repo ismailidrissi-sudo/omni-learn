@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, Res, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, Res, Headers, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Response, Request } from 'express';
 import { AnalyticsService } from './analytics.service';
@@ -13,6 +13,7 @@ import { OptionalJwtGuard } from '../auth/guards/optional-jwt.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
 
 @Controller('analytics')
@@ -54,7 +55,11 @@ export class AnalyticsController {
   @Get('paths/:pathId')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER, RbacRole.INSTRUCTOR)
-  getPathAnalytics(@Param('pathId') pathId: string) {
+  async getPathAnalytics(
+    @Param('pathId') pathId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    await this.assertTrainerOwnsPath(pathId, user);
     return this.analytics.getPathAnalytics(pathId);
   }
 
@@ -188,7 +193,11 @@ export class AnalyticsController {
   @Get('deep/content/:courseId/dropoff')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER, RbacRole.INSTRUCTOR)
-  deepDropoff(@Param('courseId') courseId: string) {
+  async deepDropoff(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    await this.assertTrainerOwnsCourse(courseId, user);
     return this.deep.getContentDropoff(courseId);
   }
 
@@ -344,5 +353,38 @@ export class AnalyticsController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="omnilearn-${name}-${date}.csv"`);
     res.send('\uFEFF' + data); // BOM for Excel UTF-8
+  }
+
+  /** Trainer (INSTRUCTOR) without admin bypass may only view analytics for content they created. */
+  private async assertTrainerOwnsCourse(courseId: string, user: CurrentUserPayload) {
+    const isInstructorOnly =
+      user.roles.includes(RbacRole.INSTRUCTOR) &&
+      !user.roles.includes(RbacRole.SUPER_ADMIN) &&
+      !user.roles.includes(RbacRole.COMPANY_ADMIN) &&
+      !user.roles.includes(RbacRole.COMPANY_MANAGER);
+    if (!isInstructorOnly) return;
+    const item = await this.prisma.contentItem.findUnique({
+      where: { id: courseId },
+      select: { createdById: true },
+    });
+    if (!item || item.createdById !== user.sub) {
+      throw new NotFoundException('Content not found');
+    }
+  }
+
+  private async assertTrainerOwnsPath(pathId: string, user: CurrentUserPayload) {
+    const isInstructorOnly =
+      user.roles.includes(RbacRole.INSTRUCTOR) &&
+      !user.roles.includes(RbacRole.SUPER_ADMIN) &&
+      !user.roles.includes(RbacRole.COMPANY_ADMIN) &&
+      !user.roles.includes(RbacRole.COMPANY_MANAGER);
+    if (!isInstructorOnly) return;
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+      select: { createdById: true },
+    });
+    if (!path || path.createdById !== user.sub) {
+      throw new NotFoundException('Learning path not found');
+    }
   }
 }
