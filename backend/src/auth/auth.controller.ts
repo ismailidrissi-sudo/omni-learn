@@ -49,6 +49,7 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() body: LoginDto) {
+    // TODO(gamification): daily login hook — grant DAILY_LOGIN points once per calendar day
     return this.authService.loginWithPassword(body.email, body.password);
   }
 

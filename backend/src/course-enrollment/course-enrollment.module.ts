@@ -5,9 +5,16 @@ import { AuthModule } from '../auth/auth.module';
 import { CertificateModule } from '../certificate/certificate.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ReferralModule } from '../referral/referral.module';
+import { GamificationModule } from '../gamification/gamification.module';
 
 @Module({
-  imports: [AuthModule, CertificateModule, NotificationModule, ReferralModule],
+  imports: [
+    AuthModule,
+    CertificateModule,
+    NotificationModule,
+    ReferralModule,
+    GamificationModule,
+  ],
   controllers: [CourseEnrollmentController],
   providers: [CourseEnrollmentService],
   exports: [CourseEnrollmentService],

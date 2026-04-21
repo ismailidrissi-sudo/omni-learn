@@ -4,6 +4,8 @@ import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 import { CertificateService } from '../certificate/certificate.service';
 import { NotificationService } from '../notification/notification.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
+import { GamificationService } from '../gamification/gamification.service';
+import { POINT_REASONS } from '../gamification/gamification.rules';
 
 /**
  * Learning Path Orchestration Engine
@@ -19,6 +21,7 @@ export class LearningPathService {
     private readonly certificateService: CertificateService,
     private readonly notificationService: NotificationService,
     private readonly transactionalEmail: TransactionalEmailService,
+    private readonly gamification: GamificationService,
   ) {}
 
   /** Enroll a user in a learning path (idempotent — returns existing enrollment if already enrolled) */
@@ -187,10 +190,27 @@ export class LearningPathService {
     });
 
     if (allCompleted && !wasAlreadyCompleted) {
+      void this.grantPathCompletionGamification(enrollment).catch((err) =>
+        this.logger.warn(`Gamification path complete failed (non-fatal): ${err}`),
+      );
       await this.autoIssueCertificate(enrollmentId, enrollment);
     }
 
     return { pathCompleted: allCompleted, totalSteps, completedSteps };
+  }
+
+  private async grantPathCompletionGamification(enrollment: {
+    userId: string;
+    path: { id: string; tenantId: string };
+  }): Promise<void> {
+    await this.gamification.grantPoints({
+      userId: enrollment.userId,
+      tenantId: enrollment.path.tenantId,
+      reason: POINT_REASONS.PATH_COMPLETE,
+      sourceType: 'path',
+      sourceId: enrollment.path.id,
+      idempotencyKey: `path_complete:${enrollment.userId}:${enrollment.path.id}`,
+    });
   }
 
   private async resolveWalletTenantSlugForPath(tenantId: string, userId: string): Promise<string> {

@@ -166,77 +166,78 @@ model Position {
 // ── USERS (company users with department/position) ──
 
 model User {
-  id            String           @id @default(uuid())
-  email         String           @unique
-  name          String
-  passwordHash  String?          // For email/password signup (bcrypt)
-  emailVerified Boolean         @default(false)
-  emailVerifyToken String?      // Token for email confirmation
-  emailVerifyExpiresAt DateTime? // Token expiry
-  passwordResetTokenHash String? @db.VarChar(128) // bcrypt hash of one-time reset token
+  id                     String            @id @default(uuid())
+  email                  String            @unique
+  name                   String
+  passwordHash           String? // For email/password signup (bcrypt)
+  emailVerified          Boolean           @default(false)
+  emailVerifyToken       String? // Token for email confirmation
+  emailVerifyExpiresAt   DateTime? // Token expiry
+  passwordResetTokenHash String?           @db.VarChar(128) // bcrypt hash of one-time reset token
   passwordResetExpiresAt DateTime?
-  magicLinkTokenHash String?  @db.VarChar(128) // bcrypt hash of one-time magic link invite token
-  magicLinkExpiresAt DateTime?                 // TTL for magic link (24-48h)
-  departmentId  String?
-  positionId    String?
-  tenantId      String?
-  externalId    String?
-  linkedinProfileUrl String?    // For recommendation optimization
-  linkedinAccessToken String?   // Encrypted; for LinkedIn contacts import (referral system)
-  profileComplete Boolean       @default(false)  // Onboarding completed
-  planId        SubscriptionPlan @default(EXPLORER)
-  billingCycle  BillingCycle?    // null for free/enterprise
-  sectorFocus   String?          // For Specialist: Biotech, Food Safety, AI, etc.
-  stripeCustomerId String?       // Stripe customer ID for billing
-  stripeSubscriptionId String?  // Active subscription ID
-  isAdmin            Boolean      @default(false)  // Platform admin — grants all RBAC roles + trainer + approval rights
-  trainerRequested   Boolean      @default(false)  // User requested to be a trainer (content creator)
-  trainerApprovedAt DateTime?    // When set, user has INSTRUCTOR role and can create content
-  userType           UserType?              // Trainee, Trainer, or Company Admin — selected during profile completion
-  orgApprovalStatus  OrgApprovalStatus @default(NONE) // Org affiliation approval by company admin
-  companyAdminRequested  Boolean  @default(false)  // User requested company admin role (pending platform admin approval)
-  companyAdminApprovedAt DateTime?  // When set, user has COMPANY_ADMIN role
-  gender        Gender?
-  dateOfBirth   DateTime?
-  country       String?
-  countryCode   String?          @db.VarChar(3)
-  city          String?
-  timezone      String?          @db.VarChar(50)
-  phoneNumber   String?
-  accountStatus UserAccountStatus @default(ACTIVE)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  magicLinkTokenHash     String?           @db.VarChar(128) // bcrypt hash of one-time magic link invite token
+  magicLinkExpiresAt     DateTime? // TTL for magic link (24-48h)
+  departmentId           String?
+  positionId             String?
+  tenantId               String?
+  externalId             String?
+  linkedinProfileUrl     String? // For recommendation optimization
+  linkedinAccessToken    String? // Encrypted; for LinkedIn contacts import (referral system)
+  profileComplete        Boolean           @default(false) // Onboarding completed
+  planId                 SubscriptionPlan  @default(EXPLORER)
+  billingCycle           BillingCycle? // null for free/enterprise
+  sectorFocus            String? // For Specialist: Biotech, Food Safety, AI, etc.
+  stripeCustomerId       String? // Stripe customer ID for billing
+  stripeSubscriptionId   String? // Active subscription ID
+  isAdmin                Boolean           @default(false) // Platform admin — grants all RBAC roles + trainer + approval rights
+  trainerRequested       Boolean           @default(false) // User requested to be a trainer (content creator)
+  trainerApprovedAt      DateTime? // When set, user has INSTRUCTOR role and can create content
+  userType               UserType? // Trainee, Trainer, or Company Admin — selected during profile completion
+  orgApprovalStatus      OrgApprovalStatus @default(NONE) // Org affiliation approval by company admin
+  companyAdminRequested  Boolean           @default(false) // User requested company admin role (pending platform admin approval)
+  companyAdminApprovedAt DateTime? // When set, user has COMPANY_ADMIN role
+  gender                 Gender?
+  dateOfBirth            DateTime?
+  country                String?
+  countryCode            String?           @db.VarChar(3)
+  city                   String?
+  timezone               String?           @db.VarChar(50)
+  phoneNumber            String?
+  accountStatus          UserAccountStatus @default(ACTIVE)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
   department Department? @relation(fields: [departmentId], references: [id])
-  position   Position?  @relation(fields: [positionId], references: [id])
-  tenant     Tenant?    @relation(fields: [tenantId], references: [id])
+  position   Position?   @relation(fields: [positionId], references: [id])
+  tenant     Tenant?     @relation(fields: [tenantId], references: [id])
 
   requestedApprovals ApprovalRequest[] @relation("ApprovalRequestRequester")
   reviewedApprovals  ApprovalRequest[] @relation("ApprovalRequestReviewer")
 
-  groupMemberships         UserGroupMembership[]
-  userTags                 UserTag[]
-  seatAssignments          SeatAssignment[]
-  contentUserAssignments   ContentUserAssignment[]
-  createdContentItems        ContentItem[]            @relation("ContentCreatedBy")
-  createdLearningPaths       LearningPath[]           @relation("LearningPathCreatedBy")
-  trainerProfile           TrainerProfile?
-  videoWatchProgress       VideoWatchProgress[]
-  emailLogs                EmailLog[]
-  userEmailPreferences     UserEmailPreference[]
-  userContentInteractions  UserContentInteraction[]
-  sessions                 UserSession[]
-  contentAccessLogs        ContentAccessLog[]
-  pathEnrollments          PathEnrollment[]
-  courseEnrollments         CourseEnrollment[]
-  userPoints               UserPoints?
-  userStreak               UserStreak?
-  forumTopics              ForumTopic[]
-  forumPosts               ForumPost[]
-  courseReviews             CourseReview[]
-  microLearningLikes       MicroLearningLike[]
-  microLearningComments    MicroLearningComment[]
-  notifications            Notification[]
+  groupMemberships        UserGroupMembership[]
+  userTags                UserTag[]
+  seatAssignments         SeatAssignment[]
+  contentUserAssignments  ContentUserAssignment[]
+  createdContentItems     ContentItem[]            @relation("ContentCreatedBy")
+  createdLearningPaths    LearningPath[]           @relation("LearningPathCreatedBy")
+  trainerProfile          TrainerProfile?
+  videoWatchProgress      VideoWatchProgress[]
+  emailLogs               EmailLog[]
+  userEmailPreferences    UserEmailPreference[]
+  userContentInteractions UserContentInteraction[]
+  sessions                UserSession[]
+  contentAccessLogs       ContentAccessLog[]
+  pathEnrollments         PathEnrollment[]
+  courseEnrollments       CourseEnrollment[]
+  userPoints              UserPoints?
+  userStreak              UserStreak?
+  pointsLedger            PointsLedger[]
+  forumTopics             ForumTopic[]
+  forumPosts              ForumPost[]
+  courseReviews           CourseReview[]
+  microLearningLikes      MicroLearningLike[]
+  microLearningComments   MicroLearningComment[]
+  notifications           Notification[]
 
   @@index([tenantId])
   @@index([tenantId, orgApprovalStatus])
@@ -246,49 +247,51 @@ model User {
 // ── TENANTS (rich company profile) ──
 
 model Tenant {
-  id               String   @id @default(uuid())
-  name             String
-  slug             String   @unique
-  joinCode         String?  @unique
-  industryId       String?
-  logoUrl          String?
-  linkedinProfileUrl String?    // Company LinkedIn page
-  companyProfileComplete Boolean @default(false)  // Profile data for recommendations
-  language         String?  @default("en")
-  status           String?  @default("ACTIVE")
-  targetMarkets    Json?    @default("[]")
-  productsServices Json?    @default("[]")
-  certifications   Json?    @default("[]")
-  staffingLevel    String?
-  internalErp      String?
+  id                     String   @id @default(uuid())
+  name                   String
+  slug                   String   @unique
+  joinCode               String?  @unique
+  industryId             String?
+  logoUrl                String?
+  linkedinProfileUrl     String? // Company LinkedIn page
+  companyProfileComplete Boolean  @default(false) // Profile data for recommendations
+  language               String?  @default("en")
+  status                 String?  @default("ACTIVE")
+  targetMarkets          Json?    @default("[]")
+  productsServices       Json?    @default("[]")
+  certifications         Json?    @default("[]")
+  staffingLevel          String?
+  internalErp            String?
   /// JSON shape: { accountType?: string, plan?: string, maxUsers?: number, allowSelfSignup?: boolean, ...rest }
-  settings         Json?    @default("{}")
+  settings               Json?    @default("{}")
   /// INDIVIDUAL | COMPANY | PRIVATE_LABEL
-  tenantKind       String   @default("INDIVIDUAL") @db.VarChar(30)
-  privateLabelConfig Json?  @default("{}")
+  tenantKind             String   @default("INDIVIDUAL") @db.VarChar(30)
+  privateLabelConfig     Json?    @default("{}")
   /// For PRIVATE_LABEL: PENDING until super_admin approves; else ACTIVE | SUSPENDED
-  tenantApprovalStatus String @default("ACTIVE") @db.VarChar(20)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  tenantApprovalStatus   String   @default("ACTIVE") @db.VarChar(20)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  industry            Industry?             @relation(fields: [industryId], references: [id])
-  domains             Domain[]
-  learningPaths       LearningPath[]
+  industry             Industry?             @relation(fields: [industryId], references: [id])
+  domains              Domain[]
+  learningPaths        LearningPath[]
   certificateTemplates CertificateTemplate[]
-  branding            TenantBranding?
-  users               User[]
-  privateContent      ContentItem[]         // Nexus: tenant-specific content
+  branding             TenantBranding?
+  users                User[]
+  privateContent       ContentItem[] // Nexus: tenant-specific content
 
-  contracts                 B2BContract[]
-  userGroups                UserGroup[]
-  tags                      Tag[]
-  ssoConfigs                TenantSsoConfig[]
-  contentTenantAssignments   ContentTenantAssignment[]
-  emailBranding              EmailBranding?
-  emailSchedules             EmailSchedule[]
-  emailCampaigns             EmailCampaign[]
-  approvalRequests           ApprovalRequest[]
-  geoAnalyticsRollups        GeoAnalyticsRollup[]
+  contracts                B2BContract[]
+  userGroups               UserGroup[]
+  tags                     Tag[]
+  ssoConfigs               TenantSsoConfig[]
+  contentTenantAssignments ContentTenantAssignment[]
+  emailBranding            EmailBranding?
+  emailSchedules           EmailSchedule[]
+  emailCampaigns           EmailCampaign[]
+  approvalRequests         ApprovalRequest[]
+  geoAnalyticsRollups      GeoAnalyticsRollup[]
+  userPoints               UserPoints[]
+  pointsLedgers            PointsLedger[]
 
   @@index([industryId])
 }
@@ -331,9 +334,9 @@ model Domain {
   updatedAt   DateTime @updatedAt
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  certificateTemplate  CertificateTemplate?
-  learningPaths        LearningPath[]
-  contentItems         ContentItem[]
+  certificateTemplate CertificateTemplate?
+  learningPaths       LearningPath[]
+  contentItems        ContentItem[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, isActive])
@@ -343,28 +346,28 @@ model Domain {
 // ── LEARNING PATHS ──
 
 model LearningPath {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   tenantId    String
   domainId    String
   name        String
   slug        String
   difficulty  String?
   description String?
-  isPublished Boolean  @default(false)
-  settings    Json?    @default("{}")
+  isPublished Boolean @default(false)
+  settings    Json?   @default("{}")
 
-  availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
-  availableInEnterprise Boolean   @default(false) // Available in company white-label academies
+  availablePlans        Json    @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
+  availableInEnterprise Boolean @default(false) // Available in company white-label academies
 
-  createdById String?  // Trainer / author who created this path (admin isolation)
+  createdById String? // Trainer / author who created this path (admin isolation)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  domain     Domain               @relation(fields: [domainId], references: [id], onDelete: Restrict)
-  createdBy  User?                @relation("LearningPathCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  steps      LearningPathStep[]
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  domain      Domain             @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  createdBy   User?              @relation("LearningPathCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  steps       LearningPathStep[]
   enrollments PathEnrollment[]
 
   @@unique([tenantId, slug])
@@ -379,16 +382,16 @@ model LearningPathStep {
   contentItemId String
   stepOrder     Int
   isRequired    Boolean  @default(true)
-  unlockAfterId String?  // Self-reference for prerequisite
+  unlockAfterId String? // Self-reference for prerequisite
   timeGateHours Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  path         LearningPath       @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  contentItem  ContentItem        @relation(fields: [contentItemId], references: [id], onDelete: Restrict)
-  unlockAfter  LearningPathStep?  @relation("StepPrerequisite", fields: [unlockAfterId], references: [id])
-  unlockedBy   LearningPathStep[] @relation("StepPrerequisite")
-  progress     PathStepProgress[]
+  path        LearningPath       @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  contentItem ContentItem        @relation(fields: [contentItemId], references: [id], onDelete: Restrict)
+  unlockAfter LearningPathStep?  @relation("StepPrerequisite", fields: [unlockAfterId], references: [id])
+  unlockedBy  LearningPathStep[] @relation("StepPrerequisite")
+  progress    PathStepProgress[]
 
   @@unique([pathId, stepOrder])
   @@index([pathId])
@@ -398,41 +401,41 @@ model LearningPathStep {
 // ── CONTENT ITEMS (with pgvector embeddings) ──
 
 model ContentItem {
-  id             String      @id @default(uuid())
-  type           ContentType
-  title          String
-  description    String?     @db.Text  // Rich description of the content
-  domainId       String?     // Optional FK to domain
-  mediaId        String?
+  id              String                       @id @default(uuid())
+  type            ContentType
+  title           String
+  description     String?                      @db.Text // Rich description of the content
+  domainId        String? // Optional FK to domain
+  mediaId         String?
   durationMinutes Int?
-  metadata       Json?       @default("{}")  // Type-specific metadata (transcript, SCORM, etc.)
-  embedding      Unsupported("vector(1536)")?  // pgvector for AI recommendations
-  accessLevel    Int         @default(0)  // 0=Foundational (Free), 1=Sector-specific, 2=All-access
-  sectorTag      String?     // Biotech, Food Safety, AI, etc. — for Specialist tier filtering
-  tenantId       String?     // For Nexus: private enterprise content
-  isFoundational Boolean    @default(false)  // Tagged for Explorer (Free) tier
+  metadata        Json?                        @default("{}") // Type-specific metadata (transcript, SCORM, etc.)
+  embedding       Unsupported("vector(1536)")? // pgvector for AI recommendations
+  accessLevel     Int                          @default(0) // 0=Foundational (Free), 1=Sector-specific, 2=All-access
+  sectorTag       String? // Biotech, Food Safety, AI, etc. — for Specialist tier filtering
+  tenantId        String? // For Nexus: private enterprise content
+  isFoundational  Boolean                      @default(false) // Tagged for Explorer (Free) tier
 
-  availablePlans        Json      @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
-  availableInEnterprise Boolean   @default(false) // Available in company white-label academies
+  availablePlans        Json    @default("[\"EXPLORER\",\"SPECIALIST\",\"VISIONARY\",\"NEXUS\"]") // Which subscription plans can access this
+  availableInEnterprise Boolean @default(false) // Available in company white-label academies
 
-  language              String    @default("en") // Content language (en, fr, ar, …)
+  language String @default("en") // Content language (en, fr, ar, …)
 
-  videoIsMicrolearning Boolean  @default(false)
-  videoDurationSeconds Int?     // Precise duration in seconds for video content
+  videoIsMicrolearning Boolean @default(false)
+  videoDurationSeconds Int? // Precise duration in seconds for video content
 
-  createdById    String?     // Trainer / author who created this item (admin isolation)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdById String? // Trainer / author who created this item (admin isolation)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdBy              User?                    @relation("ContentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  domain                 Domain?                  @relation(fields: [domainId], references: [id])
-  tenant                 Tenant?                  @relation(fields: [tenantId], references: [id])
-  pathSteps              LearningPathStep[]
-  courseSections         CourseSection[]  // For type=COURSE: Udemy-style curriculum
-  courseEnrollments      CourseEnrollment[]
-  tenantAssignments      ContentTenantAssignment[] // When empty = all companies
-  userAssignments        ContentUserAssignment[]   // When empty = all users
-  contentAccessLogs      ContentAccessLog[]
+  createdBy         User?                     @relation("ContentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  domain            Domain?                   @relation(fields: [domainId], references: [id])
+  tenant            Tenant?                   @relation(fields: [tenantId], references: [id])
+  pathSteps         LearningPathStep[]
+  courseSections    CourseSection[] // For type=COURSE: Udemy-style curriculum
+  courseEnrollments CourseEnrollment[]
+  tenantAssignments ContentTenantAssignment[] // When empty = all companies
+  userAssignments   ContentUserAssignment[] // When empty = all users
+  contentAccessLogs ContentAccessLog[]
 
   @@index([tenantId])
   @@index([createdById])
@@ -478,44 +481,44 @@ enum CourseItemType {
   DOCUMENT
   QUIZ
   ARTICLE
-  CODING_EXERCISE  // Udemy-style: practical coding exercises
+  CODING_EXERCISE // Udemy-style: practical coding exercises
 }
 
 model CourseSection {
-  id          String   @id @default(uuid())
-  courseId    String   // ContentItem.id where type=COURSE
-  title       String
-  learningGoal String? @db.Text  // "What will students achieve at the end of this section?"
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  courseId     String // ContentItem.id where type=COURSE
+  title        String
+  learningGoal String?  @db.Text // "What will students achieve at the end of this section?"
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  course  ContentItem        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  items   CourseSectionItem[]
+  course ContentItem         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items  CourseSectionItem[]
 
   @@index([courseId])
 }
 
 model CourseSectionItem {
-  id            String        @id @default(uuid())
-  sectionId     String
-  itemType      CourseItemType
-  title         String
-  sortOrder     Int           @default(0)
-  durationMinutes Int?         // For VIDEO
-  contentUrl    String?       // Video URL, document URL, etc.
-  metadata      Json?         @default("{}")  // Quiz questions, article content, etc.
+  id              String         @id @default(uuid())
+  sectionId       String
+  itemType        CourseItemType
+  title           String
+  sortOrder       Int            @default(0)
+  durationMinutes Int? // For VIDEO
+  contentUrl      String? // Video URL, document URL, etc.
+  metadata        Json?          @default("{}") // Quiz questions, article content, etc.
 
-  videoSourceType      String?   // 'youtube' | 'upload' | 'direct' | 'vimeo'
-  videoOriginalUrl     String?   // Original URL before resolution
-  videoStreamId        String?   // Resolved video stream ID for proxy
-  videoDurationSeconds Int?      // Precise duration in seconds
-  videoIsMicrolearning Boolean   @default(false)
+  videoSourceType      String? // 'youtube' | 'upload' | 'direct' | 'vimeo'
+  videoOriginalUrl     String? // Original URL before resolution
+  videoStreamId        String? // Resolved video stream ID for proxy
+  videoDurationSeconds Int? // Precise duration in seconds
+  videoIsMicrolearning Boolean @default(false)
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  section  CourseSection              @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section  CourseSection               @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   progress CourseSectionItemProgress[]
 
   @@index([sectionId])
@@ -524,18 +527,18 @@ model CourseSectionItem {
 // ── ENROLLMENTS & PROGRESS ──
 
 model PathEnrollment {
-  id         String           @id @default(uuid())
-  userId     String
-  pathId     String
-  status     EnrollmentStatus @default(ACTIVE)
-  progressPct Int             @default(0)
-  deadline   DateTime?
+  id          String           @id @default(uuid())
+  userId      String
+  pathId      String
+  status      EnrollmentStatus @default(ACTIVE)
+  progressPct Int              @default(0)
+  deadline    DateTime?
   completedAt DateTime?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  path       LearningPath      @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path         LearningPath        @relation(fields: [pathId], references: [id], onDelete: Cascade)
   stepProgress PathStepProgress[]
   certificates IssuedCertificate[]
 
@@ -549,11 +552,11 @@ model PathStepProgress {
   enrollmentId String
   stepId       String
   status       StepProgressStatus @default(NOT_STARTED)
-  timeSpent    Int?               // seconds
+  timeSpent    Int? // seconds
   score        Int?
   completedAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   enrollment PathEnrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   step       LearningPathStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
@@ -566,7 +569,7 @@ model PathStepProgress {
 model CourseEnrollment {
   id          String           @id @default(uuid())
   userId      String
-  courseId     String           // ContentItem.id where type=COURSE
+  courseId    String // ContentItem.id where type=COURSE
   status      EnrollmentStatus @default(ACTIVE)
   progressPct Int              @default(0)
   deadline    DateTime?
@@ -574,8 +577,8 @@ model CourseEnrollment {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course       ContentItem                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user         User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course       ContentItem                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   itemProgress CourseSectionItemProgress[]
   certificates IssuedCertificate[]
 
@@ -589,7 +592,7 @@ model CourseSectionItemProgress {
   enrollmentId  String
   sectionItemId String
   status        StepProgressStatus @default(NOT_STARTED)
-  timeSpent     Int?               // seconds
+  timeSpent     Int? // seconds
   score         Int?
   completedAt   DateTime?
   createdAt     DateTime           @default(now())
@@ -608,7 +611,7 @@ model CourseSectionItemProgress {
 model CertificateTemplate {
   id             String   @id @default(uuid())
   tenantId       String
-  domainId       String   @unique  // 1:1 with Domain
+  domainId       String   @unique // 1:1 with Domain
   templateName   String
   themeConfig    Json?    @default("{}")
   elementsConfig Json?    @default("{}")
@@ -620,20 +623,21 @@ model CertificateTemplate {
   issuedCertificates IssuedCertificate[]
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@unique([tenantId, domainId])
   @@index([tenantId])
   @@map("certificate_templates")
 }
 
 model IssuedCertificate {
-  id                   String          @id @default(uuid())
-  templateId           String
-  enrollmentId         String?         // PathEnrollment FK (null when course cert)
-  courseEnrollmentId   String?         // CourseEnrollment FK (null when path cert)
-  verifyCode           String          @unique
-  pdfUrl               String?
-  grade                CertificateGrade?
-  issuedAt             DateTime        @default(now())
+  id                 String            @id @default(uuid())
+  templateId         String
+  enrollmentId       String? // PathEnrollment FK (null when course cert)
+  courseEnrollmentId String? // CourseEnrollment FK (null when path cert)
+  verifyCode         String            @unique
+  pdfUrl             String?
+  grade              CertificateGrade?
+  issuedAt           DateTime          @default(now())
 
   template         CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
   enrollment       PathEnrollment?     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
@@ -647,13 +651,35 @@ model IssuedCertificate {
 // ── GAMIFICATION ──
 
 model UserPoints {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  points      Int      @default(0)
-  lastUpdated DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  tenantId  String
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, points(sort: Desc)])
+}
+
+model PointsLedger {
+  id             String   @id @default(cuid())
+  userId         String
+  tenantId       String
+  delta          Int
+  reason         String
+  sourceType     String?
+  sourceId       String?
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
 }
 
 model Badge {
@@ -684,8 +710,9 @@ model UserStreak {
   id             String    @id @default(uuid())
   userId         String    @unique
   currentStreak  Int       @default(0)
-  longestStreak Int       @default(0)
+  longestStreak  Int       @default(0)
   lastActivityAt DateTime?
+  timezone       String    @default("UTC")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -696,7 +723,7 @@ model UserStreak {
 
 model XapiStatement {
   id        String   @id @default(uuid())
-  statement Json     // xAPI statement: actor, verb, object, result, context
+  statement Json // xAPI statement: actor, verb, object, result, context
   storedAt  DateTime @default(now())
 
   @@index([storedAt])
@@ -807,22 +834,22 @@ model TenantBranding {
 // ── PHASE 1 B2B: SEAT MANAGEMENT & CONTRACTS ──
 
 model B2BContract {
-  id            String         @id @default(uuid())
-  tenantId      String
-  name          String
-  seatsTotal    Int            // Total seats purchased in this contract block
-  seatsUsed     Int            @default(0) // Consumed seats (denormalized for fast checks)
-  startDate     DateTime
-  endDate       DateTime
-  status        ContractStatus @default(DRAFT)
-  planType      String?        // e.g., "ENTERPRISE", "PROFESSIONAL", "STARTER"
-  billingCycle  String?        // MONTHLY, QUARTERLY, ANNUAL
-  externalRef   String?        // External CRM/ERP reference
-  metadata      Json?         @default("{}")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id           String         @id @default(uuid())
+  tenantId     String
+  name         String
+  seatsTotal   Int // Total seats purchased in this contract block
+  seatsUsed    Int            @default(0) // Consumed seats (denormalized for fast checks)
+  startDate    DateTime
+  endDate      DateTime
+  status       ContractStatus @default(DRAFT)
+  planType     String? // e.g., "ENTERPRISE", "PROFESSIONAL", "STARTER"
+  billingCycle String? // MONTHLY, QUARTERLY, ANNUAL
+  externalRef  String? // External CRM/ERP reference
+  metadata     Json?          @default("{}")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   seatAssignments SeatAssignment[]
 
   @@index([tenantId])
@@ -836,7 +863,7 @@ model SeatAssignment {
   userId     String
   assignedAt DateTime  @default(now())
   revokedAt  DateTime?
-  assignedBy String?   // Admin who assigned the seat
+  assignedBy String? // Admin who assigned the seat
   metadata   Json?     @default("{}")
 
   contract B2BContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -850,18 +877,18 @@ model SeatAssignment {
 // ── PHASE 1 B2B: USER GROUPS & TAGS ──
 
 model UserGroup {
-  id          String       @id @default(uuid())
+  id          String        @id @default(uuid())
   tenantId    String
   name        String
   slug        String
   type        UserGroupType @default(CUSTOM)
   description String?
   settings    Json?         @default("{}") // Custom roles, permissions overrides
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members  UserGroupMembership[]
+  tenant  Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members UserGroupMembership[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -869,13 +896,13 @@ model UserGroup {
 }
 
 model UserGroupMembership {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   groupId   String
   userId    String
-  role      String?  // Optional custom role within group (e.g., "LEAD", "MEMBER")
-  joinedAt  DateTime @default(now())
+  role      String? // Optional custom role within group (e.g., "LEAD", "MEMBER")
+  joinedAt  DateTime  @default(now())
   expiresAt DateTime?
-  metadata  Json?    @default("{}")
+  metadata  Json?     @default("{}")
 
   group UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -886,16 +913,16 @@ model UserGroupMembership {
 }
 
 model Tag {
-  id        String   @id @default(uuid())
-  tenantId  String
-  name      String
-  slug      String
-  color     String?  @default("#6B4E9A")
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  slug        String
+  color       String?  @default("#6B4E9A")
   description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userTags UserTag[]
 
   @@unique([tenantId, slug])
@@ -921,17 +948,17 @@ model UserTag {
 // ── PHASE 1 B2B: MULTI-SSO & IDENTITY ──
 
 model TenantSsoConfig {
-  id           String         @id @default(uuid())
+  id           String          @id @default(uuid())
   tenantId     String
   provider     SsoProviderType
-  isEnabled    Boolean        @default(false)
-  entityId     String?        // SAML: Entity ID; OIDC: Issuer
-  metadataUrl  String?        // SAML: IdP metadata URL
-  clientId     String?        // OIDC: Client ID
-  clientSecret String?        // OIDC: Client secret (encrypted at rest)
-  config       Json?          @default("{}") // Provider-specific config (SAML attrs, OIDC scopes, etc.)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  isEnabled    Boolean         @default(false)
+  entityId     String? // SAML: Entity ID; OIDC: Issuer
+  metadataUrl  String? // SAML: IdP metadata URL
+  clientId     String? // OIDC: Client ID
+  clientSecret String? // OIDC: Client secret (encrypted at rest)
+  config       Json?           @default("{}") // Provider-specific config (SAML attrs, OIDC scopes, etc.)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1010,13 +1037,13 @@ model ContentAccessLog {
   screenshotAttempt Boolean  @default(false)
   createdAt         DateTime @default(now())
 
-  country     String?  @db.VarChar(100)
-  countryCode String?  @db.VarChar(3)
-  city        String?  @db.VarChar(100)
-  region      String?  @db.VarChar(100)
+  country     String? @db.VarChar(100)
+  countryCode String? @db.VarChar(3)
+  city        String? @db.VarChar(100)
+  region      String? @db.VarChar(100)
   latitude    Float?
   longitude   Float?
-  continent   String?  @db.VarChar(30)
+  continent   String? @db.VarChar(30)
 
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
@@ -1032,25 +1059,25 @@ model ContentAccessLog {
 
 /// Pre-aggregated geographic metrics per tenant (filled by BullMQ jobs).
 model GeoAnalyticsRollup {
-  id            String   @id @default(uuid())
-  tenantId      String
-  period        String   @db.VarChar(10)
-  periodStart   DateTime
-  country       String   @db.VarChar(100)
-  countryCode   String   @db.VarChar(3)
+  id          String   @id @default(uuid())
+  tenantId    String
+  period      String   @db.VarChar(10)
+  periodStart DateTime
+  country     String   @db.VarChar(100)
+  countryCode String   @db.VarChar(3)
   /// Empty string = country-level row; non-empty = city-level rollup bucket
-  city          String   @default("") @db.VarChar(100)
-  region        String?  @db.VarChar(100)
+  city        String   @default("") @db.VarChar(100)
+  region      String?  @db.VarChar(100)
 
-  activeUsers        Int    @default(0)
-  newRegistrations Int    @default(0)
-  contentViews     Int    @default(0)
-  courseCompletions Int   @default(0)
-  pathCompletions  Int    @default(0)
-  certsIssued      Int    @default(0)
-  totalTimeSpentMin Int   @default(0)
-  quizAttempts     Int    @default(0)
-  avgQuizScore     Float?
+  activeUsers       Int    @default(0)
+  newRegistrations  Int    @default(0)
+  contentViews      Int    @default(0)
+  courseCompletions Int    @default(0)
+  pathCompletions   Int    @default(0)
+  certsIssued       Int    @default(0)
+  totalTimeSpentMin Int    @default(0)
+  quizAttempts      Int    @default(0)
+  avgQuizScore      Float?
 
   webSessions     Int @default(0)
   iosSessions     Int @default(0)
@@ -1148,10 +1175,10 @@ model VideoWatchProgress {
 
 model SitePage {
   id        String   @id @default(uuid())
-  slug      String   @unique       // e.g. "about", "terms", "privacy"
+  slug      String   @unique // e.g. "about", "terms", "privacy"
   title     String
   sections  Json     @default("[]") // Array of { title: string, content: string }
-  updatedBy String?                 // User ID of last editor
+  updatedBy String? // User ID of last editor
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1190,17 +1217,17 @@ model ReferralCode {
 }
 
 model Referral {
-  id               String         @id @default(uuid())
-  referralCodeId   String
-  referrerId       String
-  referredUserId   String?
-  referredEmail    String
-  status           ReferralStatus @default(PENDING)
-  channel          String?
-  convertedAt      DateTime?
-  signedUpAt       DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  referralCodeId String
+  referrerId     String
+  referredUserId String?
+  referredEmail  String
+  status         ReferralStatus @default(PENDING)
+  channel        String?
+  convertedAt    DateTime?
+  signedUpAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   referralCode ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
 
@@ -1234,16 +1261,16 @@ model ReferralReward {
 }
 
 model ReferralInvitation {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   referralCodeId String
   senderUserId   String
   recipientEmail String
   recipientName  String?
-  source         String   @default("manual")
-  sentAt         DateTime @default(now())
+  source         String    @default("manual")
+  sentAt         DateTime  @default(now())
   openedAt       DateTime?
   clickedAt      DateTime?
-  metadata       Json?    @default("{}")
+  metadata       Json?     @default("{}")
 
   referralCode ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
 
@@ -1283,8 +1310,8 @@ model TrainingAssignment {
   tenantId     String
   contentId    String?
   pathId       String?
-  assigneeType String           // "ALL", "GROUP", "USER"
-  assigneeId   String?          // groupId or userId (null for ALL)
+  assigneeType String // "ALL", "GROUP", "USER"
+  assigneeId   String? // groupId or userId (null for ALL)
   dueDate      DateTime
   status       AssignmentStatus @default(PENDING)
   assignedBy   String?
@@ -1305,7 +1332,7 @@ model Notification {
   id        String   @id @default(uuid())
   userId    String
   tenantId  String?
-  type      String   // "TRAINING_ASSIGNED", "DUE_DATE_APPROACHING", "PATH_COMPLETED", "CERTIFICATE_ISSUED"
+  type      String // "TRAINING_ASSIGNED", "DUE_DATE_APPROACHING", "PATH_COMPLETED", "CERTIFICATE_ISSUED"
   title     String
   body      String?
   isRead    Boolean  @default(false)
@@ -1328,42 +1355,42 @@ enum TrainerProfileStatus {
 }
 
 model TrainerProfile {
-  id               String               @id @default(uuid())
-  userId           String               @unique
-  status           TrainerProfileStatus  @default(DRAFT)
+  id     String               @id @default(uuid())
+  userId String               @unique
+  status TrainerProfileStatus @default(DRAFT)
 
-  headline         String?              @db.VarChar(200)
-  bio              String?              @db.Text
-  photoUrl         String?
-  bannerUrl        String?
-  resumeUrl        String?
+  headline  String? @db.VarChar(200)
+  bio       String? @db.Text
+  photoUrl  String?
+  bannerUrl String?
+  resumeUrl String?
 
-  specializations  Json?                @default("[]")
-  certifications   Json?                @default("[]")
-  distinctions     Json?                @default("[]")
-  languages        Json?                @default("[]")
-  socialLinks      Json?                @default("{}")
-  education        Json?                @default("[]")
-  experience       Json?                @default("[]")
+  specializations Json? @default("[]")
+  certifications  Json? @default("[]")
+  distinctions    Json? @default("[]")
+  languages       Json? @default("[]")
+  socialLinks     Json? @default("{}")
+  education       Json? @default("[]")
+  experience      Json? @default("[]")
 
-  websiteUrl       String?
-  location         String?
-  timezone         String?
+  websiteUrl        String?
+  location          String?
+  timezone          String?
   yearsOfExperience Int?
-  hourlyRate       Float?
-  currency         String?              @default("USD")
-  availableForHire Boolean              @default(false)
-  contactEmail     String?
+  hourlyRate        Float?
+  currency          String? @default("USD")
+  availableForHire  Boolean @default(false)
+  contactEmail      String?
 
-  totalStudents    Int                  @default(0)
-  totalCourses     Int                  @default(0)
-  avgRating        Float?
+  totalStudents Int    @default(0)
+  totalCourses  Int    @default(0)
+  avgRating     Float?
 
-  slug             String               @unique
+  slug             String  @unique
   featuredVideoUrl String?
 
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1385,9 +1412,9 @@ enum EmailStatus {
 
 enum EmailPriorityLevel {
   CRITICAL // 0 — password resets, 2FA (bypasses daily limit)
-  HIGH     // 1 — welcome, enrollment confirmation
-  NORMAL   // 2 — notifications, reminders
-  LOW      // 3 — marketing, digests
+  HIGH // 1 — welcome, enrollment confirmation
+  NORMAL // 2 — notifications, reminders
+  LOW // 3 — marketing, digests
 }
 
 enum OverflowStrategy {
@@ -1397,57 +1424,57 @@ enum OverflowStrategy {
 }
 
 model EmailConfig {
-  id                  String           @id @default(uuid())
-  provider            String           @default("resend") @db.VarChar(20)
-  apiKey              String           @db.Text
-  apiKeyLastFour      String?          @db.VarChar(5)
-  defaultFromName     String           @default("OmniLearn") @db.VarChar(100)
-  defaultFromEmail    String           @default("noreply@omnilearn.space") @db.VarChar(255)
-  defaultReplyTo      String?          @db.VarChar(255)
-  dailySendLimit      Int              @default(100)
-  rateLimitPerSecond  Int              @default(10)
-  overflowStrategy    OverflowStrategy @default(SCHEDULE_NEXT_DAY)
-  overflowSendHour    Int              @default(6)
-  isActive            Boolean          @default(true)
-  lastVerifiedAt      DateTime?
-  updatedBy           String?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                 String           @id @default(uuid())
+  provider           String           @default("resend") @db.VarChar(20)
+  apiKey             String           @db.Text
+  apiKeyLastFour     String?          @db.VarChar(5)
+  defaultFromName    String           @default("OmniLearn") @db.VarChar(100)
+  defaultFromEmail   String           @default("noreply@omnilearn.space") @db.VarChar(255)
+  defaultReplyTo     String?          @db.VarChar(255)
+  dailySendLimit     Int              @default(100)
+  rateLimitPerSecond Int              @default(10)
+  overflowStrategy   OverflowStrategy @default(SCHEDULE_NEXT_DAY)
+  overflowSendHour   Int              @default(6)
+  isActive           Boolean          @default(true)
+  lastVerifiedAt     DateTime?
+  updatedBy          String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@map("email_config")
 }
 
 model EmailQueue {
-  id            String             @id @default(uuid())
-  toEmail       String             @db.VarChar(255)
-  toName        String?            @db.VarChar(255)
-  fromEmail     String?            @db.VarChar(255)
-  fromName      String?            @db.VarChar(100)
-  replyTo       String?            @db.VarChar(255)
-  subject       String             @db.VarChar(500)
-  htmlBody      String             @db.Text
-  textBody      String?            @db.Text
-  emailType     String             @db.VarChar(50)
-  priority      EmailPriorityLevel @default(NORMAL)
-  status        EmailStatus        @default(PENDING)
-  scheduledFor  DateTime?
-  scheduledAfter DateTime?         // Rate-limit / deferred send — processor skips until <= now
-  dayBucket     DateTime           @default(now()) @db.Date
-  resendId      String?            @db.VarChar(100)
-  sentAt        DateTime?
-  attempts      Int                @default(0)
-  maxAttempts   Int                @default(3)
-  lastError     String?            @db.Text
-  nextRetryAt   DateTime?
-  triggeredBy   String?            @db.VarChar(100)
-  userId        String?
-  idempotencyKey String?           @unique @db.VarChar(255)
-  eventType     String?            @db.VarChar(100)
-  metadata      Json               @default("{}")
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id             String             @id @default(uuid())
+  toEmail        String             @db.VarChar(255)
+  toName         String?            @db.VarChar(255)
+  fromEmail      String?            @db.VarChar(255)
+  fromName       String?            @db.VarChar(100)
+  replyTo        String?            @db.VarChar(255)
+  subject        String             @db.VarChar(500)
+  htmlBody       String             @db.Text
+  textBody       String?            @db.Text
+  emailType      String             @db.VarChar(50)
+  priority       EmailPriorityLevel @default(NORMAL)
+  status         EmailStatus        @default(PENDING)
+  scheduledFor   DateTime?
+  scheduledAfter DateTime? // Rate-limit / deferred send — processor skips until <= now
+  dayBucket      DateTime           @default(now()) @db.Date
+  resendId       String?            @db.VarChar(100)
+  sentAt         DateTime?
+  attempts       Int                @default(0)
+  maxAttempts    Int                @default(3)
+  lastError      String?            @db.Text
+  nextRetryAt    DateTime?
+  triggeredBy    String?            @db.VarChar(100)
+  userId         String?
+  idempotencyKey String?            @unique @db.VarChar(255)
+  eventType      String?            @db.VarChar(100)
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  emailLog      EmailLog?
+  emailLog EmailLog?
 
   @@index([status, priority, createdAt])
   @@index([scheduledFor])
@@ -1489,42 +1516,42 @@ model EmailTemplate {
 
 /// Admin-managed provider row (future: UI switches active provider; until then use EmailConfig + env)
 model EmailProviderConfig {
-  id                    String    @id @default(uuid())
-  providerType          String    @db.VarChar(20) // smtp | resend
-  isActive              Boolean   @default(false)
-  displayName           String    @db.VarChar(200)
+  id           String  @id @default(uuid())
+  providerType String  @db.VarChar(20) // smtp | resend
+  isActive     Boolean @default(false)
+  displayName  String  @db.VarChar(200)
 
   smtpHost              String?
-  smtpPort              Int?      @default(587)
+  smtpPort              Int?     @default(587)
   smtpUsername          String?
-  smtpPasswordEncrypted String?   @db.Text
-  smtpUseTls            Boolean?  @default(true)
-  smtpUseSsl            Boolean?  @default(false)
+  smtpPasswordEncrypted String?  @db.Text
+  smtpUseTls            Boolean? @default(true)
+  smtpUseSsl            Boolean? @default(false)
   smtpFromEmail         String?
   smtpFromName          String?
 
-  resendApiKeyEncrypted String?   @db.Text
+  resendApiKeyEncrypted String? @db.Text
   resendFromDomain      String?
 
-  sendLimitPerMinute    Int       @default(10)
-  sendLimitPerHour      Int       @default(100)
-  sendLimitPerDay       Int       @default(500)
+  sendLimitPerMinute Int @default(10)
+  sendLimitPerHour   Int @default(100)
+  sendLimitPerDay    Int @default(500)
 
-  emailsSentThisMinute  Int       @default(0)
-  emailsSentThisHour    Int       @default(0)
-  emailsSentToday       Int       @default(0)
-  minuteResetAt         DateTime?
-  hourResetAt           DateTime?
-  dayResetAt            DateTime?
+  emailsSentThisMinute Int       @default(0)
+  emailsSentThisHour   Int       @default(0)
+  emailsSentToday      Int       @default(0)
+  minuteResetAt        DateTime?
+  hourResetAt          DateTime?
+  dayResetAt           DateTime?
 
-  lastTestAt            DateTime?
-  lastTestStatus        String?   @db.VarChar(20)
-  lastTestError         String?   @db.Text
+  lastTestAt     DateTime?
+  lastTestStatus String?   @db.VarChar(20)
+  lastTestError  String?   @db.Text
 
-  notes                 String?   @db.Text
-  createdById           String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  notes       String?  @db.Text
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("email_provider_config")
 }
@@ -1549,9 +1576,9 @@ model EmailLog {
   sentAt            DateTime?
   createdAt         DateTime  @default(now())
 
-  queueId           String?   @unique
-  queue             EmailQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
-  recipient         User?     @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
+  queueId   String?     @unique
+  queue     EmailQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  recipient User?       @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
 
   @@index([recipientUserId])
   @@index([eventType])
@@ -1561,28 +1588,28 @@ model EmailLog {
 
 /// Overrides / extends Tenant + TenantBranding for outbound email
 model EmailBranding {
-  id              String    @id @default(uuid())
-  tenantId        String?   @unique
+  id              String   @id @default(uuid())
+  tenantId        String?  @unique
   logoUrl         String?
-  primaryColor    String    @default("#6366F1") @db.VarChar(16)
-  secondaryColor  String    @default("#1E1B4B") @db.VarChar(16)
-  accentColor     String    @default("#F59E0B") @db.VarChar(16)
-  textColor       String    @default("#1F2937") @db.VarChar(16)
-  backgroundColor String    @default("#FFFFFF") @db.VarChar(16)
-  surfaceColor    String    @default("#F9FAFB") @db.VarChar(16)
-  borderRadius    String    @default("8px") @db.VarChar(16)
-  fontFamily      String    @default("Inter, system-ui, sans-serif")
-  fontFamilyAr    String    @default("Noto Sans Arabic, Segoe UI, Arial, sans-serif")
-  buttonStyle     Json      @default("{\"borderRadius\": \"8px\", \"padding\": \"12px 24px\", \"fontWeight\": \"600\"}")
-  senderName      String    @default("OmniLearn") @db.VarChar(255)
-  senderEmail     String    @default("noreply@omnilearn.space") @db.VarChar(255)
-  replyToEmail    String?   @db.VarChar(255)
-  footerText      String?   @db.Text
+  primaryColor    String   @default("#6366F1") @db.VarChar(16)
+  secondaryColor  String   @default("#1E1B4B") @db.VarChar(16)
+  accentColor     String   @default("#F59E0B") @db.VarChar(16)
+  textColor       String   @default("#1F2937") @db.VarChar(16)
+  backgroundColor String   @default("#FFFFFF") @db.VarChar(16)
+  surfaceColor    String   @default("#F9FAFB") @db.VarChar(16)
+  borderRadius    String   @default("8px") @db.VarChar(16)
+  fontFamily      String   @default("Inter, system-ui, sans-serif")
+  fontFamilyAr    String   @default("Noto Sans Arabic, Segoe UI, Arial, sans-serif")
+  buttonStyle     Json     @default("{\"borderRadius\": \"8px\", \"padding\": \"12px 24px\", \"fontWeight\": \"600\"}")
+  senderName      String   @default("OmniLearn") @db.VarChar(255)
+  senderEmail     String   @default("noreply@omnilearn.space") @db.VarChar(255)
+  replyToEmail    String?  @db.VarChar(255)
+  footerText      String?  @db.Text
   footerLinks     Json?
-  customCss       String?   @db.Text
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  customCss       String?  @db.Text
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1590,14 +1617,14 @@ model EmailBranding {
 }
 
 model UserContentInteraction {
-  id                 String    @id @default(uuid())
+  id                 String   @id @default(uuid())
   userId             String
   contentId          String
-  contentType        String    @db.VarChar(50)
-  interactionType    String    @db.VarChar(50)
-  interactionCount   Int       @default(1)
-  firstInteractionAt DateTime  @default(now())
-  lastInteractionAt  DateTime  @default(now())
+  contentType        String   @db.VarChar(50)
+  interactionType    String   @db.VarChar(50)
+  interactionCount   Int      @default(1)
+  firstInteractionAt DateTime @default(now())
+  lastInteractionAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1608,21 +1635,21 @@ model UserContentInteraction {
 }
 
 model EmailSchedule {
-  id              String    @id @default(uuid())
-  name            String    @db.VarChar(255)
-  description     String?   @db.Text
-  scheduleType    String    @db.VarChar(50)
-  eventTrigger    String?   @db.VarChar(100)
-  cronExpression  String?   @db.VarChar(100)
-  targetAudience  Json
-  emailEventType  String    @db.VarChar(100)
-  isActive        Boolean   @default(true)
-  lastRunAt       DateTime?
-  nextRunAt       DateTime?
-  createdById     String?
-  tenantId        String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  name           String    @db.VarChar(255)
+  description    String?   @db.Text
+  scheduleType   String    @db.VarChar(50)
+  eventTrigger   String?   @db.VarChar(100)
+  cronExpression String?   @db.VarChar(100)
+  targetAudience Json
+  emailEventType String    @db.VarChar(100)
+  isActive       Boolean   @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdById    String?
+  tenantId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1657,11 +1684,11 @@ model EmailCampaign {
 }
 
 model UserEmailPreference {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  eventType String    @db.VarChar(100)
-  isEnabled Boolean   @default(true)
-  updatedAt DateTime  @updatedAt
+  eventType String   @db.VarChar(100)
+  isEnabled Boolean  @default(true)
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

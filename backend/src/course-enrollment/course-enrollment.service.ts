@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { CourseItemType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificateService } from '../certificate/certificate.service';
 import { NotificationService } from '../notification/notification.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
 import { ReferralService } from '../referral/referral.service';
+import { GamificationService } from '../gamification/gamification.service';
+import { POINT_REASONS } from '../gamification/gamification.rules';
 import { EnrollmentStatus, StepProgressStatus } from '../constants/db.constant';
 
 @Injectable()
@@ -16,6 +19,7 @@ export class CourseEnrollmentService {
     private readonly notificationService: NotificationService,
     private readonly transactionalEmail: TransactionalEmailService,
     private readonly referralService: ReferralService,
+    private readonly gamification: GamificationService,
   ) {}
 
   async enrollUser(userId: string, courseId: string, deadline?: Date, opts?: { actorUserId?: string }) {
@@ -179,6 +183,26 @@ export class CourseEnrollmentService {
       completedAt?: Date;
     },
   ) {
+    const prior = await this.prisma.courseSectionItemProgress.findUnique({
+      where: {
+        enrollmentId_sectionItemId: { enrollmentId, sectionItemId },
+      },
+      include: {
+        sectionItem: true,
+        enrollment: {
+          include: {
+            user: { select: { id: true, tenantId: true } },
+            course: {
+              select: {
+                tenantId: true,
+                domain: { select: { tenantId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
     const progress = await this.prisma.courseSectionItemProgress.update({
       where: {
         enrollmentId_sectionItemId: { enrollmentId, sectionItemId },
@@ -190,6 +214,12 @@ export class CourseEnrollmentService {
         }),
       },
     });
+
+    if (data.status === StepProgressStatus.COMPLETED && prior) {
+      void this.applyCourseItemCompletionGamification(prior, progress).catch((err) =>
+        this.logger.warn(`Gamification grant failed (non-fatal): ${err}`),
+      );
+    }
 
     const recalcResult = await this.recalculateProgressPct(enrollmentId);
 
@@ -215,6 +245,64 @@ export class CourseEnrollmentService {
       completedItems: recalcResult.completedItems,
       certificate,
     };
+  }
+
+  private async applyCourseItemCompletionGamification(
+    prior: {
+      status: string;
+      enrollmentId: string;
+      sectionItemId: string;
+      sectionItem: { itemType: CourseItemType };
+      enrollment: {
+        userId: string;
+        user: { tenantId: string | null };
+        course: {
+          tenantId: string | null;
+          domain: { tenantId: string } | null;
+        };
+      };
+    },
+    progress: { id: string; updatedAt: Date },
+  ): Promise<void> {
+    const tenantId =
+      prior.enrollment.user.tenantId ??
+      prior.enrollment.course.tenantId ??
+      prior.enrollment.course.domain?.tenantId ??
+      null;
+    if (!tenantId) {
+      this.logger.warn(
+        `Skipping gamification: no tenant for user ${prior.enrollment.userId}`,
+      );
+      return;
+    }
+    const userId = prior.enrollment.userId;
+
+    if (prior.sectionItem.itemType === CourseItemType.QUIZ) {
+      const isFirstPass = prior.status !== StepProgressStatus.COMPLETED;
+      const idempotencyKey = isFirstPass
+        ? `quiz_pass_first:${prior.enrollmentId}:${prior.sectionItemId}`
+        : `quiz_pass_retake:${prior.enrollmentId}:${prior.sectionItemId}:${progress.updatedAt.toISOString()}`;
+      await this.gamification.grantPoints({
+        userId,
+        tenantId,
+        reason: isFirstPass
+          ? POINT_REASONS.QUIZ_PASS_FIRST
+          : POINT_REASONS.QUIZ_PASS_RETAKE,
+        sourceType: 'quiz_attempt',
+        sourceId: progress.id,
+        idempotencyKey,
+      });
+      return;
+    }
+
+    await this.gamification.grantPoints({
+      userId,
+      tenantId,
+      reason: POINT_REASONS.LESSON_COMPLETE,
+      sourceType: 'lesson',
+      sourceId: prior.sectionItemId,
+      idempotencyKey: `lesson_complete:${userId}:${prior.sectionItemId}`,
+    });
   }
 
   private async recalculateProgressPct(enrollmentId: string) {
