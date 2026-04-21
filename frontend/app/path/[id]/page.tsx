@@ -8,7 +8,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
 import { LearnerShareLinkButton } from "@/components/learning/learner-share-link-button";
 
@@ -221,6 +221,7 @@ export default function PathDetailPage() {
                     .map((step, idx, arr) => {
                       const ci = step.contentItem;
                       const thumb = getThumbnail(ci?.metadata);
+                      const thumbSrc = thumb ? (apiAbsoluteMediaUrl(thumb) ?? thumb) : "";
                       const isCourse = ci?.type === "COURSE";
                       const typeLabel = ci?.type?.replace(/_/g, " ") ?? "";
                       const stepStatus = stepStatusMap.get(step.id);
@@ -267,9 +268,9 @@ export default function PathDetailPage() {
                                 : "border-brand-grey-light dark:border-gray-700 hover:border-brand-purple/40 hover:shadow-md"
                             }`}
                           >
-                            {thumb ? (
+                            {thumbSrc ? (
                               <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden">
-                                <img src={thumb} alt="" className="w-full h-full object-cover" />
+                                <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
                               </div>
                             ) : (
                               <div className="flex-shrink-0 w-24 h-16 rounded-lg bg-gradient-to-br from-brand-purple/10 to-brand-green/10 flex items-center justify-center text-2xl">

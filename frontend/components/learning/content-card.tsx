@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { learnerContentHref } from "@/lib/learner-content-href";
+import { apiAbsoluteMediaUrl } from "@/lib/api";
 
 const TYPE_META: Record<string, { icon: string; label: string; color: string }> = {
   COURSE: { icon: "📚", label: "Course", color: "#059669" },
@@ -41,6 +42,7 @@ export function ContentCard({
 }: ContentCardProps) {
   const meta = TYPE_META[type] ?? { icon: "📎", label: type, color: "#C4A574" };
   const isCourse = type === "COURSE";
+  const resolvedThumb = thumbnailUrl ? (apiAbsoluteMediaUrl(thumbnailUrl) ?? thumbnailUrl) : "";
   const link =
     href ?? (isCourse && enrolled ? `/course/${id}` : learnerContentHref(type, id));
 
@@ -51,10 +53,10 @@ export function ContentCard({
     >
       <div
         className="h-28 flex items-center justify-center text-4xl relative overflow-hidden"
-        style={!thumbnailUrl ? { background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}08)` } : undefined}
+        style={!resolvedThumb ? { background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}08)` } : undefined}
       >
-        {thumbnailUrl ? (
-          <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        {resolvedThumb ? (
+          <img src={resolvedThumb} alt="" className="w-full h-full object-cover" />
         ) : (
           <span className="group-hover:scale-110 transition-transform duration-200">
             {meta.icon}

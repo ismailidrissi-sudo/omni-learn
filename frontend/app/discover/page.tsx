@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { discoverNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
 
 type ContentItem = {
@@ -67,6 +67,7 @@ function ContentCard({ item, rank }: { item: ContentItem; rank?: number }) {
   const itemMeta = parseItemMetadata(item.metadata);
   const landingMeta = itemMeta?.landingPage as Record<string, string> | undefined;
   const thumbUrl = landingMeta?.thumbnailUrl;
+  const thumbSrc = thumbUrl ? (apiAbsoluteMediaUrl(thumbUrl) ?? thumbUrl) : "";
 
   return (
     <Link href={learnerContentHref(item.type, item.id)} className="block group">
@@ -76,9 +77,9 @@ function ContentCard({ item, rank }: { item: ContentItem; rank?: number }) {
             {rank}
           </div>
         )}
-        {thumbUrl ? (
+        {thumbSrc ? (
           <div className="w-full h-36 overflow-hidden">
-            <img src={thumbUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            <img src={thumbSrc} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
           </div>
         ) : null}
         <div className="p-5">

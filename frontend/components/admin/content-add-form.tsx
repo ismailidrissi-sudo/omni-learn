@@ -52,6 +52,9 @@ interface ContentAddFormProps {
   onAvailablePlansChange?: (plans: string[]) => void;
   availableInEnterprise?: boolean;
   onAvailableInEnterpriseChange?: (v: boolean) => void;
+  /** When true, shows a banner reminding the admin to save the item so legacy
+   *  plan-availability values get persisted explicitly. */
+  needsExplicitPlanSave?: boolean;
 }
 
 export function ContentAddForm({
@@ -77,6 +80,7 @@ export function ContentAddForm({
   onAvailablePlansChange,
   availableInEnterprise = false,
   onAvailableInEnterpriseChange,
+  needsExplicitPlanSave = false,
 }: ContentAddFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -648,6 +652,12 @@ export function ContentAddForm({
           <p className="text-xs text-brand-grey -mt-2">
             Select which subscription plans can access this content.
           </p>
+          {needsExplicitPlanSave && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              This item was saved before plan-based access existed. The default
+              (all plans) is pre-selected — click Save to persist it explicitly.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {PLAN_OPTIONS.map((plan) => {
               const checked = availablePlans.includes(plan.id);

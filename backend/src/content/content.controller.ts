@@ -49,6 +49,25 @@ export class ContentController {
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   };
 
+  private get thumbnailStoragePath(): string {
+    return process.env.COURSE_THUMBNAIL_STORAGE_PATH || './data/course-thumbnails';
+  }
+
+  private static readonly ALLOWED_THUMB_TYPES: Record<string, string> = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+  };
+
+  private static readonly THUMB_MIME_BY_EXT: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+  };
+
   @Post('upload-document')
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
@@ -94,6 +113,51 @@ export class ContentController {
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+
+    const buffer = readFileSync(filePath);
+    return new StreamableFile(buffer);
+  }
+
+  @Post('upload-course-thumbnail')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.INSTRUCTOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5_000_000 } }))
+  async uploadCourseThumbnail(
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string; size: number } | undefined,
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('No file provided');
+    if (file.size > 5_000_000) throw new BadRequestException('Image must be at most 5 MB');
+
+    const ext = ContentController.ALLOWED_THUMB_TYPES[file.mimetype];
+    if (!ext) {
+      throw new BadRequestException('Only JPEG, PNG, WebP, and GIF images are allowed');
+    }
+
+    mkdirSync(this.thumbnailStoragePath, { recursive: true });
+    const filename = `${randomUUID()}${ext}`;
+    const filePath = join(this.thumbnailStoragePath, filename);
+    writeFileSync(filePath, file.buffer);
+
+    return { url: `/content/thumbnails/${filename}`, filename };
+  }
+
+  @Get('thumbnails/:filename')
+  async serveThumbnail(
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '');
+    const filePath = join(this.thumbnailStoragePath, safeName);
+
+    if (!existsSync(filePath)) {
+      throw new BadRequestException('Image not found');
+    }
+
+    const ext = extname(safeName).toLowerCase();
+    const mime = ContentController.THUMB_MIME_BY_EXT[ext] || 'image/jpeg';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
     const buffer = readFileSync(filePath);
     return new StreamableFile(buffer);

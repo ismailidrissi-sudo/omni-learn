@@ -68,6 +68,22 @@ function canUseAdminContentApi(roles: string[]): boolean {
   );
 }
 
+const ALL_PLANS = ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'] as const;
+
+/**
+ * Normalise `availablePlans` input from clients. Non-array / null values fall
+ * back to "all plans" to avoid accidentally locking content out of every tier
+ * (which was a common cause of silent 403s on legacy rows).
+ */
+function normaliseAvailablePlans(input: unknown): string[] {
+  if (!Array.isArray(input)) return [...ALL_PLANS];
+  const cleaned = input
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim().toUpperCase())
+    .filter((v) => (ALL_PLANS as readonly string[]).includes(v));
+  return cleaned.length > 0 ? Array.from(new Set(cleaned)) : [...ALL_PLANS];
+}
+
 @Injectable()
 export class ContentService {
   constructor(
@@ -100,7 +116,7 @@ export class ContentService {
     const metadata = data.metadata ?? {};
     const metadataVal =
       typeof metadata === 'string' ? JSON.parse(metadata || '{}') : metadata;
-    const plans = data.availablePlans ?? ['EXPLORER', 'SPECIALIST', 'VISIONARY', 'NEXUS'];
+    const plans = normaliseAvailablePlans(data.availablePlans);
     const content = await this.prisma.contentItem.create({
       data: {
         type: data.type as
@@ -246,8 +262,9 @@ export class ContentService {
     if (data.tenantId !== undefined) updateData.tenantId = data.tenantId || null;
     if (data.isFoundational !== undefined) updateData.isFoundational = data.isFoundational;
     if (data.availablePlans !== undefined) {
-      updateData.availablePlans = data.availablePlans;
-      updateData.isFoundational = data.availablePlans.includes('EXPLORER');
+      const plans = normaliseAvailablePlans(data.availablePlans);
+      updateData.availablePlans = plans;
+      updateData.isFoundational = plans.includes('EXPLORER');
     }
     if (data.availableInEnterprise !== undefined) {
       updateData.availableInEnterprise = data.availableInEnterprise;

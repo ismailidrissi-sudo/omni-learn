@@ -509,6 +509,10 @@
     "landingPromoVideoHint": "Add a short video to attract students. This plays on the course landing page.",
     "landingThumbnail": "Course thumbnail",
     "landingThumbnailHint": "Upload an image that represents your course. Recommended size: 750x422px.",
+    "landingThumbnailDrop": "Drop an image here, or click to browse",
+    "landingThumbnailUrlOptional": "Alternatively, paste an image URL",
+    "landingThumbnailInvalidType": "Use JPEG, PNG, WebP, or GIF.",
+    "landingThumbnailTooLarge": "Image must be 5 MB or smaller.",
 
     "subtitlesTitle": "Subtitle & caption files",
     "subtitlesHint": "Add subtitle files for each language to improve accessibility and reach a wider audience.",

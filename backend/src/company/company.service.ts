@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, TenantBranding } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeTrustedCompanyName } from './trusted-company-name';
 
 /**
  * Company Service — Tenant admin + branding + enterprise leads
@@ -198,7 +199,7 @@ export class CompanyService {
       include: { branding: true },
       orderBy: { name: 'asc' },
     });
-    return tenants
+    const rows = tenants
       .filter((t) => {
         const b = t.branding;
         const hasBlob = b != null && CompanyService.storedLogoBytesLen(b.logoData) > 0;
@@ -210,6 +211,17 @@ export class CompanyService {
         name: t.name,
         logoUrl: this.resolveDisplayLogoUrl(t.id, t.branding, t.logoUrl) ?? '',
       }));
+
+    const seen = new Set<string>();
+    const out: typeof rows = [];
+    for (const row of rows) {
+      const norm = normalizeTrustedCompanyName(row.name);
+      const key = norm.length > 0 ? norm : `id:${row.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+    }
+    return out;
   }
 
   /** Platform stats: total user count + trusted company logos for landing page */

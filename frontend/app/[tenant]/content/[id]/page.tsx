@@ -9,7 +9,7 @@ import { TenantLogo } from "@/components/ui/tenant-logo";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { tenantLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
 import { SmartVideo } from "@/components/media/smart-video";
 import { CourseReviews } from "@/components/learning/course-reviews";
@@ -167,7 +167,11 @@ export default function TenantContentPage() {
             {/* Hero */}
             <div className="relative rounded-2xl overflow-hidden">
               {landing.thumbnailUrl ? (
-                <img src={landing.thumbnailUrl} alt={content.title} className="w-full h-48 sm:h-64 md:h-80 object-cover" />
+                <img
+                  src={apiAbsoluteMediaUrl(landing.thumbnailUrl) ?? landing.thumbnailUrl}
+                  alt={content.title}
+                  className="w-full h-48 sm:h-64 md:h-80 object-cover"
+                />
               ) : (
                 <div className="w-full h-48 sm:h-64 md:h-80 bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 flex items-center justify-center">
                   <span className="text-7xl">📚</span>

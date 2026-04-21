@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { authShellNavItems } from "@/lib/nav/burger-nav";
-import { apiFetch, API_URL } from "@/lib/api";
+import { apiFetch, API_URL, apiAbsoluteMediaUrl } from "@/lib/api";
 import { formatUserCount } from "@/lib/format-user-count";
 
 type CertType = "course" | "path";
@@ -243,7 +243,11 @@ export default function VerifyCertificatePage() {
               <div className="px-6 py-5 flex gap-4 border-b border-gray-100 dark:border-white/10">
                 <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
                   {cert.thumbnailUrl ? (
-                    <img src={cert.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={apiAbsoluteMediaUrl(cert.thumbnailUrl) ?? cert.thumbnailUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xl text-gray-400">📚</div>
                   )}

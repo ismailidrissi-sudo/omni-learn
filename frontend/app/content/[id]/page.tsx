@@ -15,7 +15,7 @@ import { track } from "@/lib/analytics";
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { globalLearnerNavItems } from "@/lib/nav/burger-nav";
 import { useUser } from "@/lib/use-user";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { learnerContentHref } from "@/lib/learner-content-href";
 import { LearnerShareLinkButton } from "@/components/learning/learner-share-link-button";
 
@@ -177,7 +177,7 @@ export default function ContentPage() {
             <SmartVideo
               src={src}
               hlsUrl={vid?.hlsUrl || vid?.videoUrl}
-              poster={vid?.thumbnailUrl}
+              poster={vid?.thumbnailUrl ? (apiAbsoluteMediaUrl(vid.thumbnailUrl) ?? vid.thumbnailUrl) : undefined}
               title={content.title}
               contentId={content.id}
               userId={user?.id}
@@ -192,10 +192,26 @@ export default function ContentPage() {
         const audioUrl = content.mediaId || pod?.audioUrl || "";
         const videoUrl = pod?.videoUrl || "";
         if (videoUrl) {
-          return <SmartVideo src={videoUrl} hlsUrl={videoUrl} poster={pod?.thumbnailUrl} title={content.title} contentId={content.id} userId={user?.id} />;
+          return (
+            <SmartVideo
+              src={videoUrl}
+              hlsUrl={videoUrl}
+              poster={pod?.thumbnailUrl ? (apiAbsoluteMediaUrl(pod.thumbnailUrl) ?? pod.thumbnailUrl) : undefined}
+              title={content.title}
+              contentId={content.id}
+              userId={user?.id}
+            />
+          );
         }
         if (audioUrl) {
-          return <PodcastPlayer audioUrl={audioUrl} title={content.title} transcriptUrl={pod?.transcriptUrl} thumbnailUrl={pod?.thumbnailUrl} />;
+          return (
+            <PodcastPlayer
+              audioUrl={audioUrl}
+              title={content.title}
+              transcriptUrl={pod?.transcriptUrl}
+              thumbnailUrl={pod?.thumbnailUrl ? (apiAbsoluteMediaUrl(pod.thumbnailUrl) ?? pod.thumbnailUrl) : undefined}
+            />
+          );
         }
         break;
       }
@@ -294,7 +310,11 @@ export default function ContentPage() {
               {/* Hero */}
               <div className="relative rounded-2xl overflow-hidden">
                 {landing.thumbnailUrl ? (
-                  <img src={landing.thumbnailUrl} alt={content.title} className="w-full h-48 sm:h-64 md:h-80 object-cover" />
+                  <img
+                    src={apiAbsoluteMediaUrl(landing.thumbnailUrl) ?? landing.thumbnailUrl}
+                    alt={content.title}
+                    className="w-full h-48 sm:h-64 md:h-80 object-cover"
+                  />
                 ) : (
                   <div className="w-full h-48 sm:h-64 md:h-80 bg-gradient-to-br from-brand-purple/20 via-brand-green/10 to-brand-purple/5 flex items-center justify-center">
                     <span className="text-7xl">📚</span>

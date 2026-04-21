@@ -86,6 +86,7 @@ function AdminContentPageContent() {
   const [formUserIds, setFormUserIds] = useState<string[]>([]);
   const [formIsFoundational, setFormIsFoundational] = useState(true);
   const [formAvailablePlans, setFormAvailablePlans] = useState<string[]>(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
+  const [formNeedsExplicitPlanSave, setFormNeedsExplicitPlanSave] = useState(false);
   const [formAvailableInEnterprise, setFormAvailableInEnterprise] = useState(false);
   const [formLanguage, setFormLanguage] = useState("en");
   const [editDocInputMode, setEditDocInputMode] = useState<"url" | "file">("url");
@@ -161,6 +162,7 @@ function AdminContentPageContent() {
     setFormUserIds([]);
     setFormIsFoundational(true);
     setFormAvailablePlans(["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]);
+    setFormNeedsExplicitPlanSave(false);
     setFormAvailableInEnterprise(false);
     setFormLanguage("en");
     setEditDocInputMode("url");
@@ -193,11 +195,13 @@ function AdminContentPageContent() {
     setFormTenantIds((full.tenantAssignments ?? []).map((a: { tenantId: string }) => a.tenantId));
     setFormUserIds((full.userAssignments ?? []).map((a: { userId: string }) => a.userId));
     setFormIsFoundational(full.isFoundational ?? false);
+    const plansIsArray = Array.isArray(full.availablePlans);
     setFormAvailablePlans(
-      Array.isArray(full.availablePlans)
+      plansIsArray
         ? full.availablePlans
         : ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"]
     );
+    setFormNeedsExplicitPlanSave(!plansIsArray);
     setFormAvailableInEnterprise(full.availableInEnterprise ?? false);
     setFormLanguage(full.language ?? "en");
     setView("edit");
@@ -535,6 +539,13 @@ function AdminContentPageContent() {
               <p className="text-xs text-brand-grey -mt-2">
                 Select which subscription plans can access this content.
               </p>
+              {formNeedsExplicitPlanSave && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  This item was saved before plan-based access existed. The
+                  default (all plans) is pre-selected — click Save to persist
+                  it explicitly.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {PLAN_OPTIONS.map((plan) => {
                   const checked = formAvailablePlans.includes(plan.id);

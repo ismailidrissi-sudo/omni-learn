@@ -501,6 +501,10 @@
     "landingPromoVideoHint": "Ajoutez une courte vidéo pour attirer les étudiants. Elle est diffusée sur la page d'accueil du cours.",
     "landingThumbnail": "Vignette du cours",
     "landingThumbnailHint": "Importez une image qui représente votre cours. Taille recommandée : 750x422px.",
+    "landingThumbnailDrop": "Glissez-déposez une image, ou cliquez pour parcourir",
+    "landingThumbnailUrlOptional": "Ou collez l’URL d’une image",
+    "landingThumbnailInvalidType": "Utilisez JPEG, PNG, WebP ou GIF.",
+    "landingThumbnailTooLarge": "L’image doit faire au plus 5 Mo.",
 
     "subtitlesTitle": "Fichiers de sous-titres",
     "subtitlesHint": "Ajoutez des fichiers de sous-titres pour chaque langue afin d'améliorer l'accessibilité et de toucher un public plus large.",

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n/context";
 import { UrlPreview } from "@/components/admin/url-preview";
 import { detectProvider, isExternalProvider, getProviderLabel } from "@/lib/video-provider";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUploadCourseThumbnail, apiAbsoluteMediaUrl } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
 const ITEM_TYPES = [
@@ -1124,6 +1124,33 @@ function LandingPagePanel({
   const [language, setLanguage] = useState(landing.language ?? "English");
   const [level, setLevel] = useState(landing.level ?? "All Levels");
   const [category, setCategory] = useState(landing.category ?? "");
+  const thumbFileRef = useRef<HTMLInputElement>(null);
+  const [thumbDragging, setThumbDragging] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+
+  const THUMB_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+  const MAX_THUMB_BYTES = 5 * 1024 * 1024;
+
+  const handleThumbFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!THUMB_MIME.includes(file.type as (typeof THUMB_MIME)[number])) {
+      toast(t("admin.landingThumbnailInvalidType"), "error");
+      return;
+    }
+    if (file.size > MAX_THUMB_BYTES) {
+      toast(t("admin.landingThumbnailTooLarge"), "error");
+      return;
+    }
+    setUploadingThumb(true);
+    try {
+      const { url } = await apiUploadCourseThumbnail(file);
+      setThumbnailUrl(url);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Upload failed", "error");
+    } finally {
+      setUploadingThumb(false);
+    }
+  };
 
   const handleSave = () => {
     onSaveDescription(desc);
@@ -1136,6 +1163,9 @@ function LandingPagePanel({
       category,
     });
   };
+
+  const thumbPreviewSrc =
+    thumbnailUrl.trim().length > 0 ? (apiAbsoluteMediaUrl(thumbnailUrl) ?? thumbnailUrl) : "";
 
   return (
     <div className="space-y-6">
@@ -1215,16 +1245,50 @@ function LandingPagePanel({
         <div>
           <h3 className="font-semibold text-brand-grey-dark mb-1">{t("admin.landingThumbnail")}</h3>
           <p className="text-sm text-brand-grey mb-2">{t("admin.landingThumbnailHint")}</p>
+          <input
+            ref={thumbFileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              void handleThumbFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            disabled={uploadingThumb}
+            onClick={() => thumbFileRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setThumbDragging(true);
+            }}
+            onDragLeave={() => setThumbDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setThumbDragging(false);
+              void handleThumbFile(e.dataTransfer.files?.[0]);
+            }}
+            className={`w-full cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center text-sm transition-colors ${
+              thumbDragging
+                ? "border-brand-green bg-brand-green/5"
+                : "border-brand-grey-light bg-white hover:border-brand-green/50"
+            } ${uploadingThumb ? "pointer-events-none opacity-60" : ""}`}
+          >
+            {uploadingThumb ? t("common.loading") : t("admin.landingThumbnailDrop")}
+          </button>
+          <p className="mt-3 text-sm font-medium text-brand-grey-dark">{t("admin.landingThumbnailUrlOptional")}</p>
           <Input
             value={thumbnailUrl}
             onChange={(e) => setThumbnailUrl(e.target.value)}
-            placeholder="https://... image URL"
+            placeholder="https://..."
+            className="mt-1"
           />
-          {thumbnailUrl && (
-            <div className="mt-2 rounded-lg overflow-hidden border border-brand-grey-light w-64">
-              <img src={thumbnailUrl} alt="Thumbnail preview" className="w-full h-auto" />
+          {thumbPreviewSrc ? (
+            <div className="mt-2 w-64 overflow-hidden rounded-lg border border-brand-grey-light">
+              <img src={thumbPreviewSrc} alt="Thumbnail preview" className="h-auto w-full" />
             </div>
-          )}
+          ) : null}
         </div>
       </Card>
       <Button onClick={handleSave}>{t("common.save")}</Button>

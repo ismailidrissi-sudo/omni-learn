@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { formatUserCount } from "@/lib/format-user-count";
+import { normalizeTrustedCompanyName } from "@/lib/trusted-company-name";
 
 interface TrustedCompany {
   id: string;
@@ -42,7 +43,8 @@ export function TrustBar() {
     const out: TrustedCompany[] = [];
     for (const c of companies) {
       if (!c.logoUrl?.trim()) continue;
-      const nameKey = c.name.trim().toLowerCase();
+      const norm = normalizeTrustedCompanyName(c.name);
+      const nameKey = norm.length > 0 ? norm : `id:${c.id}`;
       const rawUrl = c.logoUrl.split("?")[0] ?? "";
       const logoKey = rawUrl.toLowerCase();
       if (seenNames.has(nameKey)) continue;

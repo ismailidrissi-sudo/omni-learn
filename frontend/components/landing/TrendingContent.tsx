@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useUser } from "@/lib/use-user";
 import { useI18n } from "@/lib/i18n/context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiAbsoluteMediaUrl } from "@/lib/api";
 import { detectProvider } from "@/lib/video-provider";
 
 type ContentItem = {
@@ -161,6 +161,7 @@ export function TrendingContent() {
                 const videoUrl = getVideoUrl(item);
                 const provider = videoUrl ? detectProvider(videoUrl) : null;
                 const thumbnailUrl = provider?.thumbnailUrl ?? null;
+                const microThumbSrc = thumbnailUrl ? (apiAbsoluteMediaUrl(thumbnailUrl) ?? thumbnailUrl) : "";
                 const canPlayDirectly = videoUrl && provider?.provider === "direct";
                 return (
                   <Link
@@ -169,9 +170,9 @@ export function TrendingContent() {
                     className="flex-shrink-0 w-56 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[#059669] transition group block"
                   >
                     <div className="aspect-[9/12] bg-gray-200 dark:bg-gray-800 relative">
-                      {thumbnailUrl ? (
+                      {microThumbSrc ? (
                         <img
-                          src={thumbnailUrl}
+                          src={microThumbSrc}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -215,15 +216,16 @@ export function TrendingContent() {
                 const courseMeta = parseMetadata(item.metadata);
                 const landingMeta = courseMeta?.landingPage as Record<string, string> | undefined;
                 const thumbUrl = landingMeta?.thumbnailUrl;
+                const courseThumbSrc = thumbUrl ? (apiAbsoluteMediaUrl(thumbUrl) ?? thumbUrl) : "";
                 return (
                   <button
                     key={item.id}
                     onClick={() => handleContentClick(item.id, "course")}
                     className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] overflow-hidden hover:border-[#059669] hover:shadow-lg transition"
                   >
-                    {thumbUrl ? (
+                    {courseThumbSrc ? (
                       <div className="w-full h-40 overflow-hidden">
-                        <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={courseThumbSrc} alt="" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="w-full h-40 bg-gradient-to-br from-[#059669]/15 to-[#059669]/5 flex items-center justify-center text-5xl">📚</div>
@@ -255,15 +257,16 @@ export function TrendingContent() {
               {trendingPodcasts.map((item) => {
                 const meta = parseMetadata(item.metadata);
                 const thumbnailUrl = meta?.thumbnailUrl as string | undefined;
+                const podThumbSrc = thumbnailUrl ? (apiAbsoluteMediaUrl(thumbnailUrl) ?? thumbnailUrl) : "";
                 return (
                   <button
                     key={item.id}
                     onClick={() => handleContentClick(item.id, "podcast")}
                     className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] p-6 hover:border-[#059669] hover:shadow-lg transition"
                   >
-                    {thumbnailUrl ? (
+                    {podThumbSrc ? (
                       <div className="mb-4 rounded-lg overflow-hidden aspect-video">
-                        <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={podThumbSrc} alt="" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="w-12 h-12 rounded-lg bg-[#059669]/15 flex items-center justify-center text-2xl mb-4">🎧</div>
@@ -293,6 +296,7 @@ export function TrendingContent() {
                 const recMeta = parseMetadata(item.metadata);
                 const recLanding = recMeta?.landingPage as Record<string, string> | undefined;
                 const recThumb = recLanding?.thumbnailUrl;
+                const recThumbSrc = recThumb ? (apiAbsoluteMediaUrl(recThumb) ?? recThumb) : "";
                 return (
                   <button
                     key={item.id}
@@ -308,9 +312,9 @@ export function TrendingContent() {
                     }
                     className="text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1e18] overflow-hidden hover:border-[#059669] hover:shadow-lg transition group"
                   >
-                    {recThumb ? (
+                    {recThumbSrc ? (
                       <div className="w-full h-28 overflow-hidden">
-                        <img src={recThumb} alt="" className="w-full h-full object-cover" />
+                        <img src={recThumbSrc} alt="" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="w-full h-28 bg-gradient-to-br from-[#059669]/15 to-[#10b981]/5 flex items-center justify-center text-3xl">

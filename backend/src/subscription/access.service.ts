@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionPlan } from './subscription.constants';
 import {
@@ -89,8 +90,15 @@ export class AccessService {
 
   /** Build Prisma where clause for content filtering based on tier + assignments */
   buildContentWhere(ctx: UserAccessContext) {
+    // Legacy rows that pre-date the availablePlans field may have it stored as
+    // `null` (Prisma Json). Treat missing values as "all plans allowed" so we
+    // don't retroactively lock out previously-public content.
     const planFilter = {
-      availablePlans: { array_contains: [ctx.planId] },
+      OR: [
+        { availablePlans: { equals: Prisma.DbNull } },
+        { availablePlans: { equals: Prisma.JsonNull } },
+        { availablePlans: { array_contains: [ctx.planId] } },
+      ],
     };
     const tierFilter: Record<string, unknown> = {};
     const assignmentFilter = this.buildAssignmentFilter(ctx);
@@ -299,10 +307,15 @@ export class AccessService {
     });
     if (!content) return false;
 
+    // Legacy rows may have availablePlans stored as `null` (Prisma Json).
+    // Treat missing values as "all plans allowed" so we don't retroactively
+    // lock out content that was previously public.
+    const isLegacyUnset =
+      content.availablePlans == null || !Array.isArray(content.availablePlans);
     const plans = Array.isArray(content.availablePlans)
       ? (content.availablePlans as string[])
       : [];
-    const planAllowed = plans.includes(ctx.planId);
+    const planAllowed = isLegacyUnset || plans.includes(ctx.planId);
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:
