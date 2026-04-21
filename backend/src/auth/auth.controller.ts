@@ -12,6 +12,8 @@ import {
   PasswordResetConfirmDto,
 } from '../dto/auth.dto';
 import { ReferralService } from '../referral/referral.service';
+import { SubscriptionPlan } from '../subscription/subscription.constants';
+import { effectiveSubscriptionPlan } from '../subscription/tenant-plan.util';
 
 @Controller('auth')
 export class AuthController {
@@ -123,6 +125,7 @@ export class AuthController {
         planId: true,
         billingCycle: true,
         sectorFocus: true,
+        orgApprovalStatus: true,
         isAdmin: true,
         trainerRequested: true,
         trainerApprovedAt: true,
@@ -131,13 +134,22 @@ export class AuthController {
         city: true,
         countryCode: true,
         timezone: true,
+        tenant: { select: { settings: true } },
       },
     });
     if (!user) throw new UnauthorizedException('User not found');
     const ctx = await this.authService.loadRequestUser(userId);
     if (!ctx) throw new UnauthorizedException('User not found');
+    const effectivePlanId = effectiveSubscriptionPlan({
+      userPlanId: user.planId as SubscriptionPlan,
+      tenantId: user.tenantId,
+      orgApprovalStatus: user.orgApprovalStatus,
+      tenantSettings: user.tenant?.settings ?? null,
+    });
+    const { tenant: _tenant, ...rest } = user;
     return {
-      ...user,
+      ...rest,
+      effectivePlanId,
       roles: ctx.rolesRaw,
       permissions: ctx.permissions,
     };

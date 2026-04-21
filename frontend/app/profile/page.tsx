@@ -38,6 +38,7 @@ type ProfileData = {
     email: string;
     name: string;
     planId: string;
+    orgApprovalStatus?: string | null;
     billingCycle?: string | null;
     sectorFocus?: string | null;
     linkedinProfileUrl?: string | null;
@@ -189,6 +190,12 @@ export default function ProfilePage() {
   const [demoPhone, setDemoPhone] = useState("");
   const [demoSaving, setDemoSaving] = useState(false);
   const [demoSaved, setDemoSaved] = useState(false);
+  const [academySearch, setAcademySearch] = useState("");
+  const [academyResults, setAcademyResults] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [academySearching, setAcademySearching] = useState(false);
+  const [selectedAcademyId, setSelectedAcademyId] = useState<string | null>(null);
+  const [academyBusy, setAcademyBusy] = useState(false);
+  const [academyMsg, setAcademyMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userLoading && !user) {
@@ -220,6 +227,30 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) fetchProfile();
   }, [user, fetchProfile]);
+
+  useEffect(() => {
+    if (activeTab !== "overview") return;
+    const q = academySearch.trim();
+    let cancelled = false;
+    setAcademySearching(true);
+    const tmr = setTimeout(() => {
+      apiFetch(`/company/academies/public${q ? `?q=${encodeURIComponent(q)}` : ""}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (!cancelled) setAcademyResults(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {
+          if (!cancelled) setAcademyResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setAcademySearching(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(tmr);
+    };
+  }, [academySearch, activeTab]);
 
   if (userLoading || !user) {
     return (
@@ -399,6 +430,110 @@ export default function ProfilePage() {
             {/* Tab Content */}
             {activeTab === "overview" && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="lg:col-span-2">
+                  <SectionCard title={t("profile.academyMembership")} icon="🎓">
+                    <div className="space-y-4 text-sm text-[var(--color-text-secondary)]">
+                      {p?.company && (
+                        <div>
+                          <p className="font-semibold text-[var(--color-text-primary)]">{p.company.name}</p>
+                          <p className="text-xs mt-1">
+                            {p.user?.orgApprovalStatus === "PENDING" && t("profile.academyPending")}
+                            {p.user?.orgApprovalStatus === "APPROVED" && t("profile.academyApproved")}
+                            {(!p.user?.orgApprovalStatus || p.user.orgApprovalStatus === "NONE") &&
+                              t("profile.academyNoStatus")}
+                          </p>
+                        </div>
+                      )}
+                      {!p?.company && <p>{t("profile.academyJoinIntro")}</p>}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={academyBusy || !user.tenantId}
+                          onClick={async () => {
+                            setAcademyBusy(true);
+                            setAcademyMsg(null);
+                            try {
+                              const res = await apiFetch("/profile/leave-academy", { method: "POST" });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.message ?? "Failed");
+                              setAcademyMsg(t("profile.academyLeft"));
+                              await fetchProfile();
+                            } catch (e) {
+                              setAcademyMsg(e instanceof Error ? e.message : "Error");
+                            } finally {
+                              setAcademyBusy(false);
+                            }
+                          }}
+                        >
+                          {t("profile.leaveAcademy")}
+                        </Button>
+                      </div>
+                      <div className="border-t border-[var(--color-bg-secondary)] pt-4 space-y-2">
+                        <label className="block text-xs font-medium text-[var(--color-text-primary)]">
+                          {t("profile.requestJoinAnother")}
+                        </label>
+                        <input
+                          type="search"
+                          className="w-full rounded-lg border border-[var(--color-bg-secondary)] px-3 py-2 text-sm bg-white dark:bg-[#1a1e18] text-[var(--color-text-primary)]"
+                          value={academySearch}
+                          onChange={(e) => setAcademySearch(e.target.value)}
+                          placeholder={t("completeProfile.academySearchPlaceholder")}
+                        />
+                        {academySearching && <p className="text-xs">{t("common.loading")}</p>}
+                        {academyResults.length > 0 && (
+                          <ul className="max-h-40 overflow-y-auto rounded-lg border border-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-secondary)]">
+                            {academyResults.map((a) => (
+                              <li key={a.id}>
+                                <button
+                                  type="button"
+                                  className={`w-full text-left px-3 py-2 text-sm ${
+                                    selectedAcademyId === a.id ? "bg-brand-green/10" : "hover:bg-[var(--color-bg-secondary)]"
+                                  }`}
+                                  onClick={() => setSelectedAcademyId(a.id)}
+                                >
+                                  <span className="font-medium text-[var(--color-text-primary)]">{a.name}</span>
+                                  <span className="text-xs text-[var(--color-text-secondary)] block">/{a.slug}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={academyBusy || !selectedAcademyId}
+                          onClick={async () => {
+                            if (!selectedAcademyId) return;
+                            setAcademyBusy(true);
+                            setAcademyMsg(null);
+                            try {
+                              const res = await apiFetch("/profile/request-academy-join", {
+                                method: "POST",
+                                body: JSON.stringify({ tenantId: selectedAcademyId }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.message ?? "Request failed");
+                              setAcademyMsg(data?.message ?? t("profile.academyRequestSent"));
+                              setSelectedAcademyId(null);
+                              await fetchProfile();
+                            } catch (e) {
+                              setAcademyMsg(e instanceof Error ? e.message : "Error");
+                            } finally {
+                              setAcademyBusy(false);
+                            }
+                          }}
+                        >
+                          {t("profile.submitAcademyRequest")}
+                        </Button>
+                        {academyMsg && <p className="text-xs text-brand-green">{academyMsg}</p>}
+                      </div>
+                    </div>
+                  </SectionCard>
+                </div>
+
                 {/* Company Affiliation */}
                 <SectionCard title={t("profile.companyAffiliation")} icon="🏢">
                   {p?.company ? (

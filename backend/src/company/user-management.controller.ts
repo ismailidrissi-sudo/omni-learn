@@ -10,6 +10,7 @@ import {
   Req,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RbacGuard } from '../auth/guards/rbac.guard';
@@ -20,9 +21,11 @@ import type { RequestUserPayload } from '../auth/types/request-user.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SeatLimitService } from './seat-limit.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
-import { OrgApprovalStatus } from '@prisma/client';
+import { OrgApprovalStatus, UserAccountStatus, SubscriptionPlan } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { CourseEnrollmentService } from '../course-enrollment/course-enrollment.service';
+import { LearningPathService } from '../learning-path/learning-path.service';
 
 const MAGIC_LINK_TTL_HOURS = 48;
 
@@ -38,10 +41,14 @@ interface BulkImportDto {
 
 @Controller('company')
 export class UserManagementController {
+  private readonly log = new Logger(UserManagementController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly seatLimit: SeatLimitService,
     private readonly transactionalEmail: TransactionalEmailService,
+    private readonly courseEnrollment: CourseEnrollmentService,
+    private readonly learningPath: LearningPathService,
   ) {}
 
   // ── Magic Link Bulk Invite (email-only) ────────────────────────────────
@@ -374,6 +381,203 @@ export class UserManagementController {
       .catch(() => undefined);
 
     return { success: true, message: 'User rejected' };
+  }
+
+  /**
+   * Assign or remove a user's academy (tenant) membership.
+   * Super admin: any tenant or removal. Company admin: only assign to own tenant; cannot remove.
+   */
+  @Patch('users/:userId/academy')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async assignUserAcademy(
+    @Param('userId') userId: string,
+    @Body() body: { tenantId: string | null },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!('tenantId' in body)) {
+      throw new BadRequestException('tenantId is required (use null to remove from academy)');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        tenantId: true,
+        orgApprovalStatus: true,
+      },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    const isSuper = actor.roles.includes(RbacRole.SUPER_ADMIN);
+    const nextTenantId = body.tenantId === null || body.tenantId === '' ? null : body.tenantId;
+
+    if (nextTenantId === null) {
+      if (!isSuper) {
+        throw new ForbiddenException('Only a platform admin can remove a user from an academy');
+      }
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          tenantId: null,
+          orgApprovalStatus: OrgApprovalStatus.NONE,
+          accountStatus: UserAccountStatus.ACTIVE,
+        },
+      });
+      this.log.log(`Super admin removed user ${userId} (${user.email}) from academy`);
+      return { success: true, tenantId: null, orgApprovalStatus: OrgApprovalStatus.NONE };
+    }
+
+    if (!isSuper) {
+      if (!actor.tenantId || nextTenantId !== actor.tenantId) {
+        throw new ForbiddenException('You can only assign users to your own academy');
+      }
+      if (user.tenantId !== null && user.tenantId !== actor.tenantId) {
+        throw new ForbiddenException('You cannot move users from another academy');
+      }
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: nextTenantId },
+      select: { id: true },
+    });
+    if (!tenant) throw new BadRequestException('Academy (tenant) not found');
+
+    if (user.tenantId === nextTenantId && user.orgApprovalStatus === OrgApprovalStatus.APPROVED) {
+      return {
+        success: true,
+        tenantId: nextTenantId,
+        orgApprovalStatus: OrgApprovalStatus.APPROVED,
+        message: 'User already approved in this academy',
+      };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.seatLimit.assertSeatAvailable(nextTenantId, 1, tx);
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          tenantId: nextTenantId,
+          orgApprovalStatus: OrgApprovalStatus.APPROVED,
+          accountStatus: UserAccountStatus.ACTIVE,
+        },
+      });
+    });
+
+    this.log.log(
+      `${isSuper ? 'Super admin' : 'Company admin'} assigned user ${userId} (${user.email}) to academy ${nextTenantId}`,
+    );
+    return {
+      success: true,
+      tenantId: nextTenantId,
+      orgApprovalStatus: OrgApprovalStatus.APPROVED,
+    };
+  }
+
+  @Patch('users/:userId/plan')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async updateUserPlan(
+    @Param('userId') userId: string,
+    @Body() body: { planId: string },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!body?.planId || typeof body.planId !== 'string') {
+      throw new BadRequestException('planId is required');
+    }
+    const allowed = Object.values(SubscriptionPlan) as string[];
+    if (!allowed.includes(body.planId)) {
+      throw new BadRequestException('Invalid planId');
+    }
+    const planId = body.planId as SubscriptionPlan;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    this.assertTenantScope(actor, user.tenantId);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { planId },
+    });
+    return { success: true, planId };
+  }
+
+  @Patch('users/:userId/account-status')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async updateUserAccountStatus(
+    @Param('userId') userId: string,
+    @Body() body: { accountStatus: UserAccountStatus },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (body?.accountStatus !== UserAccountStatus.ACTIVE && body?.accountStatus !== UserAccountStatus.SUSPENDED) {
+      throw new BadRequestException('accountStatus must be ACTIVE or SUSPENDED');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    this.assertTenantScope(actor, user.tenantId);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { accountStatus: body.accountStatus },
+    });
+    return { success: true, accountStatus: body.accountStatus };
+  }
+
+  @Post('users/:userId/enrollments/course')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async adminEnrollCourse(
+    @Param('userId') userId: string,
+    @Body() body: { courseId: string; deadline?: string },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!body?.courseId) throw new BadRequestException('courseId is required');
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    this.assertTenantScope(actor, user.tenantId);
+
+    return this.courseEnrollment.enrollUser(
+      userId,
+      body.courseId,
+      body.deadline ? new Date(body.deadline) : undefined,
+      { actorUserId: actor.sub },
+    );
+  }
+
+  @Post('users/:userId/enrollments/path')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async adminEnrollPath(
+    @Param('userId') userId: string,
+    @Body() body: { pathId: string; deadline?: string },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!body?.pathId) throw new BadRequestException('pathId is required');
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    this.assertTenantScope(actor, user.tenantId);
+
+    return this.learningPath.enrollUser(
+      userId,
+      body.pathId,
+      body.deadline ? new Date(body.deadline) : undefined,
+      { actorUserId: actor.sub },
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────

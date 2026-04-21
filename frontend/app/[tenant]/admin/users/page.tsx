@@ -34,6 +34,9 @@ export default function UserManagementPage() {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const academyName = branding?.appName || tenant?.name || "Academy";
 
@@ -55,6 +58,42 @@ export default function UserManagementPage() {
     const q = search.toLowerCase();
     return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
   });
+
+  const parseInviteEmails = (raw: string) =>
+    [...new Set(raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@")))];
+
+  const handleBulkInvite = async () => {
+    if (!tenant) return;
+    const emails = parseInviteEmails(inviteEmails);
+    if (emails.length === 0) {
+      setError(t("adminTenant.inviteEmailsRequired") || "Enter at least one valid email");
+      return;
+    }
+    setInviting(true);
+    setError("");
+    try {
+      const res = await apiFetch("/company/users/bulk-invite", {
+        method: "POST",
+        body: JSON.stringify({ tenantId: tenant.id, emails }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message ?? "Invite failed");
+      }
+      toast(
+        t("adminTenant.inviteSent", { count: String(data.invited ?? emails.length) }) ||
+          `Invited ${data.invited ?? 0} user(s); skipped ${data.skipped ?? 0} existing.`,
+        "success",
+      );
+      setInviteEmails("");
+      setInviteOpen(false);
+      fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invite failed");
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,7 +155,10 @@ export default function UserManagementPage() {
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">User Management</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">{users.length} users in {academyName}</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Button variant="primary" type="button" onClick={() => setInviteOpen(true)}>
+              {t("adminTenant.inviteUsers") || "Invite by email"}
+            </Button>
             <input
               ref={fileRef}
               type="file"
@@ -131,6 +173,32 @@ export default function UserManagementPage() {
         </div>
 
         {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
+
+        {inviteOpen && (
+          <div className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40 p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+              {t("adminTenant.inviteUsersTitle") || "Invite learners (magic link)"}
+            </h3>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              {t("adminTenant.inviteUsersHint") ||
+                "One email per line, or comma-separated. New accounts receive a sign-in link; existing emails are skipped."}
+            </p>
+            <textarea
+              className="w-full min-h-[120px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+              value={inviteEmails}
+              onChange={(e) => setInviteEmails(e.target.value)}
+              placeholder="name@company.com"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" type="button" onClick={() => setInviteOpen(false)} disabled={inviting}>
+                {t("common.cancel") || "Cancel"}
+              </Button>
+              <Button variant="primary" type="button" onClick={handleBulkInvite} disabled={inviting}>
+                {inviting ? t("common.loading") : t("adminTenant.sendInvites") || "Send invites"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Card>
           <CardHeader>

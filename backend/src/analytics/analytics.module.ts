@@ -16,10 +16,12 @@ import { AnalyticsSocketGateway } from './analytics-socket.gateway';
 import { AnalyticsLiveService } from './analytics-live.service';
 import { GeoScheduledReportService } from './geo-scheduled-report.service';
 import { AuthModule } from '../auth/auth.module';
+import { ProfileModule } from '../profile/profile.module';
 
 @Module({
   imports: [
     AuthModule,
+    ProfileModule,
     HttpModule.register({ timeout: 8000, maxRedirects: 3 }),
     BullModule.registerQueue({ name: ANALYTICS_QUEUE }),
   ],

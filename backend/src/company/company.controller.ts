@@ -39,6 +39,12 @@ export class CompanyController {
     return portal;
   }
 
+  /** Public list of branded academies (for join pickers). */
+  @Get('academies/public')
+  listPublicAcademies(@Query('q') q?: string) {
+    return this.company.listPublicAcademies(q);
+  }
+
   /** Default tenant branding for marketing / app shell (no auth). */
   @Get('default-branding')
   getDefaultBranding() {

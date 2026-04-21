@@ -27,11 +27,12 @@ import {
   ImageIcon,
   Copy,
   Check,
+  UserPlus,
 } from "lucide-react";
 
 type AccountType = "company" | "branded_academy";
 
-type DetailTab = "organization" | "branding" | "profile" | "plan";
+type DetailTab = "organization" | "branding" | "profile" | "plan" | "members";
 
 interface TenantSettings {
   accountType?: AccountType;
@@ -204,6 +205,18 @@ export default function CompanyAdminPage() {
   const [logoVersion, setLogoVersion] = useState(0);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  const [membersList, setMembersList] = useState<
+    { id: string; name: string; email: string; orgApprovalStatus?: string | null }[]
+  >([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [allUsersPick, setAllUsersPick] = useState<{ id: string; name: string; email: string; tenantId?: string | null }[]>(
+    [],
+  );
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [assignBusyId, setAssignBusyId] = useState<string | null>(null);
+
   const isSuperAdmin = !!user?.isAdmin;
 
   const reloadTenants = async () => {
@@ -233,6 +246,24 @@ export default function CompanyAdminPage() {
       .then(setTenants)
       .catch(() => setError("Failed to load company data. Please try again later."));
   }, []);
+
+  useEffect(() => {
+    if (!selected || detailTab !== "members") return;
+    setMembersLoading(true);
+    apiFetch(`/company/users?tenantId=${selected.id}`)
+      .then((r) => r.json())
+      .then((d) => setMembersList(Array.isArray(d) ? d : []))
+      .catch(() => setMembersList([]))
+      .finally(() => setMembersLoading(false));
+  }, [selected?.id, detailTab]);
+
+  useEffect(() => {
+    if (!selected || detailTab !== "members") return;
+    apiFetch("/company/users")
+      .then((r) => r.json())
+      .then((d) => (Array.isArray(d) ? setAllUsersPick(d) : setAllUsersPick([])))
+      .catch(() => setAllUsersPick([]));
+  }, [selected?.id, detailTab]);
 
   useEffect(() => {
     if (!selected) return;
@@ -273,6 +304,18 @@ export default function CompanyAdminPage() {
         setBranding({});
       });
   }, [selected?.id]);
+
+  const pickerFiltered = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    if (!selected) return [];
+    return allUsersPick
+      .filter((u) => {
+        if (u.tenantId === selected.id) return false;
+        if (!q) return true;
+        return u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q);
+      })
+      .slice(0, 40);
+  }, [allUsersPick, pickerQuery, selected]);
 
   const saveOrganization = async () => {
     if (!selected) return;
@@ -528,7 +571,59 @@ export default function CompanyAdminPage() {
     { id: "branding", label: "Branding & logo", icon: Palette },
     { id: "profile", label: "Profile & recommendations", icon: Users },
     { id: "plan", label: "Plan & limits", icon: Crown },
+    { id: "members", label: "Members", icon: UserPlus },
   ];
+
+  const assignUserToSelectedAcademy = async (userId: string) => {
+    if (!selected) return;
+    setAssignBusyId(userId);
+    try {
+      const res = await apiFetch(`/company/users/${userId}/academy`, {
+        method: "PATCH",
+        body: JSON.stringify({ tenantId: selected.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message ?? "Assign failed");
+      toast("User assigned to this academy", "success");
+      const list = await apiFetch(`/company/users?tenantId=${selected.id}`).then((r) => r.json());
+      setMembersList(Array.isArray(list) ? list : []);
+      const all = await apiFetch("/company/users").then((r) => r.json());
+      setAllUsersPick(Array.isArray(all) ? all : []);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Assign failed", "error");
+    } finally {
+      setAssignBusyId(null);
+    }
+  };
+
+  const inviteToSelectedAcademy = async () => {
+    if (!selected) return;
+    const emails = inviteEmail
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes("@"));
+    if (emails.length === 0) {
+      toast("Enter a valid email", "error");
+      return;
+    }
+    setInviteBusy(true);
+    try {
+      const res = await apiFetch("/company/users/bulk-invite", {
+        method: "POST",
+        body: JSON.stringify({ tenantId: selected.id, emails }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message ?? "Invite failed");
+      toast(`Invited ${data.invited ?? 0} user(s)`, "success");
+      setInviteEmail("");
+      const list = await apiFetch(`/company/users?tenantId=${selected.id}`).then((r) => r.json());
+      setMembersList(Array.isArray(list) ? list : []);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Invite failed", "error");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -1057,6 +1152,94 @@ export default function CompanyAdminPage() {
                               "Save profile"
                             )}
                           </Button>
+                        </div>
+                      )}
+
+                      {detailTab === "members" && (
+                        <div className="space-y-8 max-w-2xl">
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Invite new learner</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                              Sends a magic-link email. The account is pre-approved for this academy.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Input
+                                type="email"
+                                placeholder="colleague@company.com"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                className="max-w-md flex-1 min-w-[200px]"
+                              />
+                              <Button type="button" onClick={inviteToSelectedAcademy} disabled={inviteBusy}>
+                                {inviteBusy ? "Sending…" : "Send invite"}
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                              Add existing platform user
+                            </h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                              Search by name or email, then assign them to this academy (super admin).
+                            </p>
+                            <Input
+                              placeholder="Search users…"
+                              value={pickerQuery}
+                              onChange={(e) => setPickerQuery(e.target.value)}
+                              className="max-w-md mb-2"
+                            />
+                            <ul className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-white/10 divide-y divide-gray-100 dark:divide-white/10">
+                              {pickerFiltered.map((u) => (
+                                <li
+                                  key={u.id}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="font-medium text-gray-900 dark:text-white block truncate">
+                                      {u.name}
+                                    </span>
+                                    <span className="text-xs text-gray-500 truncate block">{u.email}</span>
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={assignBusyId === u.id}
+                                    onClick={() => void assignUserToSelectedAcademy(u.id)}
+                                  >
+                                    {assignBusyId === u.id ? "…" : "Add"}
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                            {pickerFiltered.length === 0 && (
+                              <p className="text-xs text-gray-500 mt-2">No matching users, or all are already in this academy.</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                              Current members ({membersList.length})
+                            </h3>
+                            {membersLoading ? (
+                              <p className="text-sm text-gray-500">Loading…</p>
+                            ) : (
+                              <ul className="rounded-lg border border-gray-200 dark:border-white/10 divide-y divide-gray-100 dark:divide-white/10 max-h-64 overflow-y-auto">
+                                {membersList.map((m) => (
+                                  <li key={m.id} className="px-3 py-2 text-sm flex justify-between gap-2">
+                                    <span>
+                                      <span className="font-medium text-gray-900 dark:text-white">{m.name}</span>
+                                      <span className="text-gray-500 text-xs block">{m.email}</span>
+                                    </span>
+                                    {m.orgApprovalStatus && m.orgApprovalStatus !== "APPROVED" && (
+                                      <span className="text-xs text-amber-600 shrink-0">{m.orgApprovalStatus}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       )}
 

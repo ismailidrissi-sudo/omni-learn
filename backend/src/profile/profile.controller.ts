@@ -29,6 +29,26 @@ import type { RequestUserPayload } from '../auth/types/request-user.types';
 export class ProfileController {
   constructor(private readonly profile: ProfileService) {}
 
+  /** Request to join a branded academy (pending company-admin approval) */
+  @Post('request-academy-join')
+  @UseGuards(AuthGuard('jwt'))
+  async requestAcademyJoin(
+    @Req() req: { user?: { sub?: string } },
+    @Body() body: { tenantId: string },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.requestAcademyJoin(userId, body.tenantId);
+  }
+
+  @Post('leave-academy')
+  @UseGuards(AuthGuard('jwt'))
+  async leaveAcademy(@Req() req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new BadRequestException('Not authenticated');
+    return this.profile.leaveAcademy(userId);
+  }
+
   /** Complete user profile (company, sector, department, position, LinkedIn, userType) — requires auth */
   @Post('complete')
   @UseGuards(AuthGuard('jwt'))

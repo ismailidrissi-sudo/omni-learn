@@ -525,11 +525,32 @@ export default function ContentPage() {
             </>
           )
         ) : (
-          <p className="text-brand-grey py-20 text-center">
-            {errorKind === "access_denied"
-              ? t("content.contentAccessDenied")
-              : t("content.contentNotFound")}
-          </p>
+          <div className="py-20 text-center max-w-lg mx-auto px-4">
+            <div className="text-4xl mb-4" aria-hidden>
+              🔒
+            </div>
+            {errorKind === "access_denied" ? (
+              <>
+                <p className="text-brand-grey-dark dark:text-white font-semibold mb-3">
+                  {user?.orgApprovalStatus === "PENDING" && user?.tenantId
+                    ? t("content.accessPendingOrg")
+                    : user?.tenantId && user?.orgApprovalStatus === "APPROVED"
+                      ? t("content.accessAcademyPlan", { plan: user.effectivePlanId ?? user.planId })
+                      : t("content.contentAccessDenied")}
+                </p>
+                {user?.tenantId && user?.orgApprovalStatus === "APPROVED" && (
+                  <p className="text-sm text-brand-grey mb-4">
+                    {t("content.effectivePlanHint", { plan: user.effectivePlanId ?? user.planId })}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-brand-grey font-medium mb-4">{t("content.contentNotFound")}</p>
+            )}
+            <Link href="/discover" className="text-brand-purple text-sm font-medium hover:underline">
+              {t("content.backToDiscover")}
+            </Link>
+          </div>
         )}
       </main>
     </div>

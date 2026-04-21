@@ -1,9 +1,17 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { OrgApprovalStatus, Prisma } from '@prisma/client';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ApprovalRequestStatus,
+  ApprovalRequestType,
+  OrgApprovalStatus,
+  Prisma,
+  UserAccountStatus,
+} from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
 import { SeatLimitService } from '../company/seat-limit.service';
+import { RbacRole } from '../constants/rbac.constant';
+import type { RequestUserPayload } from '../auth/types/request-user.types';
 
 function generateJoinCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -175,6 +183,29 @@ export class ProfileService {
   }
 
   async getFullUserProfile(userId: string) {
+    return this.buildFullProfilePayload(userId);
+  }
+
+  /**
+   * Full profile for deep analytics / admin viewer. Same shape as getFullUserProfile plus tenantId on user slice.
+   * Enforces tenant scope for non–super-admins.
+   */
+  async getFullProfileForAdmin(actor: RequestUserPayload, targetUserId: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, tenantId: true },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    const isSuper = actor.roles.includes(RbacRole.SUPER_ADMIN);
+    if (!isSuper && target.tenantId !== actor.tenantId) {
+      throw new ForbiddenException('You can only view users in your own academy');
+    }
+
+    return this.buildFullProfilePayload(targetUserId);
+  }
+
+  private async buildFullProfilePayload(userId: string) {
     const [user, enrollments, courseEnrollments, points, badges, streak, trainerProfile] =
       await Promise.all([
         this.prisma.user.findUniqueOrThrow({
@@ -272,6 +303,7 @@ export class ProfileService {
         id: user.id,
         email: user.email,
         name: user.name,
+        tenantId: user.tenantId,
         planId: user.planId,
         billingCycle: user.billingCycle,
         sectorFocus: user.sectorFocus,
@@ -289,6 +321,7 @@ export class ProfileService {
         country: user.country,
         city: user.city,
         phoneNumber: user.phoneNumber,
+        accountStatus: user.accountStatus,
         createdAt: user.createdAt,
       },
       department: user.department,
@@ -475,6 +508,133 @@ export class ProfileService {
     return { valid: true, tenantId: tenant.id, tenantName: tenant.name, tenantLogoUrl: tenant.logoUrl };
   }
 
+  /**
+   * Authenticated user requests to join a branded academy (pending company-admin approval).
+   */
+  async requestAcademyJoin(userId: string, tenantId: string) {
+    if (!tenantId?.trim()) {
+      throw new BadRequestException('tenantId is required');
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, name: true, settings: true },
+    });
+    if (!tenant) {
+      throw new BadRequestException('Academy not found');
+    }
+
+    const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+    if (settings.accountType !== 'branded_academy') {
+      throw new BadRequestException('This organization does not accept academy join requests');
+    }
+    if (settings.allowSelfSignup === false) {
+      throw new BadRequestException('This academy does not allow self-service join requests');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, tenantId: true, orgApprovalStatus: true, emailVerified: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    if (user.orgApprovalStatus === OrgApprovalStatus.APPROVED && user.tenantId === tenantId) {
+      return {
+        success: true,
+        alreadyMember: true,
+        message: 'You are already an approved member of this academy',
+      };
+    }
+    if (user.orgApprovalStatus === OrgApprovalStatus.APPROVED && user.tenantId && user.tenantId !== tenantId) {
+      throw new BadRequestException(
+        'You already belong to another academy. Ask a platform administrator to move your account.',
+      );
+    }
+
+    await this.prisma.approvalRequest.updateMany({
+      where: {
+        requesterId: userId,
+        type: ApprovalRequestType.COMPANY_JOIN,
+        status: ApprovalRequestStatus.PENDING,
+      },
+      data: {
+        status: ApprovalRequestStatus.REJECTED,
+        reviewNote: 'Superseded by a new academy join request',
+        reviewedAt: new Date(),
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        tenantId,
+        orgApprovalStatus: OrgApprovalStatus.PENDING,
+        accountStatus: UserAccountStatus.PENDING_COMPANY,
+      },
+    });
+
+    await this.prisma.approvalRequest.create({
+      data: {
+        tenantId,
+        type: ApprovalRequestType.COMPANY_JOIN,
+        status: ApprovalRequestStatus.PENDING,
+        requesterId: userId,
+        payload: { company_tenant_id: tenantId, message: 'user_requested_academy_join' },
+      },
+    });
+
+    if (user.emailVerified) {
+      await this.transactionalEmail.notifyCompanyAdminsNewSignup({
+        tenantId,
+        learnerName: user.name,
+        learnerEmail: user.email,
+      });
+    }
+
+    return {
+      success: true,
+      pending: true,
+      tenantId,
+      tenantName: tenant.name,
+      message: 'Your request was sent. A company administrator will review your access.',
+    };
+  }
+
+  /** User leaves their current academy (clears pending or approved affiliation). */
+  async leaveAcademy(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true, orgApprovalStatus: true },
+    });
+    if (!user?.tenantId) {
+      return { success: true, message: 'You are not affiliated with an academy' };
+    }
+
+    await this.prisma.approvalRequest.updateMany({
+      where: {
+        requesterId: userId,
+        type: ApprovalRequestType.COMPANY_JOIN,
+        status: ApprovalRequestStatus.PENDING,
+      },
+      data: {
+        status: ApprovalRequestStatus.REJECTED,
+        reviewNote: 'User withdrew academy join request',
+        reviewedAt: new Date(),
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        tenantId: null,
+        orgApprovalStatus: OrgApprovalStatus.NONE,
+        accountStatus: UserAccountStatus.ACTIVE,
+      },
+    });
+
+    return { success: true, message: 'You have left the academy' };
+  }
+
   async getReferralCompany(userId: string) {
     const referral = await this.prisma.referral.findFirst({
       where: { referredUserId: userId },
@@ -591,7 +751,10 @@ export class ProfileService {
       }
       await tx.user.update({
         where: { id: userId },
-        data: { orgApprovalStatus: OrgApprovalStatus.APPROVED },
+        data: {
+          orgApprovalStatus: OrgApprovalStatus.APPROVED,
+          accountStatus: UserAccountStatus.ACTIVE,
+        },
       });
     });
     await this.transactionalEmail.sendAccountApproved({

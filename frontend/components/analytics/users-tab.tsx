@@ -26,6 +26,7 @@ interface Props {
   sortBy: string;
   sortOrder: string;
   onSort: (field: string) => void;
+  onUserClick?: (userId: string) => void;
 }
 
 const thCls = "px-3 py-2.5 text-left text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider";
@@ -42,7 +43,7 @@ function SortHeader({ label, field, sortBy, sortOrder, onSort }: { label: string
   );
 }
 
-export function UsersTab({ data, filters, onPageChange, sortBy, sortOrder, onSort }: Props) {
+export function UsersTab({ data, filters, onPageChange, sortBy, sortOrder, onSort, onUserClick }: Props) {
   if (!data) return null;
 
   return (
@@ -76,7 +77,24 @@ export function UsersTab({ data, filters, onPageChange, sortBy, sortOrder, onSor
             </thead>
             <tbody className="divide-y divide-[var(--color-bg-secondary)]">
               {data.users.map((u) => (
-                <tr key={u.id} className="hover:bg-brand-purple/5 transition-colors">
+                <tr
+                  key={u.id}
+                  className={`hover:bg-brand-purple/5 transition-colors ${onUserClick ? "cursor-pointer" : ""}`}
+                  aria-label={onUserClick ? `Open profile for ${u.name}` : undefined}
+                  onClick={onUserClick ? () => onUserClick(u.id) : undefined}
+                  onKeyDown={
+                    onUserClick
+                      ? (ev) => {
+                          if (ev.key === "Enter" || ev.key === " ") {
+                            ev.preventDefault();
+                            onUserClick(u.id);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={onUserClick ? 0 : undefined}
+                  role={onUserClick ? "button" : undefined}
+                >
                   <td className="px-3 py-2.5 font-medium text-[var(--color-text-primary)]">{u.name}</td>
                   <td className="px-3 py-2.5 text-[var(--color-text-secondary)]">{u.email}</td>
                   <td className="px-3 py-2.5 text-[var(--color-text-secondary)]">{u.tenantName || "—"}</td>

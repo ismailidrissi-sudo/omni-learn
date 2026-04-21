@@ -38,7 +38,11 @@ export default function CompleteProfilePage() {
   const [step, setStep] = useState(0);
 
   const [userType, setUserType] = useState<"TRAINEE" | "TRAINER" | "COMPANY_ADMIN" | "">("");
-  const [orgMode, setOrgMode] = useState<"join" | "new" | "">("");
+  const [orgMode, setOrgMode] = useState<"join" | "new" | "academy" | "">("");
+  const [academySearch, setAcademySearch] = useState("");
+  const [academyResults, setAcademyResults] = useState<{ id: string; name: string; slug: string; logoUrl?: string | null }[]>([]);
+  const [academySearching, setAcademySearching] = useState(false);
+  const [selectedAcademy, setSelectedAcademy] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [joinCodeVerified, setJoinCodeVerified] = useState(false);
   const [resolvedTenantId, setResolvedTenantId] = useState("");
@@ -85,6 +89,30 @@ export default function CompleteProfilePage() {
       })
       .catch(() => setReferralChecked(true));
   }, [router]);
+
+  useEffect(() => {
+    if (orgMode !== "academy") return;
+    const q = academySearch.trim();
+    let cancelled = false;
+    setAcademySearching(true);
+    const tmr = setTimeout(() => {
+      apiFetch(`/company/academies/public${q ? `?q=${encodeURIComponent(q)}` : ""}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (!cancelled) setAcademyResults(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {
+          if (!cancelled) setAcademyResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setAcademySearching(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(tmr);
+    };
+  }, [orgMode, academySearch]);
 
   const handleVerifyCode = useCallback(async () => {
     if (!joinCode.trim()) return;
@@ -146,6 +174,8 @@ export default function CompleteProfilePage() {
       } else if (orgMode === "new" && companyName) {
         payload.companyName = companyName;
         payload.companyLogoUrl = companyLogoUrl || undefined;
+      } else if (orgMode === "academy" && selectedAcademy) {
+        payload.tenantId = selectedAcademy.id;
       }
 
       const res = await apiFetch("/profile/complete", {
@@ -167,8 +197,16 @@ export default function CompleteProfilePage() {
 
   if (!mounted || !token) return null;
 
+  const orgStepOk = () => {
+    if (referralCompany && referralChecked) return true;
+    if (orgMode === "join") return joinCodeVerified && !!resolvedTenantId;
+    if (orgMode === "new") return !!companyName.trim();
+    if (orgMode === "academy") return !!selectedAcademy;
+    return false;
+  };
+
   const canAdvance = (s: number) => {
-    if (s === 0) return !!userType && !!industryId;
+    if (s === 0) return !!userType && !!industryId && orgStepOk();
     if (s === 1) return !!departmentId && !!positionId;
     return true;
   };
@@ -324,13 +362,15 @@ export default function CompleteProfilePage() {
                       </div>
                     ) : (
                       <>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => {
                               setOrgMode("join");
                               setCompanyName("");
                               setCompanyLogoUrl("");
+                              setSelectedAcademy(null);
+                              setAcademySearch("");
                             }}
                             className={radioCls(orgMode === "join")}
                           >
@@ -344,10 +384,29 @@ export default function CompleteProfilePage() {
                               setJoinCodeVerified(false);
                               setResolvedTenantId("");
                               setResolvedCompanyName("");
+                              setSelectedAcademy(null);
+                              setAcademySearch("");
                             }}
                             className={radioCls(orgMode === "new")}
                           >
                             {t("completeProfile.registerNew")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrgMode("academy");
+                              setJoinCode("");
+                              setJoinCodeVerified(false);
+                              setResolvedTenantId("");
+                              setResolvedCompanyName("");
+                              setCompanyName("");
+                              setCompanyLogoUrl("");
+                              setSelectedAcademy(null);
+                              setAcademySearch("");
+                            }}
+                            className={radioCls(orgMode === "academy")}
+                          >
+                            {t("completeProfile.browseAcademies")}
                           </button>
                         </div>
 
@@ -400,6 +459,49 @@ export default function CompleteProfilePage() {
                                     {t("completeProfile.companyVerified")}
                                   </p>
                                 </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {orgMode === "academy" && (
+                          <div className="mt-3 space-y-3">
+                            <label className={labelCls}>{t("completeProfile.findAcademy")}</label>
+                            <input
+                              type="search"
+                              value={academySearch}
+                              onChange={(e) => setAcademySearch(e.target.value)}
+                              placeholder={t("completeProfile.academySearchPlaceholder")}
+                              className={inputCls}
+                            />
+                            <p className="text-xs text-gray-500">{t("completeProfile.academySearchHint")}</p>
+                            {academySearching && <p className="text-xs text-gray-500">{t("common.loading")}</p>}
+                            {!academySearching && academyResults.length > 0 && (
+                              <ul className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-[#059669]/30 divide-y divide-gray-100 dark:divide-white/10">
+                                {academyResults.map((a) => (
+                                  <li key={a.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedAcademy({ id: a.id, name: a.name, slug: a.slug })}
+                                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                                        selectedAcademy?.id === a.id
+                                          ? "bg-[#059669]/15 text-[#059669] dark:text-[#10b981]"
+                                          : "hover:bg-gray-50 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200"
+                                      }`}
+                                    >
+                                      <span className="font-medium">{a.name}</span>
+                                      <span className="text-xs text-gray-500 block">/{a.slug}</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {selectedAcademy && (
+                              <div className="rounded-lg border border-[#059669]/30 bg-[#059669]/5 dark:bg-[#059669]/10 p-3 text-sm">
+                                <p className="font-semibold text-[#059669] dark:text-[#10b981]">{selectedAcademy.name}</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  {t("completeProfile.academyPendingNote")}
+                                </p>
                               </div>
                             )}
                           </div>

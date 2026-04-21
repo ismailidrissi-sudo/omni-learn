@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ErrorBanner } from "@/components/ui/error-banner";
+import { AdminUserProfileSheet } from "@/components/admin/admin-user-profile-sheet";
 import { apiFetch } from "@/lib/api";
 import { OverviewTab } from "@/components/analytics/overview-tab";
 import { UsersTab } from "@/components/analytics/users-tab";
@@ -85,8 +86,11 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
 
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userListNonce, setUserListNonce] = useState(0);
 
   const fetchData = useCallback(async () => {
+    void userListNonce;
     setLoading(true);
     setError("");
 
@@ -153,7 +157,7 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
     } finally {
       setLoading(false);
     }
-  }, [section, filtersQuery, usersPage, contentPage, sortBy, sortOrder, setCountries]);
+  }, [section, filtersQuery, usersPage, contentPage, sortBy, sortOrder, setCountries, userListNonce]);
 
   useEffect(() => {
     fetchData();
@@ -169,8 +173,19 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
     setUsersPage(1);
   };
 
+  const bumpUserList = useCallback(() => {
+    setUserListNonce((n) => n + 1);
+  }, []);
+
   return (
     <>
+      {selectedUserId && (
+        <AdminUserProfileSheet
+          userId={selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          onMutated={section === "users" ? bumpUserList : undefined}
+        />
+      )}
       {error && <ErrorBanner message={error} onDismiss={() => setError("")} className="mb-6" />}
 
       {loading && (
@@ -195,6 +210,7 @@ export function DeepAnalyticsBody({ section }: { section: Section }) {
               sortBy={sortBy}
               sortOrder={sortOrder}
               onSort={handleSort}
+              onUserClick={(id) => setSelectedUserId(id)}
             />
           )}
           {section === "content" && (

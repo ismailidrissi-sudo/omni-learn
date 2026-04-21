@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionPlan } from './subscription.constants';
+import { effectiveSubscriptionPlan } from './tenant-plan.util';
 import {
   TenantCacheService,
   TenantContentAccessEntry,
@@ -54,6 +55,7 @@ export class AccessService {
         sectorFocus: true,
         tenantId: true,
         orgApprovalStatus: true,
+        tenant: { select: { settings: true } },
       },
     });
     if (!user) {
@@ -64,8 +66,14 @@ export class AccessService {
         orgApprovalStatus: null,
       };
     }
+    const planId = effectiveSubscriptionPlan({
+      userPlanId: user.planId as SubscriptionPlan,
+      tenantId: user.tenantId,
+      orgApprovalStatus: user.orgApprovalStatus,
+      tenantSettings: user.tenant?.settings ?? null,
+    });
     return {
-      planId: user.planId as SubscriptionPlan,
+      planId,
       sectorFocus: user.sectorFocus,
       tenantId: user.tenantId,
       orgApprovalStatus: user.orgApprovalStatus,

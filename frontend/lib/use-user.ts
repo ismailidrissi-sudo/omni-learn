@@ -10,6 +10,9 @@ export interface User {
   email: string;
   name: string;
   planId: UserPlan;
+  /** Plan used for catalog/content access when an approved academy member (tenant.settings.plan). */
+  effectivePlanId?: UserPlan;
+  orgApprovalStatus?: string | null;
   billingCycle?: string | null;
   sectorFocus?: string | null;
   tenantId?: string | null;

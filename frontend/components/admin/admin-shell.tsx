@@ -42,11 +42,6 @@ const ICON_CONTENT = (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
   </svg>
 );
-const ICON_USERS = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128H9m6 0a5.97 5.97 0 01-.786-3.07M9 19.128v-.003c0-1.113.285-2.16.786-3.07M9 19.128H3.75A2.25 2.25 0 011.5 16.878v-.003c0-1.032.38-1.974 1.006-2.695A4.126 4.126 0 017.5 9.75a4.126 4.126 0 014.994 4.43M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-  </svg>
-);
 const ICON_COMPANY = (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5M3.75 3v18m4.5-18v18m4.5-18v18m4.5-18v18M6 6.75h.008M6 9.75h.008M6 12.75h.008M6 15.75h.008M10.5 6.75h.008M10.5 9.75h.008M10.5 12.75h.008M10.5 15.75h.008M15 6.75h.008M15 9.75h.008M15 12.75h.008M15 15.75h.008" />
@@ -87,7 +82,6 @@ function buildSections(): Section[] {
     { labelKey: "admin.sectionDomains", href: "/admin/domains", permission: "domains:create", icon: ICON_DOMAINS },
     { labelKey: "admin.sectionPaths", href: "/admin/paths", permission: "paths:create", icon: ICON_PATHS },
     { labelKey: "admin.sectionContent", href: "/admin/content", permission: "courses:create", icon: ICON_CONTENT },
-    { labelKey: "admin.sectionUsers", href: "/admin/users", permission: "users:manage", icon: ICON_USERS },
     { labelKey: "admin.sectionCompany", href: "/admin/company", permission: "companies:manage", icon: ICON_COMPANY },
     { labelKey: "admin.sectionMyCompany", href: "/admin/nexus", permission: "company:manage_own", icon: ICON_NEXUS },
     { labelKey: "admin.sectionAnalytics", href: "/admin/analytics", permission: "admin:analytics", icon: ICON_ANALYTICS },

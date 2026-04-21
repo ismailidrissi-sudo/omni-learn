@@ -15,6 +15,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RbacRole } from '../constants/rbac.constant';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
+import { ProfileService } from '../profile/profile.service';
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -27,6 +28,7 @@ export class AnalyticsController {
     private readonly geoRollup: GeoRollupService,
     private readonly geoResolver: GeoResolverService,
     private readonly prisma: PrismaService,
+    private readonly profile: ProfileService,
   ) {}
 
   // ── Legacy endpoints ──
@@ -125,6 +127,13 @@ export class AnalyticsController {
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER)
   deepUsers(@Query() filters: AnalyticsFiltersDto) {
     return this.deep.getUsersList(filters);
+  }
+
+  @Get('deep/users/:userId')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN, RbacRole.COMPANY_MANAGER)
+  deepUserProfile(@Param('userId') userId: string, @CurrentUser() actor: CurrentUserPayload) {
+    return this.profile.getFullProfileForAdmin(actor, userId);
   }
 
   @Get('deep/content')

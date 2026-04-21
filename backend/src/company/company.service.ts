@@ -3,6 +3,8 @@ import { Prisma, TenantBranding } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeTrustedCompanyName } from './trusted-company-name';
+import { resolveTenantAcademyPlanId } from '../subscription/tenant-plan.util';
+import { TenantCacheService } from './tenant-cache.service';
 
 /**
  * Company Service — Tenant admin + branding + enterprise leads
@@ -40,7 +42,10 @@ export interface EnterpriseLeadDto {
 
 @Injectable()
 export class CompanyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantCache: TenantCacheService,
+  ) {}
 
   /** Absolute or root-relative URL served by GET /company/tenants/:id/logo */
   storedLogoPublicUrl(tenantId: string): string {
@@ -139,12 +144,47 @@ export class CompanyService {
         email: true,
         name: true,
         tenantId: true,
+        orgApprovalStatus: true,
         country: true,
         countryCode: true,
         city: true,
         timezone: true,
+        tenant: { select: { id: true, name: true, slug: true } },
       },
     });
+  }
+
+  /** Public directory of branded academies that allow self-service join (for profile / settings pickers). */
+  async listPublicAcademies(search?: string) {
+    const rows = await this.prisma.tenant.findMany({
+      orderBy: { name: 'asc' },
+      take: 300,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logoUrl: true,
+        industryId: true,
+        settings: true,
+      },
+    });
+    const q = (search ?? '').trim().toLowerCase();
+    const filtered = rows.filter((t) => {
+      const s = (t.settings ?? {}) as Record<string, unknown>;
+      if (s.accountType !== 'branded_academy') return false;
+      if (s.allowSelfSignup === false) return false;
+      if (!q) return true;
+      const n = (t.name ?? '').toLowerCase();
+      const sl = (t.slug ?? '').toLowerCase();
+      return n.includes(q) || sl.includes(q);
+    });
+    return filtered.slice(0, 80).map((t) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      logoUrl: t.logoUrl,
+      industryId: t.industryId,
+    }));
   }
 
   /** Aggregated counts for admin map (English country names in DB). */
@@ -273,6 +313,18 @@ export class CompanyService {
       tenantApprovalStatus?: string;
     },
   ) {
+    if (data.settings !== undefined) {
+      const existing = await this.prisma.tenant.findUnique({
+        where: { id },
+        select: { settings: true },
+      });
+      const oldPlan = resolveTenantAcademyPlanId(existing?.settings ?? null);
+      const newPlan = resolveTenantAcademyPlanId(data.settings);
+      if (oldPlan !== newPlan) {
+        void this.tenantCache.invalidateTenant(id);
+      }
+    }
+
     return this.prisma.tenant.update({
       where: { id },
       data: {

@@ -70,7 +70,7 @@ function buildQuickActions(): QuickAction[] {
     },
     {
       labelKey: "admin.sectionUsers",
-      href: "/admin/users",
+      href: "/admin/analytics/users",
       permission: "users:manage",
       icon: ICON_USERS,
       accentClass: "from-[var(--color-accent)] to-[var(--color-accent)]/70",
