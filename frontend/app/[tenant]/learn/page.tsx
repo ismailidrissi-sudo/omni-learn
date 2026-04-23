@@ -23,6 +23,7 @@ type ContentItem = {
   type: string;
   description?: string | null;
   durationMinutes?: number | null;
+  metadata?: string | Record<string, unknown>;
 };
 
 type Path = {
@@ -279,6 +280,14 @@ export default function TenantLearnPage() {
                     const ce = item.type === "COURSE"
                       ? courseEnrollments.find((e) => e.courseId === item.id)
                       : undefined;
+                    let thumbUrl: string | undefined;
+                    try {
+                      const m = typeof item.metadata === "string" ? JSON.parse(item.metadata || "{}") : (item.metadata ?? {});
+                      const landing = m?.landingPage as Record<string, string> | undefined;
+                      thumbUrl =
+                        landing?.thumbnailUrl ||
+                        (typeof m?.thumbnailUrl === "string" ? m.thumbnailUrl : undefined);
+                    } catch { /* ignore */ }
                     return (
                       <ContentCard
                         key={item.id}
@@ -290,6 +299,7 @@ export default function TenantLearnPage() {
                         enrolled={!!ce}
                         progressPct={ce?.progressPct}
                         onEnroll={item.type === "COURSE" ? () => enrollCourse(item.id) : undefined}
+                        thumbnailUrl={thumbUrl}
                       />
                     );
                   })}

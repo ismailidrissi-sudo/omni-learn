@@ -295,7 +295,11 @@ export function TrendingContent() {
               {recommendations.map((item) => {
                 const recMeta = parseMetadata(item.metadata);
                 const recLanding = recMeta?.landingPage as Record<string, string> | undefined;
-                const recThumb = recLanding?.thumbnailUrl;
+                const recThumb =
+                  recLanding?.thumbnailUrl ||
+                  (item.type === "PODCAST" && typeof recMeta?.thumbnailUrl === "string"
+                    ? recMeta.thumbnailUrl
+                    : undefined);
                 const recThumbSrc = recThumb ? (apiAbsoluteMediaUrl(recThumb) ?? recThumb) : "";
                 return (
                   <button

@@ -17,6 +17,63 @@ import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useUser } from "@/lib/use-user";
 
+type TrainerContentItem = {
+  id: string;
+  type: string;
+  title: string;
+  description?: string | null;
+  domainId?: string | null;
+  mediaId?: string | null;
+  durationMinutes?: number | null;
+  metadata?: string | Record<string, unknown> | null;
+  createdAt?: string;
+  tenantAssignments?: { tenantId: string; tenant: { id: string; name: string } }[];
+  availablePlans?: unknown;
+  availableInEnterprise?: boolean;
+  _count?: { tenantAssignments: number };
+};
+
+type VisibilityFilter = "" | "explorer_free" | "paid_only" | "enterprise_all" | "enterprise_selected";
+
+function parseContentPlans(availablePlans: unknown): string[] {
+  if (Array.isArray(availablePlans)) {
+    return availablePlans.filter((p): p is string => typeof p === "string").map((p) => p.trim().toUpperCase());
+  }
+  if (typeof availablePlans === "string") {
+    try {
+      const parsed = JSON.parse(availablePlans) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((p): p is string => typeof p === "string").map((p) => p.trim().toUpperCase())
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function matchesVisibilityFilter(item: TrainerContentItem, filter: VisibilityFilter): boolean {
+  if (!filter) return true;
+  const plans = parseContentPlans(item.availablePlans);
+  const hasExplorer = plans.includes("EXPLORER");
+  const hasPaidPlan = plans.some((p) => p !== "EXPLORER");
+  const enterprise = !!item.availableInEnterprise;
+  const tenantCount = item._count?.tenantAssignments ?? 0;
+
+  switch (filter) {
+    case "explorer_free":
+      return hasExplorer;
+    case "paid_only":
+      return !hasExplorer && hasPaidPlan;
+    case "enterprise_all":
+      return enterprise && tenantCount === 0;
+    case "enterprise_selected":
+      return enterprise && tenantCount > 0;
+    default:
+      return true;
+  }
+}
+
 const CONTENT_TYPES = [
   { type: "COURSE", icon: "📚", label: "Course" },
   { type: "MICRO_LEARNING", icon: "⚡", label: "Micro-learning" },
@@ -28,29 +85,17 @@ const CONTENT_TYPES = [
   { type: "VIDEO", icon: "🎬", label: "Video" },
 ];
 
-type ContentItem = {
-  id: string;
-  type: string;
-  title: string;
-  description?: string | null;
-  domainId?: string | null;
-  mediaId?: string | null;
-  durationMinutes?: number | null;
-  metadata?: string | Record<string, unknown> | null;
-  createdAt?: string;
-  tenantAssignments?: { tenantId: string; tenant: { id: string; name: string } }[];
-};
-
 export default function TrainerPage() {
   const { t } = useI18n();
   const { user, loading: userLoading } = useUser();
   const trainerNavApproved = useMemo(() => trainerNavItemsApproved(t), [t]);
   const trainerNavGuest = useMemo(() => trainerNavItemsGuest(t), [t]);
   const [view, setView] = useState<"list" | "create" | "courseBuilder">("list");
-  const [content, setContent] = useState<ContentItem[]>([]);
+  const [content, setContent] = useState<TrainerContentItem[]>([]);
   const [filterType, setFilterType] = useState<string>("");
+  const [filterVisibility, setFilterVisibility] = useState<VisibilityFilter>("");
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<ContentItem | null>(null);
+  const [editing, setEditing] = useState<TrainerContentItem | null>(null);
   const [formType, setFormType] = useState("COURSE");
   const [formDomainId, setFormDomainId] = useState("");
   const [domains, setDomains] = useState<{ id: string; name: string; slug: string; tenant?: { id: string; name: string } }[]>([]);
@@ -87,7 +132,8 @@ export default function TrainerPage() {
   const filteredContent = content.filter(
     (c) =>
       (!search || c.title.toLowerCase().includes(search.toLowerCase())) &&
-      (!filterType || c.type === filterType)
+      (!filterType || c.type === filterType) &&
+      matchesVisibilityFilter(c, filterVisibility)
   );
 
   const domainOptionsForForm = domains.map((d) => ({
@@ -104,7 +150,7 @@ export default function TrainerPage() {
 
   const openCourseBuilder = (course: { id: string; title: string }) => {
     setView("courseBuilder");
-    setEditing({ ...course, type: "COURSE", title: course.title } as ContentItem);
+    setEditing({ ...course, type: "COURSE", title: course.title } as TrainerContentItem);
   };
 
   const deleteContent = (id: string) => {
@@ -231,7 +277,7 @@ export default function TrainerPage() {
             publicOnly={true}
             onCourseCreated={(cid, cTitle) => {
               loadContent();
-              setEditing({ id: cid, title: cTitle, type: "COURSE" } as ContentItem);
+              setEditing({ id: cid, title: cTitle, type: "COURSE" } as TrainerContentItem);
               setView("courseBuilder");
             }}
           />
@@ -283,6 +329,18 @@ export default function TrainerPage() {
             {CONTENT_TYPES.map((ct) => (
               <option key={ct.type} value={ct.type}>{ct.icon} {ct.label}</option>
             ))}
+          </select>
+          <select
+            value={filterVisibility}
+            onChange={(e) => setFilterVisibility(e.target.value as VisibilityFilter)}
+            className="px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white min-w-[200px]"
+            title="Filter by access / visibility"
+          >
+            <option value="">All visibility</option>
+            <option value="explorer_free">Free (Explorer)</option>
+            <option value="paid_only">Paid plans only</option>
+            <option value="enterprise_all">Company academies — all tenants</option>
+            <option value="enterprise_selected">Company academies — selected tenants</option>
           </select>
         </div>
 

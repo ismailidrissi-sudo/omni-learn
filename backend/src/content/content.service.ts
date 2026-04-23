@@ -189,6 +189,9 @@ export class ContentService {
       return this.prisma.contentItem.findMany({
         where,
         orderBy: { createdAt: 'desc' },
+        include: {
+          _count: { select: { tenantAssignments: true } },
+        },
       });
     }
 

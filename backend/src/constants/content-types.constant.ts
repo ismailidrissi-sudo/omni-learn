@@ -29,7 +29,7 @@ export const CONTENT_TYPE_METADATA = {
   [ContentType.PODCAST]: {
     icon: '🎧',
     color: '#6B4E9A',
-    fields: ['audioUrl', 'transcriptUrl', 'episodeNumber', 'season', 'hosts'],
+    fields: ['audioUrl', 'videoUrl', 'thumbnailUrl', 'transcriptUrl', 'episodeNumber', 'season', 'hosts'],
   },
   [ContentType.DOCUMENT]: {
     icon: '📄',

@@ -66,7 +66,9 @@ function ContentCard({ item, rank }: { item: ContentItem; rank?: number }) {
   const meta = TYPE_META[item.type ?? ""] ?? { icon: "📖", color: "bg-gray-50 text-gray-700 border-gray-200" };
   const itemMeta = parseItemMetadata(item.metadata);
   const landingMeta = itemMeta?.landingPage as Record<string, string> | undefined;
-  const thumbUrl = landingMeta?.thumbnailUrl;
+  const thumbUrl =
+    landingMeta?.thumbnailUrl ||
+    (typeof itemMeta?.thumbnailUrl === "string" ? itemMeta.thumbnailUrl : undefined);
   const thumbSrc = thumbUrl ? (apiAbsoluteMediaUrl(thumbUrl) ?? thumbUrl) : "";
 
   return (

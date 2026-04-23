@@ -2,6 +2,35 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionPlan } from './subscription.constants';
+
+const ALL_PLAN_CODES: readonly string[] = [
+  SubscriptionPlan.EXPLORER,
+  SubscriptionPlan.SPECIALIST,
+  SubscriptionPlan.VISIONARY,
+  SubscriptionPlan.NEXUS,
+];
+
+/** Normalise JSON `availablePlans` for tier checks (casing, empty = all tiers). */
+function normalizeContentAvailablePlans(raw: unknown): {
+  tierCodes: string[];
+  /** true when null / non-array / empty / only invalid entries — treat as “all plans”. */
+  treatAsAllPlans: boolean;
+} {
+  if (raw == null) {
+    return { tierCodes: [], treatAsAllPlans: true };
+  }
+  if (!Array.isArray(raw)) {
+    return { tierCodes: [], treatAsAllPlans: true };
+  }
+  const tierCodes = raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim().toUpperCase())
+    .filter((v) => ALL_PLAN_CODES.includes(v));
+  if (tierCodes.length === 0) {
+    return { tierCodes: [], treatAsAllPlans: true };
+  }
+  return { tierCodes, treatAsAllPlans: false };
+}
 import { effectiveSubscriptionPlan } from './tenant-plan.util';
 import {
   TenantCacheService,
@@ -105,6 +134,8 @@ export class AccessService {
       OR: [
         { availablePlans: { equals: Prisma.DbNull } },
         { availablePlans: { equals: Prisma.JsonNull } },
+        // Empty array or legacy mis-saves: treat as all tiers (same as checkTierAccess).
+        { availablePlans: { equals: [] } },
         { availablePlans: { array_contains: [ctx.planId] } },
       ],
     };
@@ -191,9 +222,16 @@ export class AccessService {
       }
     }
 
-    // Step 1: Org approval gate
+    // Step 1: Org approval gate — block company-scoped / assigned content until the user
+    // is approved. Public catalog items (no tenant rows on ContentTenantAssignment) stay
+    // on normal tier rules so e.g. free podcasts remain reachable while join is pending.
     if (ctx.tenantId && ctx.orgApprovalStatus !== 'APPROVED') {
-      return { hasAccess: false, bypassedPaywall: false };
+      const assignmentCount = await this.prisma.contentTenantAssignment.count({
+        where: { contentId },
+      });
+      if (assignmentCount > 0) {
+        return { hasAccess: false, bypassedPaywall: false };
+      }
     }
 
     // Step 2: Tenant assignment + paywall bypass (cached)
@@ -315,15 +353,10 @@ export class AccessService {
     });
     if (!content) return false;
 
-    // Legacy rows may have availablePlans stored as `null` (Prisma Json).
-    // Treat missing values as "all plans allowed" so we don't retroactively
-    // lock out content that was previously public.
-    const isLegacyUnset =
-      content.availablePlans == null || !Array.isArray(content.availablePlans);
-    const plans = Array.isArray(content.availablePlans)
-      ? (content.availablePlans as string[])
-      : [];
-    const planAllowed = isLegacyUnset || plans.includes(ctx.planId);
+    const { tierCodes, treatAsAllPlans } = normalizeContentAvailablePlans(
+      content.availablePlans,
+    );
+    const planAllowed = treatAsAllPlans || tierCodes.includes(ctx.planId);
 
     switch (ctx.planId) {
       case SubscriptionPlan.EXPLORER:

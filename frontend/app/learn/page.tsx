@@ -301,7 +301,10 @@ export default function LearnPage() {
                     let thumbUrl: string | undefined;
                     try {
                       const m = typeof item.metadata === "string" ? JSON.parse(item.metadata || "{}") : (item.metadata ?? {});
-                      thumbUrl = (m?.landingPage as Record<string, string>)?.thumbnailUrl;
+                      const landing = m?.landingPage as Record<string, string> | undefined;
+                      thumbUrl =
+                        landing?.thumbnailUrl ||
+                        (typeof m?.thumbnailUrl === "string" ? m.thumbnailUrl : undefined);
                     } catch {}
                     return (
                       <ContentCard

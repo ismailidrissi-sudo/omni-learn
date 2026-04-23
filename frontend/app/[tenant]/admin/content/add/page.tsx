@@ -47,7 +47,7 @@ export default function TenantContentAddPage() {
   const academyName = branding?.appName || tenant?.name || "Academy";
 
   useEffect(() => {
-    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d.filter((t: { settings?: { accountType?: string } | null }) => t.settings?.accountType === "branded_academy") : [])).catch(() => setTenants([]));
+    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d : [])).catch(() => setTenants([]));
     apiFetch("/domains").then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
     apiFetch("/company/users").then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => setUsers([]));
   }, []);

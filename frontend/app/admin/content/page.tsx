@@ -13,7 +13,7 @@ import { ContentAddForm, type ContentType } from "@/components/admin/content-add
 import { AppBurgerHeader } from "@/components/ui/app-burger-header";
 import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch, apiUploadDocument } from "@/lib/api";
+import { apiFetch, apiUploadDocument, apiUploadCourseThumbnail } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useUser } from "@/lib/use-user";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -40,12 +40,55 @@ type ContentItem = {
   metadata?: string | Record<string, unknown> | null;
   createdAt?: string;
   createdById?: string | null;
-  availablePlans?: string[];
+  availablePlans?: unknown;
   availableInEnterprise?: boolean;
+  isFoundational?: boolean;
   language?: string;
   tenantAssignments?: { tenantId: string; tenant: { id: string; name: string } }[];
   userAssignments?: { userId: string; user: { id: string; name: string; email: string } }[];
+  _count?: { tenantAssignments: number };
 };
+
+type VisibilityFilter = "" | "explorer_free" | "paid_only" | "enterprise_all" | "enterprise_selected";
+
+function parseContentPlans(availablePlans: unknown): string[] {
+  if (Array.isArray(availablePlans)) {
+    return availablePlans.filter((p): p is string => typeof p === "string").map((p) => p.trim().toUpperCase());
+  }
+  if (typeof availablePlans === "string") {
+    try {
+      const parsed = JSON.parse(availablePlans) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((p): p is string => typeof p === "string").map((p) => p.trim().toUpperCase())
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function matchesVisibilityFilter(item: ContentItem, filter: VisibilityFilter): boolean {
+  if (!filter) return true;
+  const plans = parseContentPlans(item.availablePlans);
+  const hasExplorer = plans.includes("EXPLORER");
+  const hasPaidPlan = plans.some((p) => p !== "EXPLORER");
+  const enterprise = !!item.availableInEnterprise;
+  const tenantCount = item._count?.tenantAssignments ?? 0;
+
+  switch (filter) {
+    case "explorer_free":
+      return hasExplorer;
+    case "paid_only":
+      return !hasExplorer && hasPaidPlan;
+    case "enterprise_all":
+      return enterprise && tenantCount === 0;
+    case "enterprise_selected":
+      return enterprise && tenantCount > 0;
+    default:
+      return true;
+  }
+}
 
 const PLAN_OPTIONS = [
   { id: "EXPLORER", label: "Explorer (Free)", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
@@ -64,6 +107,7 @@ function AdminContentPageContent() {
   const [view, setView] = useState<"list" | "create" | "edit" | "courseBuilder">("list");
   const [content, setContent] = useState<ContentItem[]>([]);
   const [filterType, setFilterType] = useState<string>("");
+  const [filterVisibility, setFilterVisibility] = useState<VisibilityFilter>("");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ContentItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +123,10 @@ function AdminContentPageContent() {
   const [formHlsUrl, setFormHlsUrl] = useState("");
   const [formAudioUrl, setFormAudioUrl] = useState("");
   const [formThumbnailUrl, setFormThumbnailUrl] = useState("");
+  const [formPodcastMediaType, setFormPodcastMediaType] = useState<"audio" | "video">("audio");
+  const [formPodcastVideoUrl, setFormPodcastVideoUrl] = useState("");
+  const [formPodcastThumbMode, setFormPodcastThumbMode] = useState<"url" | "file">("url");
+  const [formPodcastThumbUploading, setFormPodcastThumbUploading] = useState(false);
   const [formMediaId, setFormMediaId] = useState("");
   const [formDomainId, setFormDomainId] = useState("");
   const [formAssignToAllCompanies, setFormAssignToAllCompanies] = useState(true);
@@ -122,7 +170,7 @@ function AdminContentPageContent() {
   }, [editId, content]);
 
   useEffect(() => {
-    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d.filter((t: { settings?: { accountType?: string } | null }) => t.settings?.accountType === "branded_academy") : [])).catch(() => setTenants([]));
+    apiFetch("/company/tenants").then((r) => r.json()).then((d) => setTenants(Array.isArray(d) ? d : [])).catch(() => setTenants([]));
     apiFetch("/domains").then((r) => r.json()).then((d) => setDomains(Array.isArray(d) ? d : [])).catch(() => setDomains([]));
     apiFetch("/company/users").then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : [])).catch(() => setUsers([]));
   }, []);
@@ -130,7 +178,8 @@ function AdminContentPageContent() {
   const filteredContent = content.filter(
     (c) =>
       (!search || c.title.toLowerCase().includes(search.toLowerCase())) &&
-      (!filterType || c.type === filterType)
+      (!filterType || c.type === filterType) &&
+      matchesVisibilityFilter(c, filterVisibility)
   );
 
   function canMutateCourse(item: ContentItem): boolean {
@@ -155,6 +204,11 @@ function AdminContentPageContent() {
     setFormXapiEndpoint("");
     setFormHlsUrl("");
     setFormAudioUrl("");
+    setFormThumbnailUrl("");
+    setFormPodcastMediaType("audio");
+    setFormPodcastVideoUrl("");
+    setFormPodcastThumbMode("url");
+    setFormPodcastThumbUploading(false);
     setFormMediaId("");
     setFormDomainId("");
     setFormAssignToAllCompanies(true);
@@ -186,8 +240,18 @@ function AdminContentPageContent() {
     setFormScormUrl((meta.scormPackageUrl as string) ?? "");
     setFormXapiEndpoint((meta.xapiEndpoint as string) ?? "");
     setFormHlsUrl((meta.hlsUrl as string) ?? item.mediaId ?? "");
-    setFormAudioUrl((meta.audioUrl as string) ?? item.mediaId ?? "");
+    const podVideo = (meta.videoUrl as string) ?? "";
+    const podAudio = (meta.audioUrl as string) ?? "";
+    const isPodVideo = item.type === "PODCAST" && !!podVideo;
+    setFormPodcastMediaType(item.type === "PODCAST" ? (isPodVideo ? "video" : "audio") : "audio");
+    setFormPodcastVideoUrl(item.type === "PODCAST" ? podVideo : "");
+    setFormAudioUrl(
+      item.type === "PODCAST"
+        ? (isPodVideo ? podAudio : podAudio || item.mediaId || "")
+        : (meta.audioUrl as string) ?? item.mediaId ?? "",
+    );
     setFormThumbnailUrl((meta.thumbnailUrl as string) ?? "");
+    setFormPodcastThumbMode("url");
     setFormMediaId(item.mediaId ?? "");
     setFormDomainId(item.domainId ?? "");
     const full = await apiFetch(`/content/${item.id}?admin=true`).then((r) => r.json()).catch(() => ({}));
@@ -215,18 +279,47 @@ function AdminContentPageContent() {
   const saveContent = () => {
     if (!formTitle.trim()) return;
 
-    const metadata: Record<string, unknown> = {};
+    const prevMeta: Record<string, unknown> = (() => {
+      if (!editing?.metadata) return {};
+      try {
+        return typeof editing.metadata === "string"
+          ? JSON.parse(editing.metadata || "{}")
+          : ({ ...(editing.metadata as Record<string, unknown>) });
+      } catch {
+        return {};
+      }
+    })();
+
+    const metadata: Record<string, unknown> = editing ? { ...prevMeta } : {};
     if (formType === "COURSE") {
       if (formScormUrl) metadata.scormPackageUrl = formScormUrl;
       if (formXapiEndpoint) metadata.xapiEndpoint = formXapiEndpoint;
     } else if (formType === "VIDEO") {
-      if (formHlsUrl) metadata.hlsUrl = formHlsUrl;
+      if (formHlsUrl) {
+        metadata.hlsUrl = formHlsUrl;
+        metadata.videoUrl = formHlsUrl;
+      }
     } else if (formType === "PODCAST") {
-      if (formAudioUrl) metadata.audioUrl = formAudioUrl;
+      delete metadata.audioUrl;
+      delete metadata.videoUrl;
+      if (formPodcastMediaType === "audio") {
+        if (formAudioUrl.trim()) metadata.audioUrl = formAudioUrl.trim();
+      } else if (formPodcastVideoUrl.trim()) {
+        metadata.videoUrl = formPodcastVideoUrl.trim();
+      }
+      if (formThumbnailUrl.trim()) metadata.thumbnailUrl = formThumbnailUrl.trim();
+      else delete metadata.thumbnailUrl;
     }
 
     const duration = formDuration ? parseInt(formDuration, 10) : undefined;
-    const mediaId = formMediaId || (formType === "VIDEO" ? formHlsUrl : formType === "PODCAST" ? formAudioUrl : undefined);
+    const podcastPrimary =
+      formType === "PODCAST"
+        ? (formPodcastMediaType === "audio" ? formAudioUrl.trim() : formPodcastVideoUrl.trim()) || formMediaId.trim()
+        : undefined;
+    const mediaId =
+      formMediaId.trim() ||
+      (formType === "VIDEO" ? formHlsUrl : undefined) ||
+      (formType === "PODCAST" ? podcastPrimary : undefined);
     const tenantIds = formAvailableInEnterprise ? (formAssignToAllCompanies ? [] : formTenantIds) : [];
     const userIds = formUserIds;
 
@@ -237,7 +330,10 @@ function AdminContentPageContent() {
       domainId: formDomainId || undefined,
       durationMinutes: duration,
       mediaId: mediaId || undefined,
-      metadata: Object.keys(metadata).length ? metadata : undefined,
+      metadata:
+        editing || Object.keys(metadata).length > 0
+          ? metadata
+          : undefined,
       tenantIds,
       userIds,
       isFoundational: formAvailablePlans.includes("EXPLORER"),
@@ -434,20 +530,108 @@ function AdminContentPageContent() {
               />
             )}
             {formType === "PODCAST" && (
-              <>
-                <Input
-                  label="Audio / Video URL"
-                  value={formAudioUrl || formMediaId}
-                  onChange={(e) => { setFormAudioUrl(e.target.value); setFormMediaId(e.target.value); }}
-                  placeholder="https://...mp3"
-                />
-                <Input
-                  label="Thumbnail / Cover image URL"
-                  value={formThumbnailUrl}
-                  onChange={(e) => setFormThumbnailUrl(e.target.value)}
-                  placeholder="https://...jpg (optional)"
-                />
-              </>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Media type</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="editPodcastMedia"
+                        checked={formPodcastMediaType === "audio"}
+                        onChange={() => setFormPodcastMediaType("audio")}
+                      />
+                      Audio
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="editPodcastMedia"
+                        checked={formPodcastMediaType === "video"}
+                        onChange={() => setFormPodcastMediaType("video")}
+                      />
+                      Video
+                    </label>
+                  </div>
+                </div>
+                {formPodcastMediaType === "audio" ? (
+                  <Input
+                    label="Audio URL"
+                    value={formAudioUrl}
+                    onChange={(e) => { setFormAudioUrl(e.target.value); setFormMediaId(e.target.value); }}
+                    placeholder="https://...mp3 or audio URL"
+                  />
+                ) : (
+                  <Input
+                    label="Video URL"
+                    value={formPodcastVideoUrl || formMediaId}
+                    onChange={(e) => {
+                      setFormPodcastVideoUrl(e.target.value);
+                      setFormMediaId(e.target.value);
+                    }}
+                    placeholder="https://youtube.com/watch?v=... or direct video URL"
+                  />
+                )}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Thumbnail / cover image</label>
+                  <div className="flex gap-4 mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="editPodcastThumb"
+                        checked={formPodcastThumbMode === "url"}
+                        onChange={() => setFormPodcastThumbMode("url")}
+                      />
+                      Image URL
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="editPodcastThumb"
+                        checked={formPodcastThumbMode === "file"}
+                        onChange={() => setFormPodcastThumbMode("file")}
+                      />
+                      Upload image
+                    </label>
+                  </div>
+                  {formPodcastThumbMode === "url" ? (
+                    <Input
+                      label="Thumbnail URL"
+                      value={formThumbnailUrl}
+                      onChange={(e) => setFormThumbnailUrl(e.target.value)}
+                      placeholder="https://...jpg (optional)"
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setFormPodcastThumbUploading(true);
+                          try {
+                            const result = await apiUploadCourseThumbnail(file);
+                            setFormThumbnailUrl(result.url);
+                          } catch (err) {
+                            toast(err instanceof Error ? err.message : "Thumbnail upload failed", "error");
+                          } finally {
+                            setFormPodcastThumbUploading(false);
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                        disabled={formPodcastThumbUploading}
+                      />
+                      {formPodcastThumbUploading && (
+                        <p className="text-sm text-purple-600 animate-pulse">Uploading thumbnail...</p>
+                      )}
+                      {formThumbnailUrl && !formPodcastThumbUploading && (
+                        <p className="text-xs text-brand-grey truncate">Current: {formThumbnailUrl}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
             {formType === "DOCUMENT" && (
               <div className="space-y-3">
@@ -630,7 +814,7 @@ function AdminContentPageContent() {
                   {t("admin.courseBuildCurriculum")}
                 </Button>
               )}
-              <Button onClick={saveContent} disabled={editUploading}>{t("common.save")}</Button>
+              <Button onClick={saveContent} disabled={editUploading || formPodcastThumbUploading}>{t("common.save")}</Button>
               <Button variant="ghost" onClick={() => { setView("list"); resetForm(); }}>{t("common.back")}</Button>
             </div>
           </Card>
@@ -674,6 +858,18 @@ function AdminContentPageContent() {
             {CONTENT_TYPES.map((ct) => (
               <option key={ct.type} value={ct.type}>{ct.icon} {ct.label}</option>
             ))}
+          </select>
+          <select
+            value={filterVisibility}
+            onChange={(e) => setFilterVisibility(e.target.value as VisibilityFilter)}
+            className="px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white min-w-[200px]"
+            title="Filter by access / visibility (plans & company academies)"
+          >
+            <option value="">All visibility</option>
+            <option value="explorer_free">Free (Explorer)</option>
+            <option value="paid_only">Paid plans only</option>
+            <option value="enterprise_all">Company academies — all tenants</option>
+            <option value="enterprise_selected">Company academies — selected tenants</option>
           </select>
         </div>
 

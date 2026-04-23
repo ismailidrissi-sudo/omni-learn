@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { UrlPreview } from "@/components/admin/url-preview";
 import { ErrorBanner } from "@/components/ui/error-banner";
-import { apiFetch, apiUploadDocument } from "@/lib/api";
+import { apiFetch, apiUploadDocument, apiUploadCourseThumbnail } from "@/lib/api";
 
 export type ContentType =
   | "COURSE"
@@ -101,6 +101,8 @@ export function ContentAddForm({
   const [microVideos, setMicroVideos] = useState<VideoEntry[]>([{ url: "", description: "" }]);
   const [podcastMediaType, setPodcastMediaType] = useState<"audio" | "video">("audio");
   const [podcastThumbnailUrl, setPodcastThumbnailUrl] = useState("");
+  const [podcastThumbInputMode, setPodcastThumbInputMode] = useState<"url" | "file">("url");
+  const [podcastThumbUploading, setPodcastThumbUploading] = useState(false);
   const [guideItems, setGuideItems] = useState<GuideItem[]>([
     { format: "video", url: "", description: "" },
   ]);
@@ -164,16 +166,18 @@ export function ContentAddForm({
           metadata: { videoUrl: first.url, hlsUrl: first.url, description: first.description },
         };
       }
-      case "PODCAST":
+      case "PODCAST": {
+        const thumb = podcastThumbnailUrl.trim();
         return {
           ...base,
           mediaId: podcastMediaType === "audio" ? audioUrl : videoUrl,
           metadata: {
             audioUrl: podcastMediaType === "audio" ? audioUrl : undefined,
             videoUrl: podcastMediaType === "video" ? videoUrl : undefined,
-            thumbnailUrl: podcastMediaType === "audio" && podcastThumbnailUrl ? podcastThumbnailUrl : undefined,
+            ...(thumb ? { thumbnailUrl: thumb } : {}),
           },
         };
+      }
       case "DOCUMENT":
         return {
           ...base,
@@ -292,6 +296,7 @@ export function ContentAddForm({
   const canSubmit =
     title.trim() &&
     !uploading &&
+    !podcastThumbUploading &&
     (contentType !== "PODCAST" ||
       (podcastMediaType === "audio" ? audioUrl.trim() : videoUrl.trim())) &&
     (contentType !== "DOCUMENT" || documentUrl.trim()) &&
@@ -417,20 +422,12 @@ export function ContentAddForm({
             </div>
           </div>
           {podcastMediaType === "audio" ? (
-            <>
-              <Input
-                label="Audio URL"
-                value={audioUrl}
-                onChange={(e) => setAudioUrl(e.target.value)}
-                placeholder="https://...mp3 or audio URL"
-              />
-              <Input
-                label="Thumbnail / Cover image (recommended)"
-                value={podcastThumbnailUrl}
-                onChange={(e) => setPodcastThumbnailUrl(e.target.value)}
-                placeholder="https://...jpg or image URL — shown while audio plays"
-              />
-            </>
+            <Input
+              label="Audio URL"
+              value={audioUrl}
+              onChange={(e) => setAudioUrl(e.target.value)}
+              placeholder="https://...mp3 or audio URL"
+            />
           ) : (
             <>
               <Input
@@ -442,6 +439,69 @@ export function ContentAddForm({
               <UrlPreview url={videoUrl} type="video" />
             </>
           )}
+          <div>
+            <label className="block text-sm font-medium mb-2">Episode thumbnail / cover image</label>
+            <p className="text-xs text-brand-grey mb-2">
+              Optional cover art for catalog cards and the audio player. Upload an image or paste a URL (JPEG, PNG, WebP, or GIF, up to 5 MB).
+            </p>
+            <div className="flex gap-4 mb-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="podcastThumbMode"
+                  checked={podcastThumbInputMode === "url"}
+                  onChange={() => setPodcastThumbInputMode("url")}
+                />
+                Image URL
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="podcastThumbMode"
+                  checked={podcastThumbInputMode === "file"}
+                  onChange={() => setPodcastThumbInputMode("file")}
+                />
+                Upload image
+              </label>
+            </div>
+            {podcastThumbInputMode === "url" ? (
+              <Input
+                label="Thumbnail URL"
+                value={podcastThumbnailUrl}
+                onChange={(e) => setPodcastThumbnailUrl(e.target.value)}
+                placeholder="https://...jpg — shown in lists and while audio plays"
+              />
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setPodcastThumbUploading(true);
+                    setError("");
+                    try {
+                      const result = await apiUploadCourseThumbnail(file);
+                      setPodcastThumbnailUrl(result.url);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Thumbnail upload failed");
+                    } finally {
+                      setPodcastThumbUploading(false);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 rounded-lg border border-brand-grey-light bg-white file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                  disabled={podcastThumbUploading}
+                />
+                {podcastThumbUploading && (
+                  <p className="text-sm text-purple-600 animate-pulse">Uploading thumbnail...</p>
+                )}
+                {podcastThumbnailUrl && !podcastThumbUploading && (
+                  <p className="text-xs text-brand-grey truncate">Current: {podcastThumbnailUrl}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
