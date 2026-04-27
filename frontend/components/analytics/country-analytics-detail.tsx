@@ -163,19 +163,23 @@ export function CountryAnalyticsDetail({ data: d, countryCodeUpper }: Props) {
           <CardTitle className="text-sm font-medium">Top learners</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="text-sm space-y-2">
-            {d.topLearners.map((u) => (
-              <li key={u.displayName} className="flex justify-between">
-                <span>
-                  {u.displayName}
-                  {u.city ? <span className="text-[var(--color-text-muted)]"> — {u.city}</span> : null}
-                </span>
-                <span className="text-[var(--color-text-muted)]">
-                  {u.points} pts · {u.pathsDone} paths
-                </span>
-              </li>
-            ))}
-          </ul>
+          {d.topLearners.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)]">No learners with activity in this country for the selected period.</p>
+          ) : (
+            <ul className="text-sm space-y-2">
+              {d.topLearners.map((u) => (
+                <li key={u.userId} className="flex justify-between">
+                  <span>
+                    {u.displayName}
+                    {u.city ? <span className="text-[var(--color-text-muted)]"> — {u.city}</span> : null}
+                  </span>
+                  <span className="text-[var(--color-text-muted)]">
+                    {u.points} pts · {u.pathsDone} paths
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

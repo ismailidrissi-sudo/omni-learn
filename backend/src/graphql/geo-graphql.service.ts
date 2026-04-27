@@ -340,7 +340,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<CountryDetailGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const code = countryCode.toUpperCase();
-    const cacheKey = `analytics:geo:country:v4:${tenantId}:${code}:${periodCacheKey(start, end)}`;
+    const cacheKey = `analytics:geo:country:v5:${tenantId}:${code}:${periodCacheKey(start, end)}`;
     const cached = await this.cache.getJson<CountryDetailGql>(cacheKey);
     if (cached) return cached;
 
@@ -697,18 +697,36 @@ export class GeoAnalyticsGqlService {
       userCount: v.users.size,
     }));
 
-    const pointsRows = await this.prisma.userPoints.findMany({
-      where: { userId: { in: allUserIds } },
-    });
+    const leaderUserIds = [...activeUserIds];
+    const leaderboardUsers =
+      leaderUserIds.length === 0
+        ? []
+        : await this.prisma.user.findMany({
+            where: {
+              id: { in: leaderUserIds },
+              ...(tenantId ? { tenantId } : {}),
+            },
+            select: { id: true, city: true, name: true },
+          });
+
+    const pointsRows =
+      leaderUserIds.length === 0
+        ? []
+        : await this.prisma.userPoints.findMany({
+            where: { userId: { in: leaderUserIds } },
+          });
     const pointsMap = new Map(pointsRows.map((p) => [p.userId, p.points]));
-    const pathCounts = await this.prisma.pathEnrollment.groupBy({
-      by: ['userId'],
-      where: { userId: { in: allUserIds }, status: 'COMPLETED' },
-      _count: { id: true },
-    });
+    const pathCounts =
+      leaderUserIds.length === 0
+        ? []
+        : await this.prisma.pathEnrollment.groupBy({
+            by: ['userId'],
+            where: { userId: { in: leaderUserIds }, status: 'COMPLETED' },
+            _count: { id: true },
+          });
     const pathMap = new Map(pathCounts.map((p) => [p.userId, p._count.id]));
 
-    const topLearners = users
+    const topLearners = leaderboardUsers
       .map((u) => ({
         userId: u.id,
         displayName: privacyName(u.name),
@@ -717,7 +735,7 @@ export class GeoAnalyticsGqlService {
         pathsDone: pathMap.get(u.id) ?? 0,
         certs: 0,
       }))
-      .sort((a, b) => b.points - a.points)
+      .sort((a, b) => b.points - a.points || b.pathsDone - a.pathsDone || a.userId.localeCompare(b.userId))
       .slice(0, 10);
 
     const named = await this.prisma.user.findFirst({
