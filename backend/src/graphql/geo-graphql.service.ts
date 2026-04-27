@@ -42,6 +42,15 @@ function roundCoord(n: number, decimals: number): number {
   return Math.round(n * f) / f;
 }
 
+/** Mirrors GeoRollupService.cityBucket for session / IP rows. */
+function cityBucketForSession(city: string | null | undefined, region: string | null | undefined): string {
+  const c = (city ?? '').trim();
+  if (!c) return '';
+  const r = (region ?? '').trim();
+  const label = r ? `${c}, ${r}` : c;
+  return label.length > 100 ? label.slice(0, 100) : label;
+}
+
 @Injectable()
 export class GeoAnalyticsGqlService {
   constructor(
@@ -331,7 +340,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<CountryDetailGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const code = countryCode.toUpperCase();
-    const cacheKey = `analytics:geo:country:v3:${tenantId}:${code}:${periodCacheKey(start, end)}`;
+    const cacheKey = `analytics:geo:country:v4:${tenantId}:${code}:${periodCacheKey(start, end)}`;
     const cached = await this.cache.getJson<CountryDetailGql>(cacheKey);
     if (cached) return cached;
 
@@ -352,11 +361,6 @@ export class GeoAnalyticsGqlService {
         user: tenantId ? { tenantId } : undefined,
       },
     });
-    const activeUserIds = new Set(activeLogRows.map((r) => r.userId));
-
-    const newSignups = users.filter(
-      (u) => u.createdAt >= start && u.createdAt <= end,
-    ).length;
 
     const courseCompletions = await this.prisma.courseEnrollment.count({
       where: {
@@ -398,6 +402,43 @@ export class GeoAnalyticsGqlService {
       _count: { id: true },
     });
 
+    const sessionsInCountry = await this.prisma.userSession.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        countryCode: code,
+        startedAt: { gte: start, lte: end },
+      },
+      select: {
+        userId: true,
+        city: true,
+        region: true,
+        latitude: true,
+        longitude: true,
+        deviceType: true,
+      },
+    });
+
+    const activeUserIds = new Set<string>([
+      ...activeLogRows.map((r) => r.userId),
+      ...sessionsInCountry.map((s) => s.userId),
+    ]);
+
+    const sessionUserIdList = [...new Set(sessionsInCountry.map((s) => s.userId))];
+    const profileIdSet = new Set(users.map((u) => u.id));
+    const onlySessionUserIds = sessionUserIdList.filter((id) => !profileIdSet.has(id));
+    const onlySessionUsers =
+      onlySessionUserIds.length === 0
+        ? []
+        : await this.prisma.user.findMany({
+            where: { id: { in: onlySessionUserIds } },
+            select: { id: true, createdAt: true },
+          });
+    const newSignups =
+      users.filter((u) => u.createdAt >= start && u.createdAt <= end).length +
+      onlySessionUsers.filter((u) => u.createdAt >= start && u.createdAt <= end).length;
+
+    const registeredUsersKpi = users.length + onlySessionUserIds.length;
+
     type CityAgg = {
       city: string;
       region: string | null;
@@ -432,6 +473,23 @@ export class GeoAnalyticsGqlService {
       }
       const entry = cityAgg.get(cityLabel)!;
       entry.activeUserIds.add(t.userId);
+      if (regionLabel && !entry.region) entry.region = regionLabel;
+    }
+
+    for (const s of sessionsInCountry) {
+      const bucket = cityBucketForSession(s.city, s.region);
+      const cityLabel = bucket || 'Unknown';
+      const regionLabel = s.region?.trim() || null;
+      if (!cityAgg.has(cityLabel)) {
+        cityAgg.set(cityLabel, {
+          city: cityLabel,
+          region: regionLabel,
+          registeredUserIds: new Set(),
+          activeUserIds: new Set(),
+        });
+      }
+      const entry = cityAgg.get(cityLabel)!;
+      entry.activeUserIds.add(s.userId);
       if (regionLabel && !entry.region) entry.region = regionLabel;
     }
 
@@ -496,15 +554,41 @@ export class GeoAnalyticsGqlService {
       if (!usersByRegion.has(reg)) usersByRegion.set(reg, new Set());
       usersByRegion.get(reg)!.add(row.userId);
     }
-    const regions = regionSessions
-      .map((r) => {
-        const reg = (r.region ?? '').trim() || 'Unknown';
-        return {
-          region: reg,
-          users: usersByRegion.get(reg)?.size ?? 0,
-          sessions: r._count.id,
-        };
-      })
+
+    const sessionCountByRegion = new Map<string, number>();
+    const sessionUsersByRegion = new Map<string, Set<string>>();
+    for (const s of sessionsInCountry) {
+      const reg = (s.region ?? '').trim() || 'Unknown';
+      sessionCountByRegion.set(reg, (sessionCountByRegion.get(reg) ?? 0) + 1);
+      if (!sessionUsersByRegion.has(reg)) sessionUsersByRegion.set(reg, new Set());
+      sessionUsersByRegion.get(reg)!.add(s.userId);
+    }
+
+    const mergedSessionCounts = new Map<string, number>();
+    for (const r of regionSessions) {
+      const reg = (r.region ?? '').trim() || 'Unknown';
+      mergedSessionCounts.set(reg, (mergedSessionCounts.get(reg) ?? 0) + r._count.id);
+    }
+    for (const [reg, n] of sessionCountByRegion) {
+      mergedSessionCounts.set(reg, (mergedSessionCounts.get(reg) ?? 0) + n);
+    }
+
+    const mergedRegionUsers = new Map<string, Set<string>>();
+    for (const [reg, set] of usersByRegion) {
+      mergedRegionUsers.set(reg, new Set(set));
+    }
+    for (const [reg, set] of sessionUsersByRegion) {
+      if (!mergedRegionUsers.has(reg)) mergedRegionUsers.set(reg, new Set());
+      for (const uid of set) mergedRegionUsers.get(reg)!.add(uid);
+    }
+
+    const allRegionKeys = new Set<string>([...mergedSessionCounts.keys(), ...mergedRegionUsers.keys()]);
+    const regions = [...allRegionKeys]
+      .map((reg) => ({
+        region: reg,
+        users: mergedRegionUsers.get(reg)?.size ?? 0,
+        sessions: mergedSessionCounts.get(reg) ?? 0,
+      }))
       .sort((a, b) => b.sessions - a.sessions || b.users - a.users)
       .slice(0, 25);
 
@@ -530,6 +614,16 @@ export class GeoAnalyticsGqlService {
       }
       locBuckets.get(key)!.users.add(row.userId);
     }
+    for (const s of sessionsInCountry) {
+      if (s.latitude == null || s.longitude == null) continue;
+      const lat = roundCoord(s.latitude, 2);
+      const lng = roundCoord(s.longitude, 2);
+      const key = `${lat},${lng}`;
+      if (!locBuckets.has(key)) {
+        locBuckets.set(key, { latitude: lat, longitude: lng, users: new Set() });
+      }
+      locBuckets.get(key)!.users.add(s.userId);
+    }
     const locations = [...locBuckets.values()]
       .map((b) => ({
         latitude: b.latitude,
@@ -548,6 +642,15 @@ export class GeoAnalyticsGqlService {
       },
       _count: { id: true },
     });
+    const sessionDeviceRows = await this.prisma.userSession.groupBy({
+      by: ['deviceType'],
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        countryCode: code,
+        startedAt: { gte: start, lte: end },
+      },
+      _count: { id: true },
+    });
     let web = 0,
       ios = 0,
       android = 0;
@@ -556,6 +659,13 @@ export class GeoAnalyticsGqlService {
       const n = l._count.id;
       if (d === 'ios') ios += n;
       else if (d === 'android') android += n;
+      else web += n;
+    }
+    for (const row of sessionDeviceRows) {
+      const dt = (row.deviceType || 'DESKTOP').toString().toUpperCase();
+      const n = row._count.id;
+      if (dt === 'MOBILE') ios += n;
+      else if (dt === 'TABLET') android += n;
       else web += n;
     }
     const t = web + ios + android || 1;
@@ -634,7 +744,7 @@ export class GeoAnalyticsGqlService {
       },
       topLearners,
       kpis: {
-        registeredUsers: users.length,
+        registeredUsers: registeredUsersKpi,
         activeUsers: activeUserIds.size,
         activeUsersDelta: 0,
         newSignups,

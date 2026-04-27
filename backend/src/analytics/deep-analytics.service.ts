@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { ContentType, Prisma } from '@prisma/client';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
 import { englishCountryNameFromCode } from './geo-constants';
+
+type VideoAggRow = {
+  _sum: { watchedSeconds: number | null };
+  _avg: { watchedSeconds: number | null; watchPercentage: number | null };
+  _count: number;
+};
 
 @Injectable()
 export class DeepAnalyticsService {
@@ -58,6 +64,266 @@ export class DeepAnalyticsService {
     if (and.length) where.AND = and;
 
     return where;
+  }
+
+  /** User filter applied to course enrollments in content analytics (matches video / views semantics). */
+  private buildEnrollmentUserWhere(f: AnalyticsFiltersDto): Prisma.UserWhereInput | undefined {
+    const uw = this.buildUserWhere(f);
+    const parts: Prisma.UserWhereInput[] = [];
+    if (Object.keys(uw).length) parts.push(uw);
+    if (f.deviceType) {
+      parts.push({ sessions: { some: { deviceType: f.deviceType as any } } });
+    }
+    if (!parts.length) return undefined;
+    return parts.length === 1 ? parts[0] : { AND: parts };
+  }
+
+  private buildPageViewWhereForContent(
+    f: AnalyticsFiltersDto,
+    contentIds: string[],
+    strictViewerUserIds?: string[],
+  ): Prisma.PageViewWhereInput {
+    const where: Prisma.PageViewWhereInput = {
+      contentId: { in: contentIds },
+    };
+    if (strictViewerUserIds !== undefined) {
+      where.userId = { in: strictViewerUserIds };
+    }
+    const sessionWhere = this.buildSessionWhere(f);
+    if (Object.keys(sessionWhere).length > 0) {
+      where.session = sessionWhere;
+    }
+    if (f.from || f.to) {
+      where.createdAt = {};
+      if (f.from) where.createdAt.gte = new Date(f.from);
+      if (f.to) where.createdAt.lte = new Date(f.to);
+    }
+    return where;
+  }
+
+  private buildVideoWatchWhereForContent(
+    f: AnalyticsFiltersDto,
+    contentIds: string[],
+  ): Prisma.VideoWatchProgressWhereInput {
+    const where: Prisma.VideoWatchProgressWhereInput = { contentId: { in: contentIds } };
+    const uw = this.buildUserWhere(f);
+    const parts: Prisma.UserWhereInput[] = [];
+    if (Object.keys(uw).length) parts.push(uw);
+    if (f.deviceType) {
+      parts.push({ sessions: { some: { deviceType: f.deviceType as any } } });
+    }
+    if (parts.length) {
+      where.user = parts.length === 1 ? parts[0] : { AND: parts };
+    }
+    if (f.from || f.to) {
+      where.lastWatchedAt = {};
+      if (f.from) where.lastWatchedAt.gte = new Date(f.from);
+      if (f.to) where.lastWatchedAt.lte = new Date(f.to);
+    }
+    return where;
+  }
+
+  private buildContentViewEventWhere(
+    f: AnalyticsFiltersDto,
+    contentIds: string[],
+    strictViewerUserIds?: string[],
+  ): Prisma.AnalyticsEventWhereInput {
+    const where: Prisma.AnalyticsEventWhereInput = {
+      eventType: 'CONTENT_VIEW',
+      contentId: { in: contentIds },
+    };
+    if (strictViewerUserIds !== undefined) {
+      where.userId = { in: strictViewerUserIds };
+    }
+    if (f.from || f.to) {
+      where.createdAt = {};
+      if (f.from) where.createdAt.gte = new Date(f.from);
+      if (f.to) where.createdAt.lte = new Date(f.to);
+    }
+    if (f.tenantId) where.tenantId = f.tenantId;
+    return where;
+  }
+
+  /** When set, restricts page views / events to users matching gender, country, search, or userId filters. */
+  private async resolveStrictViewerUserIds(f: AnalyticsFiltersDto): Promise<string[] | undefined> {
+    if (!f.gender && !f.country && !f.search && !f.userId) return undefined;
+    const rows = await this.prisma.user.findMany({
+      where: this.buildUserWhere(f),
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  mergeCourseVideoMetrics(
+    courseId: string,
+    lectureIds: string[],
+    videoByContent: Map<string, VideoAggRow>,
+  ): { sumWatched: number; avgDurationSeconds: number } {
+    const direct = videoByContent.get(courseId);
+    let sumWatched = Number(direct?._sum?.watchedSeconds) || 0;
+    let weightedNum = 0;
+    let weightedDen = 0;
+    if (direct) {
+      const cnt = direct._count;
+      const avg = direct._avg?.watchedSeconds ?? 0;
+      weightedNum += avg * cnt;
+      weightedDen += cnt;
+    }
+    for (const lid of lectureIds) {
+      const v = videoByContent.get(lid);
+      if (!v) continue;
+      sumWatched += Number(v._sum.watchedSeconds) || 0;
+      const cnt = v._count;
+      weightedNum += (v._avg?.watchedSeconds ?? 0) * cnt;
+      weightedDen += cnt;
+    }
+    const avgDurationSeconds = weightedDen > 0 ? Math.round(weightedNum / weightedDen) : 0;
+    return { sumWatched, avgDurationSeconds };
+  }
+
+  /**
+   * Shared metrics for admin content table and CSV export: page views + CONTENT_VIEW events,
+   * video progress (including lecture roll-up for courses), enrollments with filter-aware users.
+   */
+  async aggregateContentListMetrics(
+    items: Array<{ id: string; type: ContentType }>,
+    f: AnalyticsFiltersDto,
+  ): Promise<{
+    viewsByContent: Map<string, number>;
+    uniqueByContent: Map<string, number>;
+    videoByContent: Map<string, VideoAggRow>;
+    enrollByCourse: Map<string, { total: number; completed: number }>;
+    sectionItemIdsByCourse: Map<string, string[]>;
+  }> {
+    const ids = items.map((i) => i.id);
+    const empty = () => ({
+      viewsByContent: new Map<string, number>(),
+      uniqueByContent: new Map<string, number>(),
+      videoByContent: new Map<string, VideoAggRow>(),
+      enrollByCourse: new Map<string, { total: number; completed: number }>(),
+      sectionItemIdsByCourse: new Map<string, string[]>(),
+    });
+    if (ids.length === 0) return empty();
+
+    const strictViewerUserIds = await this.resolveStrictViewerUserIds(f);
+
+    const courseIds = items.filter((i) => i.type === ContentType.COURSE).map((i) => i.id);
+    const sectionItemIdsByCourse = new Map<string, string[]>();
+    if (courseIds.length > 0) {
+      const sections = await this.prisma.courseSection.findMany({
+        where: { courseId: { in: courseIds } },
+        select: {
+          courseId: true,
+          items: { select: { id: true } },
+        },
+      });
+      for (const sec of sections) {
+        const cur = sectionItemIdsByCourse.get(sec.courseId) || [];
+        cur.push(...sec.items.map((it) => it.id));
+        sectionItemIdsByCourse.set(sec.courseId, cur);
+      }
+    }
+
+    const lectureIds = [...sectionItemIdsByCourse.values()].flat();
+    const expandedVideoIds = [...new Set([...ids, ...lectureIds])];
+
+    const pvWhere = this.buildPageViewWhereForContent(f, ids, strictViewerUserIds);
+    const videoWhere = this.buildVideoWatchWhereForContent(f, expandedVideoIds);
+    const evWhere = this.buildContentViewEventWhere(f, ids, strictViewerUserIds);
+
+    const enrollWhere: Prisma.CourseEnrollmentWhereInput = { courseId: { in: ids } };
+    const enrollUser = this.buildEnrollmentUserWhere(f);
+    if (enrollUser) enrollWhere.user = enrollUser;
+
+    const [viewCounts, uniquePairs, videoAggs, enrollGroups, eventCounts, eventUniquePairs] =
+      await Promise.all([
+        this.prisma.pageView.groupBy({
+          by: ['contentId'],
+          where: pvWhere,
+          _count: true,
+        }),
+        this.prisma.pageView.groupBy({
+          by: ['contentId', 'userId'],
+          where: pvWhere,
+          _count: true,
+        }),
+        this.prisma.videoWatchProgress.groupBy({
+          by: ['contentId'],
+          where: videoWhere,
+          _avg: { watchedSeconds: true, watchPercentage: true },
+          _sum: { watchedSeconds: true },
+          _count: true,
+        }),
+        this.prisma.courseEnrollment.groupBy({
+          by: ['courseId', 'status'],
+          where: enrollWhere,
+          _count: true,
+        }),
+        this.prisma.analyticsEvent.groupBy({
+          by: ['contentId'],
+          where: evWhere,
+          _count: true,
+        }),
+        this.prisma.analyticsEvent.groupBy({
+          by: ['contentId', 'userId'],
+          where: { ...evWhere, userId: { not: null } },
+          _count: true,
+        }),
+      ]);
+
+    const viewsByContent = new Map<string, number>();
+    for (const row of viewCounts) {
+      if (row.contentId) viewsByContent.set(row.contentId, row._count);
+    }
+    for (const row of eventCounts) {
+      if (!row.contentId) continue;
+      viewsByContent.set(row.contentId, (viewsByContent.get(row.contentId) || 0) + row._count);
+    }
+
+    const uniqueSets = new Map<string, Set<string>>();
+    const addUnique = (contentId: string, userId: string | null) => {
+      if (!userId) return;
+      if (!uniqueSets.has(contentId)) uniqueSets.set(contentId, new Set());
+      uniqueSets.get(contentId)!.add(userId);
+    };
+    for (const row of uniquePairs) {
+      if (row.contentId) addUnique(row.contentId, row.userId);
+    }
+    for (const row of eventUniquePairs) {
+      if (row.contentId) addUnique(row.contentId, row.userId);
+    }
+    const uniqueByContent = new Map<string, number>();
+    for (const [cid, set] of uniqueSets) {
+      uniqueByContent.set(cid, set.size);
+    }
+
+    const videoByContent = new Map<string, VideoAggRow>();
+    for (const v of videoAggs) {
+      if (v.contentId == null) continue;
+      const cnt = typeof v._count === 'number' ? v._count : (v._count as { _all?: number })._all ?? 0;
+      videoByContent.set(v.contentId, {
+        _sum: v._sum,
+        _avg: v._avg,
+        _count: cnt,
+      });
+    }
+
+    const enrollByCourse = new Map<string, { total: number; completed: number }>();
+    for (const row of enrollGroups) {
+      if (!row.courseId) continue;
+      const cur = enrollByCourse.get(row.courseId) || { total: 0, completed: 0 };
+      cur.total += row._count;
+      if (row.status === 'COMPLETED') cur.completed += row._count;
+      enrollByCourse.set(row.courseId, cur);
+    }
+
+    return {
+      viewsByContent,
+      uniqueByContent,
+      videoByContent,
+      enrollByCourse,
+      sectionItemIdsByCourse,
+    };
   }
 
   async getDashboardOverview(f: AnalyticsFiltersDto) {
@@ -260,68 +526,31 @@ export class DeepAnalyticsService {
       return { content: [], total, page, limit, totalPages: Math.ceil(total / limit) };
     }
 
-    const [viewCounts, uniquePairs, videoAggs, enrollGroups] = await Promise.all([
-      this.prisma.pageView.groupBy({
-        by: ['contentId'],
-        where: { contentId: { in: ids } },
-        _count: true,
-      }),
-      this.prisma.pageView.groupBy({
-        by: ['contentId', 'userId'],
-        where: { contentId: { in: ids } },
-        _count: true,
-      }),
-      this.prisma.videoWatchProgress.groupBy({
-        by: ['contentId'],
-        where: { contentId: { in: ids } },
-        _avg: { watchedSeconds: true, watchPercentage: true },
-        _sum: { watchedSeconds: true },
-      }),
-      this.prisma.courseEnrollment.groupBy({
-        by: ['courseId', 'status'],
-        where: { courseId: { in: ids } },
-        _count: true,
-      }),
-    ]);
-
-    const viewsByContent = new Map<string, number>();
-    for (const row of viewCounts) {
-      if (row.contentId) viewsByContent.set(row.contentId, row._count);
-    }
-
-    const uniqueByContent = new Map<string, number>();
-    for (const row of uniquePairs) {
-      if (!row.contentId) continue;
-      uniqueByContent.set(row.contentId, (uniqueByContent.get(row.contentId) || 0) + 1);
-    }
-
-    const videoByContent = new Map(
-      videoAggs
-        .filter((v): v is typeof v & { contentId: string } => v.contentId != null)
-        .map((v) => [v.contentId, v] as const),
-    );
-
-    const enrollByCourse = new Map<string, { total: number; completed: number }>();
-    for (const row of enrollGroups) {
-      if (!row.courseId) continue;
-      const cur = enrollByCourse.get(row.courseId) || { total: 0, completed: 0 };
-      cur.total += row._count;
-      if (row.status === 'COMPLETED') cur.completed += row._count;
-      enrollByCourse.set(row.courseId, cur);
-    }
+    const { viewsByContent, uniqueByContent, videoByContent, enrollByCourse, sectionItemIdsByCourse } =
+      await this.aggregateContentListMetrics(items, f);
 
     const enriched = items.map((item) => {
-      const v = videoByContent.get(item.id);
       const enroll = enrollByCourse.get(item.id);
       const completionRate =
         enroll && enroll.total > 0 ? Math.round((enroll.completed / enroll.total) * 100) : 0;
-      const sumWatched = v?._sum?.watchedSeconds ?? 0;
+      let sumWatched: number;
+      let avgDurationSeconds: number;
+      if (item.type === ContentType.COURSE) {
+        const lecIds = sectionItemIdsByCourse.get(item.id) || [];
+        const m = this.mergeCourseVideoMetrics(item.id, lecIds, videoByContent);
+        sumWatched = m.sumWatched;
+        avgDurationSeconds = m.avgDurationSeconds;
+      } else {
+        const v = videoByContent.get(item.id);
+        sumWatched = Number(v?._sum?.watchedSeconds) || 0;
+        avgDurationSeconds = Math.round(v?._avg?.watchedSeconds || 0);
+      }
       return {
         ...item,
         domainName: item.domain?.name || null,
         views: viewsByContent.get(item.id) ?? 0,
         uniqueViewers: uniqueByContent.get(item.id) ?? 0,
-        avgDurationSeconds: Math.round(v?._avg?.watchedSeconds || 0),
+        avgDurationSeconds,
         completionRate,
         totalWatchHours: Math.round(((Number(sumWatched) || 0) / 3600) * 10) / 10,
       };

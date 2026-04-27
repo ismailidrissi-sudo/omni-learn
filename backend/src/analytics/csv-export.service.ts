@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { Prisma } from '@prisma/client';
+import { ContentType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsFiltersDto } from './dto/analytics-filters.dto';
+import { DeepAnalyticsService } from './deep-analytics.service';
 
 @Injectable()
 export class CsvExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly deepAnalytics: DeepAnalyticsService,
+  ) {}
 
   private escapeCsv(value: unknown): string {
     if (value === null || value === undefined) return '';
@@ -96,38 +100,44 @@ export class CsvExportService {
     const items = await this.prisma.contentItem.findMany({
       where,
       select: {
-        id: true, title: true, type: true, durationMinutes: true,
+        id: true,
+        title: true,
+        type: true,
+        durationMinutes: true,
         domain: { select: { name: true } },
       },
     });
 
-    const rows = await Promise.all(
-      items.map(async (item) => {
-        const views = await this.prisma.pageView.count({ where: { contentId: item.id } });
-        const uniqueViewers = await this.prisma.pageView.groupBy({ by: ['userId'], where: { contentId: item.id } }).then((r) => r.length);
-        const video = await this.prisma.videoWatchProgress.aggregate({
-          where: { contentId: item.id },
-          _avg: { watchedSeconds: true },
-          _sum: { watchedSeconds: true },
-        });
-        const enrollments = await this.prisma.courseEnrollment.findMany({
-          where: { courseId: item.id },
-          select: { status: true },
-        });
-        const completed = enrollments.filter((e) => e.status === 'COMPLETED').length;
+    const metrics = await this.deepAnalytics.aggregateContentListMetrics(items, f);
 
-        return {
-          Title: item.title,
-          Type: item.type,
-          Domain: item.domain?.name || '',
-          Views: views,
-          'Unique Viewers': uniqueViewers,
-          'Avg Duration (s)': Math.round(video._avg.watchedSeconds || 0),
-          'Completion Rate (%)': enrollments.length > 0 ? Math.round((completed / enrollments.length) * 100) : 0,
-          'Total Watch Hours': Math.round((video._sum.watchedSeconds || 0) / 3600 * 10) / 10,
-        };
-      }),
-    );
+    const rows = items.map((item) => {
+      const enroll = metrics.enrollByCourse.get(item.id);
+      const completionRate =
+        enroll && enroll.total > 0 ? Math.round((enroll.completed / enroll.total) * 100) : 0;
+      let sumWatched: number;
+      let avgDurationSeconds: number;
+      if (item.type === ContentType.COURSE) {
+        const lecIds = metrics.sectionItemIdsByCourse.get(item.id) || [];
+        const m = this.deepAnalytics.mergeCourseVideoMetrics(item.id, lecIds, metrics.videoByContent);
+        sumWatched = m.sumWatched;
+        avgDurationSeconds = m.avgDurationSeconds;
+      } else {
+        const v = metrics.videoByContent.get(item.id);
+        sumWatched = Number(v?._sum?.watchedSeconds) || 0;
+        avgDurationSeconds = Math.round(v?._avg?.watchedSeconds || 0);
+      }
+
+      return {
+        Title: item.title,
+        Type: item.type,
+        Domain: item.domain?.name || '',
+        Views: metrics.viewsByContent.get(item.id) ?? 0,
+        'Unique Viewers': metrics.uniqueByContent.get(item.id) ?? 0,
+        'Avg Duration (s)': avgDurationSeconds,
+        'Completion Rate (%)': completionRate,
+        'Total Watch Hours': Math.round((sumWatched / 3600) * 10) / 10,
+      };
+    });
 
     const headers = ['Title', 'Type', 'Domain', 'Views', 'Unique Viewers', 'Avg Duration (s)', 'Completion Rate (%)', 'Total Watch Hours'];
     return this.toCsv(headers, rows);
