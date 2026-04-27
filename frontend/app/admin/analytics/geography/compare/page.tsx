@@ -15,9 +15,12 @@ function CompareInner() {
   const [codes, setCodes] = useState<string[]>(["MA", "FR", "US"]);
 
   const period = useMemo(() => {
-    const start = new Date(filters.from + "T00:00:00.000Z");
-    const end = new Date(filters.to + "T23:59:59.999Z");
-    return { start, end };
+    const fromStr = filters.from || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const toStr = filters.to || new Date().toISOString().slice(0, 10);
+    return {
+      start: new Date(fromStr + "T00:00:00.000Z"),
+      end: new Date(toStr + "T23:59:59.999Z"),
+    };
   }, [filters.from, filters.to]);
 
   const { data, loading, error } = useQuery(COMPARE_COUNTRIES, {
@@ -26,7 +29,8 @@ function CompareInner() {
       tenantId,
       period: { start: period.start.toISOString(), end: period.end.toISOString() },
     },
-    skip: !tenantId || codes.length < 2,
+    skip: codes.length < 2,
+    errorPolicy: "all",
   });
 
   type Row = {
@@ -52,15 +56,17 @@ function CompareInner() {
     if (next.length >= 2) setCodes(next);
   };
 
-  if (!tenantId) {
-    return <p className="text-sm text-[var(--color-text-muted)]">Select a tenant in filters.</p>;
-  }
-
   return (
     <div className="space-y-6">
       <Link href="/admin/analytics/geography" className="text-sm text-brand-purple hover:underline">
         ← Geographic overview
       </Link>
+
+      {!tenantId && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          All companies — comparison aggregates users across every tenant you can access.
+        </p>
+      )}
 
       <Card>
         <CardHeader>
