@@ -22,7 +22,13 @@ export type CountryAnalyticsDetailModel = {
   regions?: { region: string; users: number; sessions: number }[];
   locations?: { latitude: number; longitude: number; users: number }[];
   deviceBreakdown: { webPct: number; iosPct: number; androidPct: number };
-  topLearners: { displayName: string; city?: string | null; points: number; pathsDone: number }[];
+  topLearners: {
+    userId: string;
+    displayName: string;
+    city?: string | null;
+    points: number;
+    pathsDone: number;
+  }[];
 };
 
 type Props = {
