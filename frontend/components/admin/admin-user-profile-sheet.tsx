@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
-import { useAnalyticsFilters } from "@/components/analytics/analytics-filters-context";
+import { useAnalyticsFiltersOptional } from "@/components/analytics/analytics-filters-context";
 import { toast } from "@/lib/use-toast";
 import type { UserPlan } from "@/lib/use-user";
 
@@ -90,7 +90,11 @@ export function AdminUserProfileSheet({
   onMutated?: () => void;
 }) {
   const { user: actor } = useUser();
-  const { tenants, courses } = useAnalyticsFilters();
+  const filtersCtx = useAnalyticsFiltersOptional();
+  const [localTenants, setLocalTenants] = useState<{ id: string; name: string }[]>([]);
+  const [localCourses, setLocalCourses] = useState<{ id: string; title: string }[]>([]);
+  const tenants = filtersCtx?.tenants ?? localTenants;
+  const courses = filtersCtx?.courses ?? localCourses;
   const [profile, setProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -141,6 +145,55 @@ export function AdminUserProfileSheet({
     }
     void loadProfile();
   }, [userId, loadProfile]);
+
+  // When used outside an AnalyticsFiltersProvider (e.g. on the academy users
+  // page), fetch the data we need ourselves. Super admins also need the tenant
+  // list to switch a user's academy.
+  useEffect(() => {
+    if (!userId || filtersCtx) return;
+    apiFetch("/content?type=COURSE&limit=200")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: unknown) => {
+        if (!Array.isArray(list)) {
+          setLocalCourses([]);
+          return;
+        }
+        setLocalCourses(
+          list
+            .map((c: { id?: string; title?: string }) => ({
+              id: c.id ?? "",
+              title: c.title ?? "Course",
+            }))
+            .filter((c) => c.id),
+        );
+      })
+      .catch(() => setLocalCourses([]));
+  }, [userId, filtersCtx]);
+
+  useEffect(() => {
+    if (!userId || filtersCtx) return;
+    if (!isSuperAdmin) {
+      setLocalTenants([]);
+      return;
+    }
+    apiFetch("/company/tenants")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: unknown) => {
+        if (!Array.isArray(list)) {
+          setLocalTenants([]);
+          return;
+        }
+        setLocalTenants(
+          list
+            .map((t: { id?: string; name?: string }) => ({
+              id: t.id ?? "",
+              name: t.name ?? "Academy",
+            }))
+            .filter((t) => t.id),
+        );
+      })
+      .catch(() => setLocalTenants([]));
+  }, [userId, filtersCtx, isSuperAdmin]);
 
   const tenantIdForPaths = profile?.user.tenantId ?? actor?.tenantId ?? "";
 

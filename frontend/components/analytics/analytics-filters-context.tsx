@@ -149,3 +149,12 @@ export function useAnalyticsFilters() {
   if (!ctx) throw new Error("useAnalyticsFilters must be used within AnalyticsFiltersProvider");
   return ctx;
 }
+
+/**
+ * Same context but returns null when no provider is present, so components
+ * (e.g. the admin user profile sheet) can opt-in to the analytics filters when
+ * available and fall back to local fetching otherwise.
+ */
+export function useAnalyticsFiltersOptional(): Ctx | null {
+  return useContext(AnalyticsFiltersContext);
+}

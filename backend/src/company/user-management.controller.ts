@@ -580,6 +580,124 @@ export class UserManagementController {
     );
   }
 
+  // ── Bulk admin enrollment for academy admins ───────────────────────────
+
+  @Post('users/enrollments/bulk-course')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async adminBulkEnrollCourse(
+    @Body() body: { userIds: string[]; courseId: string; deadline?: string },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!body?.courseId) throw new BadRequestException('courseId is required');
+    if (!Array.isArray(body.userIds) || body.userIds.length === 0) {
+      throw new BadRequestException('userIds array is required');
+    }
+    if (body.userIds.length > 500) {
+      throw new BadRequestException('Maximum 500 users per bulk enrollment');
+    }
+
+    const uniqueIds = [...new Set(body.userIds)];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, tenantId: true },
+    });
+    for (const u of users) this.assertTenantScope(actor, u.tenantId);
+
+    const deadline = body.deadline ? new Date(body.deadline) : undefined;
+    let enrolled = 0;
+    let skipped = 0;
+    const failures: Array<{ userId: string; reason: string }> = [];
+
+    for (const u of users) {
+      try {
+        const existing = await this.prisma.courseEnrollment.findUnique({
+          where: { userId_courseId: { userId: u.id, courseId: body.courseId } },
+          select: { id: true },
+        });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+        await this.courseEnrollment.enrollUser(u.id, body.courseId, deadline, {
+          actorUserId: actor.sub,
+        });
+        enrolled++;
+      } catch (err) {
+        failures.push({
+          userId: u.id,
+          reason: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+
+    return {
+      enrolled,
+      skipped,
+      failed: failures.length,
+      requested: body.userIds.length,
+      failures,
+    };
+  }
+
+  @Post('users/enrollments/bulk-path')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
+  async adminBulkEnrollPath(
+    @Body() body: { userIds: string[]; pathId: string; deadline?: string },
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    if (!body?.pathId) throw new BadRequestException('pathId is required');
+    if (!Array.isArray(body.userIds) || body.userIds.length === 0) {
+      throw new BadRequestException('userIds array is required');
+    }
+    if (body.userIds.length > 500) {
+      throw new BadRequestException('Maximum 500 users per bulk enrollment');
+    }
+
+    const uniqueIds = [...new Set(body.userIds)];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, tenantId: true },
+    });
+    for (const u of users) this.assertTenantScope(actor, u.tenantId);
+
+    const deadline = body.deadline ? new Date(body.deadline) : undefined;
+    let enrolled = 0;
+    let skipped = 0;
+    const failures: Array<{ userId: string; reason: string }> = [];
+
+    for (const u of users) {
+      try {
+        const existing = await this.prisma.pathEnrollment.findUnique({
+          where: { userId_pathId: { userId: u.id, pathId: body.pathId } },
+          select: { id: true },
+        });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+        await this.learningPath.enrollUser(u.id, body.pathId, deadline, {
+          actorUserId: actor.sub,
+        });
+        enrolled++;
+      } catch (err) {
+        failures.push({
+          userId: u.id,
+          reason: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+
+    return {
+      enrolled,
+      skipped,
+      failed: failures.length,
+      requested: body.userIds.length,
+      failures,
+    };
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────
 
   private assertTenantScope(
