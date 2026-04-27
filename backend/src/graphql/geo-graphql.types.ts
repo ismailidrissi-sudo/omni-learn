@@ -147,6 +147,10 @@ export class DeviceBreakdownGql {
 
 @ObjectType()
 export class CountryKpisGql {
+  /** Total registered users with this country code (profile), period-independent. */
+  @Field(() => Int)
+  registeredUsers!: number;
+
   @Field(() => Int)
   activeUsers!: number;
 
@@ -167,6 +171,30 @@ export class CountryKpisGql {
 
   @Field(() => Int)
   certsIssued!: number;
+}
+
+@ObjectType()
+export class CountryRegionStatGql {
+  @Field(() => String)
+  region!: string;
+
+  @Field(() => Int)
+  users!: number;
+
+  @Field(() => Int)
+  sessions!: number;
+}
+
+@ObjectType()
+export class CountryLocationStatGql {
+  @Field(() => Float)
+  latitude!: number;
+
+  @Field(() => Float)
+  longitude!: number;
+
+  @Field(() => Int)
+  users!: number;
 }
 
 @ObjectType()
@@ -215,6 +243,14 @@ export class CountryDetailGql {
 
   @Field(() => CountryKpisGql)
   kpis!: CountryKpisGql;
+
+  /** IPinfo-style region/state from ContentAccessLog in the selected period. */
+  @Field(() => [CountryRegionStatGql])
+  regions!: CountryRegionStatGql[];
+
+  /** Distinct IPinfo lat/lng buckets (rounded) with distinct-user counts. */
+  @Field(() => [CountryLocationStatGql])
+  locations!: CountryLocationStatGql[];
 }
 
 @ObjectType()

@@ -291,4 +291,19 @@ export class ProfileController {
   async rejectCompanyAdmin(@Param('userId') userId: string) {
     return this.profile.rejectCompanyAdmin(userId);
   }
+
+  /**
+   * One-click toggle of a user's Company Admin role (platform admin only).
+   * Bypasses the user-initiated request flow so a Super Admin can promote
+   * any member of an academy directly from the user management UI.
+   */
+  @Patch('users/:userId/toggle-company-admin')
+  @UseGuards(AuthGuard('jwt'), RbacGuard)
+  @Roles(RbacRole.SUPER_ADMIN)
+  async toggleCompanyAdmin(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: RequestUserPayload,
+  ) {
+    return this.profile.toggleCompanyAdmin(userId, actor.sub);
+  }
 }

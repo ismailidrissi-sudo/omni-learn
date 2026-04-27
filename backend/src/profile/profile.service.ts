@@ -869,4 +869,62 @@ export class ProfileService {
     });
     return { success: true, message: 'Company admin request rejected' };
   }
+
+  /**
+   * One-click toggle of a user's Company Admin role (platform admin only).
+   * - If the user is currently a Company Admin, demote (clear request + approval).
+   * - Otherwise, promote (stamp approval and mark requested for audit consistency).
+   * Refuses to operate on Super Admins (the role is moot) or on the actor themselves
+   * to avoid accidental self-changes from the academy UI.
+   */
+  async toggleCompanyAdmin(targetUserId: string, actorUserId: string) {
+    if (targetUserId === actorUserId) {
+      throw new BadRequestException('You cannot toggle your own company admin role');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: {
+        id: true,
+        isAdmin: true,
+        tenantId: true,
+        companyAdminRequested: true,
+        companyAdminApprovedAt: true,
+      },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.isAdmin) {
+      throw new BadRequestException(
+        'Platform admins do not need a company admin role',
+      );
+    }
+
+    const isCurrentlyCompanyAdmin = !!user.companyAdminApprovedAt;
+
+    if (isCurrentlyCompanyAdmin) {
+      await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { companyAdminRequested: false, companyAdminApprovedAt: null },
+      });
+      return {
+        userId: targetUserId,
+        role: 'member',
+        companyAdmin: false,
+        message: 'User demoted from Company Admin',
+      };
+    }
+
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        companyAdminRequested: true,
+        companyAdminApprovedAt: new Date(),
+      },
+    });
+    return {
+      userId: targetUserId,
+      role: 'company_admin',
+      companyAdmin: true,
+      message: 'User promoted to Company Admin',
+    };
+  }
 }

@@ -36,6 +36,7 @@ export const COUNTRY_ANALYTICS = gql`
       country
       countryCode
       kpis {
+        registeredUsers
         activeUsers
         activeUsersDelta
         newSignups
@@ -66,6 +67,16 @@ export const COUNTRY_ANALYTICS = gql`
         points
         pathsDone
         certs
+      }
+      regions {
+        region
+        users
+        sessions
+      }
+      locations {
+        latitude
+        longitude
+        users
       }
     }
   }

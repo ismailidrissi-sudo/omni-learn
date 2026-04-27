@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useUser } from "@/lib/use-user";
 import { useAnalyticsFiltersOptional } from "@/components/analytics/analytics-filters-context";
 import { toast } from "@/lib/use-toast";
+import { useI18n } from "@/lib/i18n/context";
 import type { UserPlan } from "@/lib/use-user";
 
 const PLANS: UserPlan[] = ["EXPLORER", "SPECIALIST", "VISIONARY", "NEXUS"];
@@ -25,6 +26,9 @@ type FullProfile = {
     phoneNumber?: string | null;
     emailVerified?: boolean;
     profileComplete?: boolean;
+    isAdmin?: boolean;
+    companyAdminRequested?: boolean;
+    companyAdminApprovedAt?: string | null;
     createdAt?: string;
   };
   company: {
@@ -90,6 +94,7 @@ export function AdminUserProfileSheet({
   onMutated?: () => void;
 }) {
   const { user: actor } = useUser();
+  const { t } = useI18n();
   const filtersCtx = useAnalyticsFiltersOptional();
   const [localTenants, setLocalTenants] = useState<{ id: string; name: string }[]>([]);
   const [localCourses, setLocalCourses] = useState<{ id: string; title: string }[]>([]);
@@ -325,6 +330,29 @@ export function AdminUserProfileSheet({
     }
   };
 
+  const toggleCompanyAdmin = async () => {
+    if (!userId || !isSuperAdmin) return;
+    setSaving("companyAdmin");
+    try {
+      const res = await apiFetch(`/profile/users/${userId}/toggle-company-admin`, {
+        method: "PATCH",
+      });
+      const data = await parseJson<{ message?: string; companyAdmin?: boolean }>(res);
+      toast(
+        data?.message ??
+          (data?.companyAdmin
+            ? t("adminTenant.promotedToCompanyAdmin") || "User promoted to Company Admin"
+            : t("adminTenant.demotedFromCompanyAdmin") || "User demoted from Company Admin"),
+        "success",
+      );
+      notifyMutated();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to update role", "error");
+    } finally {
+      setSaving(null);
+    }
+  };
+
   if (!userId) return null;
 
   const suspended = profile?.user.accountStatus === "SUSPENDED";
@@ -452,6 +480,52 @@ export function AdminUserProfileSheet({
               {canMutate && (
                 <section className="space-y-4 pt-2 border-t border-[var(--color-bg-secondary)]">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Admin actions</p>
+
+                  {isSuperAdmin && !profile.user.isAdmin && (
+                    <div className="space-y-2 rounded-lg border border-brand-purple/20 bg-brand-purple/5 p-3">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                            {t("adminTenant.companyAdminRole") || "Company Admin role"}
+                          </p>
+                          <p className="text-sm text-[var(--color-text-primary)]">
+                            {profile.user.companyAdminApprovedAt
+                              ? t("adminTenant.isCompanyAdmin") || "This user is a Company Admin."
+                              : profile.user.companyAdminRequested
+                                ? t("adminTenant.companyAdminPending") ||
+                                  "User has requested Company Admin access."
+                                : t("adminTenant.notCompanyAdmin") || "User is not a Company Admin."}
+                          </p>
+                          {!profile.user.tenantId && (
+                            <p className="text-[11px] text-amber-700 mt-1">
+                              {t("adminTenant.companyAdminNoTenantHint") ||
+                                "Heads up: this user has no academy. Assign one below for the role to take effect."}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving === "companyAdmin"}
+                          onClick={() => void toggleCompanyAdmin()}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-40 ${
+                            profile.user.companyAdminApprovedAt
+                              ? "bg-[var(--color-error-light)] text-[var(--color-error)] border border-[var(--color-error-border)]"
+                              : "bg-brand-purple text-white"
+                          }`}
+                        >
+                          {saving === "companyAdmin"
+                            ? "…"
+                            : profile.user.companyAdminApprovedAt
+                              ? t("adminTenant.demoteFromCompanyAdmin") || "Demote from Company Admin"
+                              : t("adminTenant.promoteToCompanyAdmin") || "Promote to Company Admin"}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">
+                        {t("adminTenant.companyAdminSuperAdminOnly") ||
+                          "Only platform admins can promote users to Company Admin. The user must sign out and back in for the new role to take effect."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     <button

@@ -32,6 +32,16 @@ function privacyName(fullName: string): string {
   return `${parts[0]} ${parts[parts.length - 1].slice(0, 1)}.`;
 }
 
+function normCityLabel(c: string | null | undefined): string {
+  const t = (c ?? '').trim();
+  return t.length > 0 ? t : 'Unknown';
+}
+
+function roundCoord(n: number, decimals: number): number {
+  const f = 10 ** decimals;
+  return Math.round(n * f) / f;
+}
+
 @Injectable()
 export class GeoAnalyticsGqlService {
   constructor(
@@ -321,7 +331,7 @@ export class GeoAnalyticsGqlService {
   ): Promise<CountryDetailGql> {
     const tenantId = this.resolveTenantId(user, tenantIdArg);
     const code = countryCode.toUpperCase();
-    const cacheKey = `analytics:geo:country:v2:${tenantId}:${code}:${periodCacheKey(start, end)}`;
+    const cacheKey = `analytics:geo:country:v3:${tenantId}:${code}:${periodCacheKey(start, end)}`;
     const cached = await this.cache.getJson<CountryDetailGql>(cacheKey);
     if (cached) return cached;
 
@@ -388,32 +398,48 @@ export class GeoAnalyticsGqlService {
       _count: { id: true },
     });
 
-    type PlaceAgg = {
+    type CityAgg = {
       city: string;
       region: string | null;
-      userIds: Set<string>;
-      views: number;
+      registeredUserIds: Set<string>;
+      activeUserIds: Set<string>;
     };
-    const placeMap = new Map<string, PlaceAgg>();
+    const cityAgg = new Map<string, CityAgg>();
 
-    for (const t of triples) {
-      const cityLabel = (t.city || '').trim() || 'Unknown';
-      const regionLabel = t.region?.trim() || null;
-      const key = `${cityLabel}\u0000${regionLabel ?? ''}`;
-      if (!placeMap.has(key)) {
-        placeMap.set(key, {
-          city: cityLabel,
-          region: regionLabel,
-          userIds: new Set(),
-          views: 0,
+    for (const u of users) {
+      const key = normCityLabel(u.city);
+      if (!cityAgg.has(key)) {
+        cityAgg.set(key, {
+          city: key,
+          region: null,
+          registeredUserIds: new Set(),
+          activeUserIds: new Set(),
         });
       }
-      const p = placeMap.get(key)!;
-      p.userIds.add(t.userId);
-      p.views += t._count.id;
+      cityAgg.get(key)!.registeredUserIds.add(u.id);
     }
 
-    const sortedPlaces = [...placeMap.values()].sort((a, b) => b.views - a.views || b.userIds.size - a.userIds.size);
+    for (const t of triples) {
+      const cityLabel = normCityLabel(t.city);
+      const regionLabel = t.region?.trim() || null;
+      if (!cityAgg.has(cityLabel)) {
+        cityAgg.set(cityLabel, {
+          city: cityLabel,
+          region: regionLabel,
+          registeredUserIds: new Set(),
+          activeUserIds: new Set(),
+        });
+      }
+      const entry = cityAgg.get(cityLabel)!;
+      entry.activeUserIds.add(t.userId);
+      if (regionLabel && !entry.region) entry.region = regionLabel;
+    }
+
+    const sortedCityEntries = [...cityAgg.values()].sort((a, b) => {
+      const rc = b.registeredUserIds.size - a.registeredUserIds.size;
+      if (rc !== 0) return rc;
+      return b.activeUserIds.size - a.activeUserIds.size;
+    });
 
     const cities: {
       city: string;
@@ -422,34 +448,96 @@ export class GeoAnalyticsGqlService {
       activeUsers: number;
       completions: number;
     }[] = await Promise.all(
-      sortedPlaces.map(async (p) => {
-        const uids = [...p.userIds];
+      sortedCityEntries.map(async (agg) => {
+        const uidSet = new Set<string>([...agg.registeredUserIds, ...agg.activeUserIds]);
+        const uids = [...uidSet];
         const [courseC, pathC] = await Promise.all([
-          this.prisma.courseEnrollment.count({
-            where: {
-              userId: { in: uids },
-              status: 'COMPLETED',
-              completedAt: { gte: start, lte: end },
-            },
-          }),
-          this.prisma.pathEnrollment.count({
-            where: {
-              userId: { in: uids },
-              status: 'COMPLETED',
-              completedAt: { gte: start, lte: end },
-            },
-          }),
+          uids.length
+            ? this.prisma.courseEnrollment.count({
+                where: {
+                  userId: { in: uids },
+                  status: 'COMPLETED',
+                  completedAt: { gte: start, lte: end },
+                },
+              })
+            : Promise.resolve(0),
+          uids.length
+            ? this.prisma.pathEnrollment.count({
+                where: {
+                  userId: { in: uids },
+                  status: 'COMPLETED',
+                  completedAt: { gte: start, lte: end },
+                },
+              })
+            : Promise.resolve(0),
         ]);
-        const nUsers = p.userIds.size;
         return {
-          city: p.city,
-          region: p.region,
-          totalUsers: nUsers,
-          activeUsers: nUsers,
+          city: agg.city,
+          region: agg.region,
+          totalUsers: agg.registeredUserIds.size,
+          activeUsers: agg.activeUserIds.size,
           completions: courseC + pathC,
         };
       }),
     );
+
+    const regionSessions = await this.prisma.contentAccessLog.groupBy({
+      by: ['region'],
+      where: logWhereCountry,
+      _count: { id: true },
+    });
+    const regionUserPairs = await this.prisma.contentAccessLog.groupBy({
+      by: ['region', 'userId'],
+      where: logWhereCountry,
+    });
+    const usersByRegion = new Map<string, Set<string>>();
+    for (const row of regionUserPairs) {
+      const reg = (row.region ?? '').trim() || 'Unknown';
+      if (!usersByRegion.has(reg)) usersByRegion.set(reg, new Set());
+      usersByRegion.get(reg)!.add(row.userId);
+    }
+    const regions = regionSessions
+      .map((r) => {
+        const reg = (r.region ?? '').trim() || 'Unknown';
+        return {
+          region: reg,
+          users: usersByRegion.get(reg)?.size ?? 0,
+          sessions: r._count.id,
+        };
+      })
+      .sort((a, b) => b.sessions - a.sessions || b.users - a.users)
+      .slice(0, 25);
+
+    const locPairs = await this.prisma.contentAccessLog.groupBy({
+      by: ['latitude', 'longitude', 'userId'],
+      where: {
+        ...logWhereCountry,
+        latitude: { not: null },
+        longitude: { not: null },
+      },
+    });
+    const locBuckets = new Map<
+      string,
+      { latitude: number; longitude: number; users: Set<string> }
+    >();
+    for (const row of locPairs) {
+      if (row.latitude == null || row.longitude == null) continue;
+      const lat = roundCoord(row.latitude, 2);
+      const lng = roundCoord(row.longitude, 2);
+      const key = `${lat},${lng}`;
+      if (!locBuckets.has(key)) {
+        locBuckets.set(key, { latitude: lat, longitude: lng, users: new Set() });
+      }
+      locBuckets.get(key)!.users.add(row.userId);
+    }
+    const locations = [...locBuckets.values()]
+      .map((b) => ({
+        latitude: b.latitude,
+        longitude: b.longitude,
+        users: b.users.size,
+      }))
+      .sort((a, b) => b.users - a.users)
+      .slice(0, 200);
 
     const logs = await this.prisma.contentAccessLog.groupBy({
       by: ['deviceType'],
@@ -532,6 +620,8 @@ export class GeoAnalyticsGqlService {
       country: countryName,
       countryCode: code,
       cities,
+      regions,
+      locations,
       domainPopularity,
       dailyTrend: [],
       deviceBreakdown: {
@@ -544,6 +634,7 @@ export class GeoAnalyticsGqlService {
       },
       topLearners,
       kpis: {
+        registeredUsers: users.length,
         activeUsers: activeUserIds.size,
         activeUsersDelta: 0,
         newSignups,
