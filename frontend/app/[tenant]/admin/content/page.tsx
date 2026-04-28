@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 type ContentItem = {
   id: string;
@@ -41,6 +43,24 @@ export default function TenantContentAdminPage() {
 
   const filtered = content.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
 
+  const contentExportColumns = useMemo<ColumnDef<ContentItem>[]>(
+    () => [
+      { key: "title", header: "Title", accessor: (c) => c.title },
+      { key: "type", header: "Type", accessor: (c) => c.type.replace(/_/g, " ") },
+      {
+        key: "duration",
+        header: "Duration (min)",
+        accessor: (c) => (c.durationMinutes != null ? String(c.durationMinutes) : "—"),
+      },
+      {
+        key: "created",
+        header: "Created",
+        accessor: (c) => (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"),
+      },
+    ],
+    [],
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -59,9 +79,19 @@ export default function TenantContentAdminPage() {
       />
 
       <main className="max-w-5xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{t("adminTenant.contentManagement")}</h1>
-          <Link href={`/${slug}/admin/content/add`}><Button variant="primary">{t("adminTenant.addContent")}</Button></Link>
+          <div className="flex flex-wrap gap-2 items-center">
+            <ExportButtons<ContentItem>
+              rows={filtered}
+              columns={contentExportColumns}
+              tenantSlug={slug}
+              filenameBase="content"
+              pdfTitle={`${t("adminTenant.contentManagement")} — ${academyName}`}
+              academyLogoUrl={tenant?.logoUrl}
+            />
+            <Link href={`/${slug}/admin/content/add`}><Button variant="primary">{t("adminTenant.addContent")}</Button></Link>
+          </div>
         </div>
 
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("admin.searchContent")} className="mb-6 max-w-sm" />

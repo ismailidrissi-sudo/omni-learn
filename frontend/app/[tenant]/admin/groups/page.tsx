@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 // import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
@@ -12,6 +12,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 type UserGroup = {
   id: string;
@@ -48,6 +50,24 @@ export default function GroupsPage() {
   useEffect(() => {
     if (tenant) fetchGroups();
   }, [tenant?.id]);
+
+  const groupExportColumns = useMemo<ColumnDef<UserGroup>[]>(
+    () => [
+      { key: "name", header: t("adminTenant.groupName"), accessor: (g) => g.name },
+      { key: "type", header: t("adminTenant.type"), accessor: (g) => g.type },
+      {
+        key: "description",
+        header: t("adminTenant.description"),
+        accessor: (g) => g.description ?? "—",
+      },
+      {
+        key: "members",
+        header: t("adminTenant.members"),
+        accessor: (g) => String(g._count?.members ?? 0),
+      },
+    ],
+    [t],
+  );
 
   const createGroup = async () => {
     if (!tenant || !newGroup.name.trim()) return;
@@ -88,7 +108,17 @@ export default function GroupsPage() {
       />
 
       <main className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-6">Groups & Departments</h1>
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Groups & Departments</h1>
+          <ExportButtons<UserGroup>
+            rows={groups}
+            columns={groupExportColumns}
+            tenantSlug={slug}
+            filenameBase="groups"
+            pdfTitle={`${t("adminTenant.groupsDepartments")} — ${academyName}`}
+            academyLogoUrl={tenant?.logoUrl}
+          />
+        </div>
 
         <Card className="mb-6">
           <CardHeader><CardTitle>Create Group</CardTitle></CardHeader>

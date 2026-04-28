@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
-import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 type TeamMember = {
   userId: string;
@@ -53,18 +53,12 @@ export default function ManagerDashboardPage() {
   const totalEnrollments = team.reduce((sum, m) => sum + m.enrollments, 0);
   const overdueCount = team.filter((m) => m.enrollments > 0 && m.completedPct < 50).length;
 
-  const exportCsv = () => {
-    const header = "Name,Email,Enrollments,Completion %\n";
-    const rows = filtered.map((m) => `"${m.name}","${m.email}",${m.enrollments},${m.completedPct}`).join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${slug}-team-report-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast("CSV exported", "success");
-  };
+  const teamExportColumns: ColumnDef<TeamMember>[] = [
+    { key: "name", header: t("adminTenant.name"), accessor: (m) => m.name },
+    { key: "email", header: "Email", accessor: (m) => m.email },
+    { key: "enrollments", header: "Enrollments", accessor: (m) => m.enrollments },
+    { key: "completion", header: t("adminTenant.avgCompletion"), accessor: (m) => `${m.completedPct}%` },
+  ];
 
   if (isLoading) {
     return (
@@ -84,9 +78,16 @@ export default function ManagerDashboardPage() {
       />
 
       <main className="max-w-5xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{t("adminTenant.managerDashboard")}</h1>
-          <Button variant="ghost" onClick={exportCsv}>{t("adminTenant.exportCsv")}</Button>
+          <ExportButtons<TeamMember>
+            rows={filtered}
+            columns={teamExportColumns}
+            tenantSlug={slug}
+            filenameBase="team"
+            pdfTitle={`${t("adminTenant.managerDashboard")} — ${academyName}`}
+            academyLogoUrl={tenant?.logoUrl}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

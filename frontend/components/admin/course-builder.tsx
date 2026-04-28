@@ -9,6 +9,10 @@ import { UrlPreview } from "@/components/admin/url-preview";
 import { detectProvider, isExternalProvider, getProviderLabel } from "@/lib/video-provider";
 import { apiFetch, apiUploadCourseThumbnail, apiAbsoluteMediaUrl } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { useParams } from "next/navigation";
+import { useTenant } from "@/components/providers/tenant-context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 const ITEM_TYPES = [
   { type: "VIDEO", icon: "🎬", label: "Video" },
@@ -1649,12 +1653,47 @@ function AvailabilityPanel({
 }
 
 /* ─── Participants Panel ─── */
+type ParticipantRow = {
+  userId: string;
+  user?: { name?: string; email?: string };
+  status?: string;
+  progressPct?: number;
+};
+
 function ParticipantsPanel({ courseId }: { courseId: string }) {
   const { t } = useI18n();
-  const [participants, setParticipants] = useState<
-    { userId: string; user?: { name?: string; email?: string }; status?: string; progressPct?: number }[]
-  >([]);
+  const params = useParams();
+  const slug = typeof params.tenant === "string" ? params.tenant : "";
+  const { tenant, branding } = useTenant();
+  const academyName = branding?.appName || tenant?.name || "Academy";
+  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const participantColumns: ColumnDef<ParticipantRow>[] = [
+    {
+      key: "name",
+      header: t("admin.participantsName"),
+      accessor: (p) => p.user?.name ?? p.userId,
+    },
+    {
+      key: "email",
+      header: t("admin.participantsEmail"),
+      accessor: (p) => p.user?.email ?? "—",
+    },
+    {
+      key: "status",
+      header: t("admin.participantsStatus"),
+      accessor: (p) =>
+        p.status === "COMPLETED"
+          ? t("admin.participantsCompleted") ?? "Completed"
+          : t("admin.participantsActive") ?? "Active",
+    },
+    {
+      key: "progress",
+      header: t("admin.participantsProgress") ?? "Progress",
+      accessor: (p) => `${p.progressPct ?? 0}%`,
+    },
+  ];
 
   useEffect(() => {
     apiFetch(`/course-enrollments/course/${courseId}`)
@@ -1687,6 +1726,16 @@ function ParticipantsPanel({ courseId }: { courseId: string }) {
           </div>
         ) : (
           <div className="border border-brand-grey-light rounded-lg overflow-hidden">
+            <div className="flex justify-end mb-3">
+              <ExportButtons<ParticipantRow>
+                rows={participants}
+                columns={participantColumns}
+                tenantSlug={slug}
+                filenameBase={`course-${courseId}-participants`}
+                pdfTitle={`${t("admin.participantsTitle")} — ${academyName}`}
+                academyLogoUrl={tenant?.logoUrl}
+              />
+            </div>
             <table className="w-full text-sm">
               <thead className="bg-brand-grey-light/30">
                 <tr>

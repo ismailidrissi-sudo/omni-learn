@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 interface ThemeConfig {
   primary_color: string;
@@ -134,6 +136,27 @@ export default function TenantCertificatesAdminPage() {
     loadTemplates();
   }, [loadTemplates]);
 
+  const certExportColumns = useMemo<ColumnDef<CertTemplate>[]>(
+    () => [
+      {
+        key: "templateName",
+        header: t("adminTenant.certTemplateName"),
+        accessor: (tpl) => tpl.templateName,
+      },
+      {
+        key: "domain",
+        header: t("pathBuilder.domain"),
+        accessor: (tpl) => tpl.domain?.name ?? "—",
+      },
+      {
+        key: "signatories",
+        header: t("adminTenant.certSignatories"),
+        accessor: (tpl) => String(parseJson<Signatory[]>(tpl.signatories, []).length),
+      },
+    ],
+    [t],
+  );
+
   function startEdit(tpl: CertTemplate) {
     setEditingId(tpl.id);
     setEditName(tpl.templateName);
@@ -217,13 +240,23 @@ export default function TenantCertificatesAdminPage() {
 
         {!editingId ? (
           <>
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
-                {t("adminTenant.certificateTemplates")}
-              </h1>
-              <p className="text-[var(--color-text-secondary)] text-sm mt-1">
-                {t("adminTenant.certDescription")}
-              </p>
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
+                  {t("adminTenant.certificateTemplates")}
+                </h1>
+                <p className="text-[var(--color-text-secondary)] text-sm mt-1">
+                  {t("adminTenant.certDescription")}
+                </p>
+              </div>
+              <ExportButtons<CertTemplate>
+                rows={templates}
+                columns={certExportColumns}
+                tenantSlug={slug}
+                filenameBase="certificate-templates"
+                pdfTitle={`${t("adminTenant.certificateTemplates")} — ${academyName}`}
+                academyLogoUrl={tenant?.logoUrl}
+              />
             </div>
 
             {loading ? (

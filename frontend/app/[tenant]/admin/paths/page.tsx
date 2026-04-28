@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useTenant } from "@/components/providers/tenant-context";
 import { TenantAdminBurgerHeader } from "@/components/ui/tenant-admin-burger-header";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 type Path = {
   id: string;
@@ -56,6 +58,21 @@ export default function TenantPathsAdminPage() {
     }
   };
 
+  const pathExportColumns = useMemo<ColumnDef<Path>[]>(
+    () => [
+      { key: "name", header: "Name", accessor: (p) => p.name },
+      { key: "slug", header: "Slug", accessor: (p) => p.slug },
+      { key: "difficulty", header: "Difficulty", accessor: (p) => p.difficulty ?? "—" },
+      {
+        key: "status",
+        header: "Status",
+        accessor: (p) => (p.isPublished ? t("adminTenant.published") : t("adminTenant.draft")),
+      },
+      { key: "steps", header: t("adminTenant.steps"), accessor: (p) => String(p.steps?.length ?? 0) },
+    ],
+    [t],
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -76,9 +93,19 @@ export default function TenantPathsAdminPage() {
       />
 
       <main className="max-w-5xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{t("adminTenant.learningPaths")}</h1>
-          <Button variant="primary">{t("adminTenant.createPath")}</Button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <ExportButtons<Path>
+              rows={paths}
+              columns={pathExportColumns}
+              tenantSlug={slug}
+              filenameBase="learning-paths"
+              pdfTitle={`${t("adminTenant.learningPaths")} — ${academyName}`}
+              academyLogoUrl={tenant?.logoUrl}
+            />
+            <Button variant="primary">{t("adminTenant.createPath")}</Button>
+          </div>
         </div>
 
         {loading ? (

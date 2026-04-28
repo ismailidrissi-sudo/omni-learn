@@ -81,26 +81,58 @@ export class UserManagementController {
 
     const unique = [...new Set(normalized)];
 
-    const existingEmails = new Set(
-      (
-        await this.prisma.user.findMany({
-          where: { email: { in: unique } },
-          select: { email: true },
-        })
-      ).map((u) => u.email.toLowerCase()),
-    );
+    const existingUsers = await this.prisma.user.findMany({
+      where: { email: { in: unique } },
+      select: { id: true, email: true, tenantId: true },
+    });
 
-    const newEmails = unique.filter((e) => !existingEmails.has(e));
-    if (newEmails.length === 0) {
-      return { invited: 0, skipped: unique.length, total: body.emails.length };
+    const byEmail = new Map<string, { id: string; tenantId: string | null }>();
+    for (const u of existingUsers) {
+      byEmail.set(u.email.toLowerCase(), { id: u.id, tenantId: u.tenantId });
+    }
+
+    const newEmails: string[] = [];
+    const toAttach: Array<{ email: string; userId: string }> = [];
+    let alreadyMember = 0;
+    let existsElsewhere = 0;
+
+    for (const email of unique) {
+      const rec = byEmail.get(email);
+      if (!rec) {
+        newEmails.push(email);
+        continue;
+      }
+      if (rec.tenantId === null) {
+        toAttach.push({ email, userId: rec.id });
+      } else if (rec.tenantId === body.tenantId) {
+        alreadyMember++;
+      } else {
+        existsElsewhere++;
+      }
+    }
+
+    if (newEmails.length === 0 && toAttach.length === 0) {
+      return {
+        invited: 0,
+        attached: 0,
+        alreadyMember,
+        existsElsewhere,
+        total: body.emails.length,
+      };
     }
 
     const pendingEmails: Array<{ email: string; userId: string; rawToken: string }> = [];
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      await this.seatLimit.assertSeatAvailable(body.tenantId, newEmails.length, tx);
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      await this.seatLimit.assertSeatAvailable(
+        body.tenantId,
+        newEmails.length + toAttach.length,
+        tx,
+      );
 
       let invited = 0;
+      let attached = 0;
+
       for (const email of newEmails) {
         const rawToken = crypto.randomBytes(32).toString('hex');
         const tokenHash = await bcrypt.hash(rawToken, 10);
@@ -122,7 +154,28 @@ export class UserManagementController {
         pendingEmails.push({ email, userId: user.id, rawToken });
         invited++;
       }
-      return invited;
+
+      for (const { email, userId } of toAttach) {
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = await bcrypt.hash(rawToken, 10);
+        const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_HOURS * 60 * 60 * 1000);
+
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            tenantId: body.tenantId,
+            emailVerified: true,
+            orgApprovalStatus: OrgApprovalStatus.APPROVED,
+            magicLinkTokenHash: tokenHash,
+            magicLinkExpiresAt: expiresAt,
+          },
+        });
+
+        pendingEmails.push({ email, userId, rawToken });
+        attached++;
+      }
+
+      return { invited, attached };
     });
 
     for (const pe of pendingEmails) {
@@ -139,8 +192,10 @@ export class UserManagementController {
     }
 
     return {
-      invited: result,
-      skipped: unique.length - newEmails.length,
+      invited: txResult.invited,
+      attached: txResult.attached,
+      alreadyMember,
+      existsElsewhere,
       total: body.emails.length,
     };
   }

@@ -12,6 +12,9 @@ import { AdminUserProfileSheet } from "@/components/admin/admin-user-profile-she
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useI18n } from "@/lib/i18n/context";
+import { bulkInviteFeedback } from "@/lib/bulk-invite-feedback";
+import { ExportButtons } from "@/components/ui/export-buttons";
+import type { ColumnDef } from "@/lib/exports/list-export";
 
 type User = {
   id: string;
@@ -162,7 +165,7 @@ export default function UserManagementPage() {
     if (!tenant) return;
     const emails = parseInviteEmails(inviteEmails);
     if (emails.length === 0) {
-      setError(t("adminTenant.inviteEmailsRequired") || "Enter at least one valid email");
+      toast(t("adminTenant.inviteResultNoValidEmails"), "error");
       return;
     }
     setInviting(true);
@@ -176,11 +179,8 @@ export default function UserManagementPage() {
       if (!res.ok) {
         throw new Error(data?.message ?? "Invite failed");
       }
-      toast(
-        t("adminTenant.inviteSent", { count: String(data.invited ?? emails.length) }) ||
-          `Invited ${data.invited ?? 0} user(s); skipped ${data.skipped ?? 0} existing.`,
-        "success",
-      );
+      const fb = bulkInviteFeedback(t, data);
+      toast(fb.message, fb.type);
       setInviteEmails("");
       setInviteOpen(false);
       fetchUsers();
@@ -332,6 +332,32 @@ export default function UserManagementPage() {
     );
   };
 
+  const userRoleLabel = (u: User) => {
+    if (u.trainerApprovedAt) return t("adminTenant.roleInstructor");
+    if (u.trainerRequested) return t("adminTenant.roleTrainerRequested");
+    return t("adminTenant.roleLearner");
+  };
+
+  const userStatusLabel = (u: User) => {
+    const status = u.accountStatus ?? "ACTIVE";
+    const org = u.orgApprovalStatus ?? "APPROVED";
+    if (status === "SUSPENDED") return t("adminTenant.statusSuspended");
+    if (org === "PENDING") return t("adminTenant.statusPending");
+    return t("adminTenant.statusActive");
+  };
+
+  const userExportColumns: ColumnDef<User>[] = [
+    { key: "name", header: t("adminTenant.name"), accessor: (u) => u.name },
+    { key: "email", header: "Email", accessor: (u) => u.email },
+    { key: "role", header: t("adminTenant.role"), accessor: userRoleLabel },
+    { key: "status", header: t("adminTenant.status"), accessor: userStatusLabel },
+    {
+      key: "joined",
+      header: "Joined",
+      accessor: (u) => (u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"),
+    },
+  ];
+
   const renderStatusBadge = (u: User) => {
     const status = u.accountStatus ?? "ACTIVE";
     const org = u.orgApprovalStatus ?? "APPROVED";
@@ -371,7 +397,15 @@ export default function UserManagementPage() {
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">User Management</h1>
             <p className="text-sm text-[var(--color-text-secondary)]">{users.length} users in {academyName}</p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <ExportButtons<User>
+              rows={filtered}
+              columns={userExportColumns}
+              tenantSlug={slug}
+              filenameBase="users"
+              pdfTitle={`${t("adminTenant.userManagement")} — ${academyName}`}
+              academyLogoUrl={tenant?.logoUrl}
+            />
             <Button variant="primary" type="button" onClick={() => setInviteOpen(true)}>
               {t("adminTenant.inviteUsers") || "Invite by email"}
             </Button>

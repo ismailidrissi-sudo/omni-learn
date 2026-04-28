@@ -13,6 +13,7 @@ import { adminHubNavItems } from "@/lib/nav/burger-nav";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { apiFetch, apiUploadTenantLogo, apiDeleteTenantStoredLogo, apiAbsoluteMediaUrl } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { bulkInviteFeedback } from "@/lib/bulk-invite-feedback";
 import { TIER_CONFIG, type SubscriptionPlan } from "@/lib/subscription";
 import {
   Trash2,
@@ -614,7 +615,8 @@ export default function CompanyAdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message ?? "Invite failed");
-      toast(`Invited ${data.invited ?? 0} user(s)`, "success");
+      const fb = bulkInviteFeedback(t, data);
+      toast(fb.message, fb.type);
       setInviteEmail("");
       const list = await apiFetch(`/company/users?tenantId=${selected.id}`).then((r) => r.json());
       setMembersList(Array.isArray(list) ? list : []);
