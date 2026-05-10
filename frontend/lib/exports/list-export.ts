@@ -117,7 +117,7 @@ export async function exportToPdf<T>(opts: {
   ]);
 
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-  const { width: pageWidth, height: pageHeight } = pageDims(doc);
+  const { width: pageWidth } = pageDims(doc);
   const margin = 36;
 
   const rawAcademy =
