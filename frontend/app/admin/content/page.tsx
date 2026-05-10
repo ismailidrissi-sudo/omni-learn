@@ -303,9 +303,11 @@ function AdminContentPageContent() {
       delete metadata.audioUrl;
       delete metadata.videoUrl;
       if (formPodcastMediaType === "audio") {
-        if (formAudioUrl.trim()) metadata.audioUrl = formAudioUrl.trim();
-      } else if (formPodcastVideoUrl.trim()) {
-        metadata.videoUrl = formPodcastVideoUrl.trim();
+        const audio = (formAudioUrl || formMediaId).trim();
+        if (audio) metadata.audioUrl = audio;
+      } else {
+        const video = (formPodcastVideoUrl || formMediaId).trim();
+        if (video) metadata.videoUrl = video;
       }
       if (formThumbnailUrl.trim()) metadata.thumbnailUrl = formThumbnailUrl.trim();
       else delete metadata.thumbnailUrl;
@@ -314,7 +316,9 @@ function AdminContentPageContent() {
     const duration = formDuration ? parseInt(formDuration, 10) : undefined;
     const podcastPrimary =
       formType === "PODCAST"
-        ? (formPodcastMediaType === "audio" ? formAudioUrl.trim() : formPodcastVideoUrl.trim())
+        ? (formPodcastMediaType === "audio"
+            ? (formAudioUrl || formMediaId).trim()
+            : (formPodcastVideoUrl || formMediaId).trim())
         : undefined;
     const mediaId =
       formType === "PODCAST"
@@ -539,7 +543,14 @@ function AdminContentPageContent() {
                         type="radio"
                         name="editPodcastMedia"
                         checked={formPodcastMediaType === "audio"}
-                        onChange={() => setFormPodcastMediaType("audio")}
+                        onChange={() => {
+                          if (formPodcastMediaType === "audio") return;
+                          const carry = formPodcastVideoUrl || formAudioUrl || formMediaId;
+                          setFormPodcastMediaType("audio");
+                          setFormAudioUrl(carry);
+                          setFormPodcastVideoUrl("");
+                          setFormMediaId(carry);
+                        }}
                       />
                       Audio
                     </label>
@@ -548,7 +559,14 @@ function AdminContentPageContent() {
                         type="radio"
                         name="editPodcastMedia"
                         checked={formPodcastMediaType === "video"}
-                        onChange={() => setFormPodcastMediaType("video")}
+                        onChange={() => {
+                          if (formPodcastMediaType === "video") return;
+                          const carry = formAudioUrl || formPodcastVideoUrl || formMediaId;
+                          setFormPodcastMediaType("video");
+                          setFormPodcastVideoUrl(carry);
+                          setFormAudioUrl("");
+                          setFormMediaId(carry);
+                        }}
                       />
                       Video
                     </label>
@@ -564,7 +582,7 @@ function AdminContentPageContent() {
                 ) : (
                   <Input
                     label="Video URL"
-                    value={formPodcastVideoUrl || formMediaId}
+                    value={formPodcastVideoUrl}
                     onChange={(e) => {
                       setFormPodcastVideoUrl(e.target.value);
                       setFormMediaId(e.target.value);
