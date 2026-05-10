@@ -314,12 +314,12 @@ function AdminContentPageContent() {
     const duration = formDuration ? parseInt(formDuration, 10) : undefined;
     const podcastPrimary =
       formType === "PODCAST"
-        ? (formPodcastMediaType === "audio" ? formAudioUrl.trim() : formPodcastVideoUrl.trim()) || formMediaId.trim()
+        ? (formPodcastMediaType === "audio" ? formAudioUrl.trim() : formPodcastVideoUrl.trim())
         : undefined;
     const mediaId =
-      formMediaId.trim() ||
-      (formType === "VIDEO" ? formHlsUrl : undefined) ||
-      (formType === "PODCAST" ? podcastPrimary : undefined);
+      formType === "PODCAST"
+        ? (podcastPrimary || formMediaId.trim())
+        : formMediaId.trim() || (formType === "VIDEO" ? formHlsUrl.trim() : undefined);
     const tenantIds = formAvailableInEnterprise ? (formAssignToAllCompanies ? [] : formTenantIds) : [];
     const userIds = formUserIds;
 

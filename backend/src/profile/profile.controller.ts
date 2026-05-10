@@ -205,10 +205,9 @@ export class ProfileController {
   @UseGuards(AuthGuard('jwt'), RbacGuard)
   @Roles(RbacRole.SUPER_ADMIN, RbacRole.COMPANY_ADMIN)
   async getPendingOrgAffiliations(
-    @Query('tenantId') tenantId: string,
+    @Query('tenantId') tenantId: string | undefined,
     @Req() req: { user?: { sub?: string } },
   ) {
-    if (!tenantId) throw new BadRequestException('tenantId query parameter is required');
     const userId = req.user?.sub;
     if (!userId) throw new BadRequestException('Not authenticated');
     return this.profile.getPendingOrgAffiliations(tenantId, userId);

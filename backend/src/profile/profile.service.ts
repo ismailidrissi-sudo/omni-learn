@@ -715,16 +715,30 @@ export class ProfileService {
     return { success: true, message: 'Trainer request rejected' };
   }
 
-  /** List users pending org affiliation approval for a given tenant (company admin) */
-  async getPendingOrgAffiliations(tenantId: string, actorUserId: string) {
+  /** List users pending org affiliation approval (tenant-scoped for company admin, optional global for super admin). */
+  async getPendingOrgAffiliations(tenantId: string | undefined, actorUserId: string) {
     const actor = await this.prisma.user.findUnique({ where: { id: actorUserId } });
     if (!actor) throw new ForbiddenException();
-    if (!actor.isAdmin && actor.tenantId !== tenantId) {
-      throw new ForbiddenException();
+    if (!actor.isAdmin) {
+      if (!tenantId) throw new BadRequestException('tenantId query parameter is required');
+      if (actor.tenantId !== tenantId) throw new ForbiddenException();
     }
+    const effectiveTenantId = tenantId ?? actor.tenantId ?? undefined;
     return this.prisma.user.findMany({
-      where: { tenantId, orgApprovalStatus: OrgApprovalStatus.PENDING },
-      select: { id: true, email: true, name: true, userType: true, createdAt: true, emailVerified: true },
+      where: {
+        orgApprovalStatus: OrgApprovalStatus.PENDING,
+        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        userType: true,
+        createdAt: true,
+        emailVerified: true,
+        tenantId: true,
+        tenant: { select: { name: true, slug: true } },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

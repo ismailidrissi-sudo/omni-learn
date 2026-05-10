@@ -423,6 +423,180 @@ export class LearningPathService {
     });
   }
 
+  async getPathAnalytics(pathId: string) {
+    const path = await this.prisma.learningPath.findUnique({
+      where: { id: pathId },
+      include: {
+        steps: {
+          select: {
+            id: true,
+            contentItemId: true,
+          },
+        },
+      },
+    });
+
+    const totalSteps = path?.steps.length ?? 0;
+    const stepContentIds = [...new Set((path?.steps ?? []).map((s) => s.contentItemId))];
+
+    const enrollments = await this.prisma.pathEnrollment.findMany({
+      where: { pathId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        stepProgress: {
+          select: {
+            status: true,
+            updatedAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const userIds = [...new Set(enrollments.map((e) => e.userId))];
+
+    const [sessions, accessLogs] = await Promise.all([
+      userIds.length
+        ? this.prisma.userSession.findMany({
+          where: { userId: { in: userIds } },
+          select: {
+            userId: true,
+            ipAddress: true,
+            country: true,
+            countryCode: true,
+            startedAt: true,
+          },
+          orderBy: { startedAt: 'desc' },
+        })
+        : Promise.resolve([]),
+      userIds.length && stepContentIds.length
+        ? this.prisma.contentAccessLog.findMany({
+          where: {
+            userId: { in: userIds },
+            contentId: { in: stepContentIds },
+          },
+          select: {
+            userId: true,
+            ipAddress: true,
+            country: true,
+            countryCode: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+        : Promise.resolve([]),
+    ]);
+
+    const latestSessionByUser = new Map<string, (typeof sessions)[number]>();
+    for (const session of sessions) {
+      if (!latestSessionByUser.has(session.userId)) {
+        latestSessionByUser.set(session.userId, session);
+      }
+    }
+
+    const latestAccessByUser = new Map<string, (typeof accessLogs)[number]>();
+    for (const log of accessLogs) {
+      if (!latestAccessByUser.has(log.userId)) {
+        latestAccessByUser.set(log.userId, log);
+      }
+    }
+
+    const participants = enrollments.map((enrollment) => {
+      const consumedSteps = enrollment.stepProgress.filter(
+        (p) => p.status !== StepProgressStatus.NOT_STARTED,
+      ).length;
+      const advancementPct = totalSteps > 0
+        ? Math.round((consumedSteps / totalSteps) * 100)
+        : 0;
+
+      const latestSession = latestSessionByUser.get(enrollment.userId);
+      const latestAccess = latestAccessByUser.get(enrollment.userId);
+      const country = latestSession?.country || latestAccess?.country || 'Unknown';
+      const countryCode = latestSession?.countryCode || latestAccess?.countryCode || null;
+      const ipAddress = latestSession?.ipAddress || latestAccess?.ipAddress || null;
+      const lastSeenAt = latestSession?.startedAt || latestAccess?.createdAt || enrollment.updatedAt;
+
+      return {
+        userId: enrollment.userId,
+        user: enrollment.user,
+        status: enrollment.status,
+        progressPct: enrollment.progressPct,
+        consumedSteps,
+        totalSteps,
+        advancementPct,
+        country,
+        countryCode,
+        ipAddress,
+        enrolledAt: enrollment.createdAt,
+        lastSeenAt,
+      };
+    });
+
+    const countryMap = new Map<string, { country: string; countryCode: string | null; participants: Set<string>; views: number }>();
+    for (const log of accessLogs) {
+      const country = log.country || 'Unknown';
+      const key = `${log.countryCode || 'XX'}:${country}`;
+      const existing = countryMap.get(key) ?? {
+        country,
+        countryCode: log.countryCode || null,
+        participants: new Set<string>(),
+        views: 0,
+      };
+      existing.participants.add(log.userId);
+      existing.views += 1;
+      countryMap.set(key, existing);
+    }
+
+    const ipMap = new Map<string, { ipAddress: string; participants: Set<string>; views: number; country: string }>();
+    for (const log of accessLogs) {
+      if (!log.ipAddress) continue;
+      const key = log.ipAddress;
+      const existing = ipMap.get(key) ?? {
+        ipAddress: log.ipAddress,
+        participants: new Set<string>(),
+        views: 0,
+        country: log.country || 'Unknown',
+      };
+      existing.participants.add(log.userId);
+      existing.views += 1;
+      ipMap.set(key, existing);
+    }
+
+    const avgAdvancementPct = participants.length
+      ? Math.round(participants.reduce((sum, p) => sum + p.advancementPct, 0) / participants.length)
+      : 0;
+    const completedCount = participants.filter((p) => p.status === EnrollmentStatus.COMPLETED).length;
+    const activeCount = participants.filter((p) => p.status === EnrollmentStatus.ACTIVE).length;
+
+    return {
+      pathId,
+      totalSteps,
+      totalParticipants: participants.length,
+      overview: {
+        avgAdvancementPct,
+        completedCount,
+        activeCount,
+      },
+      participants: participants.sort((a, b) => b.advancementPct - a.advancementPct),
+      countries: [...countryMap.values()]
+        .map((row) => ({
+          country: row.country,
+          countryCode: row.countryCode,
+          participants: row.participants.size,
+          views: row.views,
+        }))
+        .sort((a, b) => b.participants - a.participants),
+      ips: [...ipMap.values()]
+        .map((row) => ({
+          ipAddress: row.ipAddress,
+          participants: row.participants.size,
+          views: row.views,
+          country: row.country,
+        }))
+        .sort((a, b) => b.views - a.views),
+    };
+  }
+
   /** List published learning paths (optionally by domain) */
   async listPaths(tenantId: string, domainId?: string) {
     return this.prisma.learningPath.findMany({

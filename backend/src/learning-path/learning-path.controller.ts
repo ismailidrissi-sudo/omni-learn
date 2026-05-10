@@ -44,6 +44,12 @@ export class LearningPathController {
     return this.learningPathService.getEnrollment(userId, pathId);
   }
 
+  @Get(':pathId/analytics')
+  @UseGuards(AuthGuard('jwt'))
+  async getPathAnalytics(@Param('pathId') pathId: string) {
+    return this.learningPathService.getPathAnalytics(pathId);
+  }
+
   @Get('enrollment-for-content')
   @UseGuards(AuthGuard('jwt'))
   async findEnrollmentForContent(

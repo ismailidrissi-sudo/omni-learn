@@ -243,7 +243,7 @@ function getPreviewEnabled(item: CourseSectionItem): boolean {
 
 type SidebarTab =
   | "curriculum" | "targets" | "landing" | "subtitles" | "accessibility"
-  | "pricing" | "promotions" | "messages" | "availability" | "participants";
+  | "pricing" | "promotions" | "messages" | "availability" | "analytics";
 
 type CourseMetadata = Record<string, unknown>;
 
@@ -468,7 +468,7 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
     { key: "promotions", label: t("admin.curriculumPromotions") },
     { key: "messages", label: t("admin.curriculumMessages") },
     { key: "availability", label: t("admin.curriculumAvailability") },
-    { key: "participants", label: t("admin.curriculumParticipants") },
+    { key: "analytics", label: "Analytics" },
   ];
 
   return (
@@ -928,8 +928,8 @@ export function CourseBuilder({ courseId, courseTitle, onBack }: CourseBuilderPr
             />
           )}
 
-          {activeTab === "participants" && (
-            <ParticipantsPanel courseId={courseId} />
+          {activeTab === "analytics" && (
+            <CourseAnalyticsPanel courseId={courseId} />
           )}
         </div>
       </main>
@@ -1652,24 +1652,67 @@ function AvailabilityPanel({
   );
 }
 
-/* ─── Participants Panel ─── */
-type ParticipantRow = {
+/* ─── Course Analytics Panel ─── */
+type CourseAnalyticsParticipantRow = {
   userId: string;
   user?: { name?: string; email?: string };
   status?: string;
   progressPct?: number;
+  consumedItems?: number;
+  totalItems?: number;
+  advancementPct?: number;
+  country?: string | null;
+  ipAddress?: string | null;
 };
 
-function ParticipantsPanel({ courseId }: { courseId: string }) {
+type CourseAnalyticsCountryRow = {
+  country: string;
+  countryCode?: string | null;
+  participants: number;
+  views: number;
+};
+
+type CourseAnalyticsIpRow = {
+  ipAddress: string;
+  country?: string;
+  participants: number;
+  views: number;
+};
+
+type CourseAnalyticsPayload = {
+  totalItems: number;
+  totalParticipants: number;
+  overview?: {
+    avgAdvancementPct?: number;
+    completedCount?: number;
+    activeCount?: number;
+  };
+  participants: CourseAnalyticsParticipantRow[];
+  countries: CourseAnalyticsCountryRow[];
+  ips: CourseAnalyticsIpRow[];
+};
+
+function CourseAnalyticsPanel({ courseId }: { courseId: string }) {
   const { t } = useI18n();
   const params = useParams();
   const slug = typeof params.tenant === "string" ? params.tenant : "";
   const { tenant, branding } = useTenant();
   const academyName = branding?.appName || tenant?.name || "Academy";
-  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [analytics, setAnalytics] = useState<CourseAnalyticsPayload>({
+    totalItems: 0,
+    totalParticipants: 0,
+    overview: {
+      avgAdvancementPct: 0,
+      completedCount: 0,
+      activeCount: 0,
+    },
+    participants: [],
+    countries: [],
+    ips: [],
+  });
   const [loading, setLoading] = useState(true);
 
-  const participantColumns: ColumnDef<ParticipantRow>[] = [
+  const participantColumns: ColumnDef<CourseAnalyticsParticipantRow>[] = [
     {
       key: "name",
       header: t("admin.participantsName"),
@@ -1689,81 +1732,243 @@ function ParticipantsPanel({ courseId }: { courseId: string }) {
           : t("admin.participantsActive") ?? "Active",
     },
     {
-      key: "progress",
-      header: t("admin.participantsProgress") ?? "Progress",
-      accessor: (p) => `${p.progressPct ?? 0}%`,
+      key: "advancement",
+      header: "Advancement",
+      accessor: (p) => `${p.advancementPct ?? 0}%`,
+    },
+    {
+      key: "consumed",
+      header: "Consumed",
+      accessor: (p) => `${p.consumedItems ?? 0}/${p.totalItems ?? 0}`,
+    },
+    {
+      key: "country",
+      header: "Country",
+      accessor: (p) => p.country ?? "Unknown",
+    },
+    {
+      key: "ipAddress",
+      header: "IP",
+      accessor: (p) => p.ipAddress ?? "—",
+    },
+  ];
+
+  const countryColumns: ColumnDef<CourseAnalyticsCountryRow>[] = [
+    {
+      key: "country",
+      header: "Country",
+      accessor: (c) => c.countryCode ? `${c.country} (${c.countryCode})` : c.country,
+    },
+    {
+      key: "participants",
+      header: "Participants",
+      accessor: (c) => c.participants,
+    },
+    {
+      key: "views",
+      header: "Views",
+      accessor: (c) => c.views,
+    },
+  ];
+
+  const ipColumns: ColumnDef<CourseAnalyticsIpRow>[] = [
+    {
+      key: "ipAddress",
+      header: "IP",
+      accessor: (ip) => ip.ipAddress,
+    },
+    {
+      key: "country",
+      header: "Country",
+      accessor: (ip) => ip.country ?? "Unknown",
+    },
+    {
+      key: "participants",
+      header: "Participants",
+      accessor: (ip) => ip.participants,
+    },
+    {
+      key: "views",
+      header: "Views",
+      accessor: (ip) => ip.views,
     },
   ];
 
   useEffect(() => {
-    apiFetch(`/course-enrollments/course/${courseId}`)
+    apiFetch(`/course-enrollments/course/${courseId}/analytics`)
       .then((r) => r.json())
       .then((data) => {
-        const enrollments = Array.isArray(data) ? data : [];
-        setParticipants(
-          enrollments.map((e: { userId: string; user?: { name?: string; email?: string }; status?: string; progressPct?: number }) => ({
-            userId: e.userId,
-            user: e.user,
-            status: e.status,
-            progressPct: e.progressPct,
-          })),
-        );
+        setAnalytics({
+          totalItems: typeof data?.totalItems === "number" ? data.totalItems : 0,
+          totalParticipants: typeof data?.totalParticipants === "number" ? data.totalParticipants : 0,
+          overview: data?.overview ?? { avgAdvancementPct: 0, completedCount: 0, activeCount: 0 },
+          participants: Array.isArray(data?.participants) ? data.participants : [],
+          countries: Array.isArray(data?.countries) ? data.countries : [],
+          ips: Array.isArray(data?.ips) ? data.ips : [],
+        });
       })
-      .catch(() => setParticipants([]))
+      .catch(() =>
+        setAnalytics({
+          totalItems: 0,
+          totalParticipants: 0,
+          overview: { avgAdvancementPct: 0, completedCount: 0, activeCount: 0 },
+          participants: [],
+          countries: [],
+          ips: [],
+        }),
+      )
       .finally(() => setLoading(false));
   }, [courseId]);
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h3 className="font-semibold text-brand-grey-dark mb-1">{t("admin.participantsTitle")}</h3>
-        <p className="text-sm text-brand-grey mb-4">{t("admin.participantsHint")}</p>
+        <h3 className="font-semibold text-brand-grey-dark mb-1">Content Analytics</h3>
+        <p className="text-sm text-brand-grey mb-4">
+          Users, countries, IPs, and participant advancement based on consumed course content.
+        </p>
         {loading ? (
           <p className="text-sm text-brand-grey">{t("common.loading")}</p>
-        ) : participants.length === 0 ? (
+        ) : analytics.participants.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-brand-grey text-sm">{t("admin.participantsNone")}</p>
           </div>
         ) : (
-          <div className="border border-brand-grey-light rounded-lg overflow-hidden">
-            <div className="flex justify-end mb-3">
-              <ExportButtons<ParticipantRow>
-                rows={participants}
-                columns={participantColumns}
-                tenantSlug={slug}
-                filenameBase={`course-${courseId}-participants`}
-                pdfTitle={`${t("admin.participantsTitle")} — ${academyName}`}
-                academyLogoUrl={tenant?.logoUrl}
-              />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <Card className="p-4">
+                <p className="text-xs text-brand-grey uppercase tracking-wide">Participants</p>
+                <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.totalParticipants}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-brand-grey uppercase tracking-wide">Items</p>
+                <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.totalItems}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-brand-grey uppercase tracking-wide">Avg Advancement</p>
+                <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.overview?.avgAdvancementPct ?? 0}%</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs text-brand-grey uppercase tracking-wide">Completed</p>
+                <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.overview?.completedCount ?? 0}</p>
+              </Card>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-brand-grey-light/30">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsName")}</th>
-                  <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsEmail")}</th>
-                  <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsStatus")}</th>
-                  <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsProgress") ?? "Progress"}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-grey-light">
-                {participants.map((p) => (
-                  <tr key={p.userId}>
-                    <td className="px-4 py-2 text-brand-grey-dark">{p.user?.name ?? p.userId}</td>
-                    <td className="px-4 py-2 text-brand-grey">{p.user?.email ?? "—"}</td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs border ${
-                        p.status === "COMPLETED"
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : "bg-blue-50 text-blue-700 border-blue-200"
-                      }`}>
-                        {p.status === "COMPLETED" ? t("admin.participantsCompleted") ?? "Completed" : t("admin.participantsActive") ?? "Active"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-brand-grey-dark">{p.progressPct ?? 0}%</td>
+
+            <div className="border border-brand-grey-light rounded-lg overflow-hidden p-3">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-medium text-brand-grey-dark">Participants</h4>
+                <ExportButtons<CourseAnalyticsParticipantRow>
+                  rows={analytics.participants}
+                  columns={participantColumns}
+                  tenantSlug={slug}
+                  filenameBase={`course-${courseId}-analytics-participants`}
+                  pdfTitle={`Course analytics participants — ${academyName}`}
+                  academyLogoUrl={tenant?.logoUrl}
+                />
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-brand-grey-light/30">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsName")}</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsEmail")}</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">{t("admin.participantsStatus")}</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Advancement</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Consumed</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">IP</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-brand-grey-light">
+                  {analytics.participants.map((p) => (
+                    <tr key={p.userId}>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.user?.name ?? p.userId}</td>
+                      <td className="px-4 py-2 text-brand-grey">{p.user?.email ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${
+                          p.status === "COMPLETED"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        }`}>
+                          {p.status === "COMPLETED" ? t("admin.participantsCompleted") ?? "Completed" : t("admin.participantsActive") ?? "Active"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.advancementPct ?? 0}%</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.consumedItems ?? 0}/{p.totalItems ?? 0}</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.country ?? "Unknown"}</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.ipAddress ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="border border-brand-grey-light rounded-lg overflow-hidden p-3">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-medium text-brand-grey-dark">Countries</h4>
+                  <ExportButtons<CourseAnalyticsCountryRow>
+                    rows={analytics.countries}
+                    columns={countryColumns}
+                    tenantSlug={slug}
+                    filenameBase={`course-${courseId}-analytics-countries`}
+                    pdfTitle={`Course analytics countries — ${academyName}`}
+                    academyLogoUrl={tenant?.logoUrl}
+                  />
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-grey-light/30">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Participants</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Views</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-grey-light">
+                    {analytics.countries.map((c) => (
+                      <tr key={`${c.countryCode ?? "XX"}-${c.country}`}>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.countryCode ? `${c.country} (${c.countryCode})` : c.country}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.participants}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.views}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border border-brand-grey-light rounded-lg overflow-hidden p-3">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-medium text-brand-grey-dark">IPs</h4>
+                  <ExportButtons<CourseAnalyticsIpRow>
+                    rows={analytics.ips}
+                    columns={ipColumns}
+                    tenantSlug={slug}
+                    filenameBase={`course-${courseId}-analytics-ips`}
+                    pdfTitle={`Course analytics IPs — ${academyName}`}
+                    academyLogoUrl={tenant?.logoUrl}
+                  />
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-grey-light/30">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">IP</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Participants</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Views</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-grey-light">
+                    {analytics.ips.map((ip) => (
+                      <tr key={ip.ipAddress}>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.ipAddress}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.country ?? "Unknown"}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.participants}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.views}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </Card>

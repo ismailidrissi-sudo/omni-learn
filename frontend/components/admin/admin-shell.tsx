@@ -15,6 +15,7 @@ type Section = {
   href: string;
   permission: string | null;
   icon: ReactNode;
+  nestedUnder?: string;
 };
 
 const ICON_DASHBOARD = (
@@ -85,9 +86,9 @@ function buildSections(): Section[] {
     { labelKey: "admin.sectionCompany", href: "/admin/company", permission: "companies:manage", icon: ICON_COMPANY },
     { labelKey: "admin.sectionMyCompany", href: "/admin/nexus", permission: "company:manage_own", icon: ICON_NEXUS },
     { labelKey: "admin.sectionAnalytics", href: "/admin/analytics", permission: "admin:analytics", icon: ICON_ANALYTICS },
-    { labelKey: "admin.sectionEmail", href: "/admin/email", permission: "admin:smtp", icon: ICON_EMAIL },
     { labelKey: "admin.sectionSettings", href: "/admin/settings/email", permission: "admin:settings", icon: ICON_SETTINGS },
-    { labelKey: "admin.sectionPrivateLabel", href: "/admin/settings/private-label", permission: "company:manage_branding", icon: ICON_LABEL },
+    { labelKey: "admin.sectionEmail", href: "/admin/email", permission: "admin:smtp", icon: ICON_EMAIL, nestedUnder: "/admin/settings/email" },
+    { labelKey: "admin.sectionPrivateLabel", href: "/admin/settings/private-label", permission: "company:manage_branding", icon: ICON_LABEL, nestedUnder: "/admin/settings/email" },
   ];
 }
 
@@ -96,6 +97,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const { permissions, loading: permissionsLoading } = usePermissions();
   const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const panelId = useId();
 
   const granted = useMemo(() => new Set(permissions), [permissions]);
@@ -110,10 +112,40 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   );
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const topLevelSections = useMemo(() => visible.filter((s) => !s.nestedUnder), [visible]);
 
   useEffect(() => {
     closeSidebar();
   }, [pathname, closeSidebar]);
+
+  useEffect(() => {
+    setExpandedParents((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const parent of topLevelSections) {
+        const children = visible.filter((child) => child.nestedUnder === parent.href);
+        if (children.length === 0) continue;
+
+        const parentOrChildActive =
+          pathname === parent.href ||
+          pathname.startsWith(`${parent.href}/`) ||
+          children.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
+
+        if (next[parent.href] === undefined) {
+          next[parent.href] = true;
+          changed = true;
+        }
+
+        if (parentOrChildActive && next[parent.href] === false) {
+          next[parent.href] = true;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [pathname, topLevelSections, visible]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -131,24 +163,81 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
   const navContent = (
     <nav className="flex flex-col gap-0.5">
-      {visible.map((s) => {
-        const active = pathname === s.href || pathname.startsWith(`${s.href}/`);
-        return (
-          <Link
-            key={s.href}
-            href={s.href}
-            onClick={closeSidebar}
-            className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+      {topLevelSections.map((s) => {
+        const children = visible.filter((child) => child.nestedUnder === s.href);
+        const hasChildren = children.length > 0;
+        const isExpanded = hasChildren ? (expandedParents[s.href] ?? true) : false;
+        const activeSelf = pathname === s.href || pathname.startsWith(`${s.href}/`);
+        const activeChild = children.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
+        const active = activeSelf || activeChild;
+
+        const itemLink = (
+          <div
+            className={`group flex items-center gap-2 rounded-xl px-1 py-0.5 text-sm font-medium transition-all duration-150 ${
               active
                 ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
                 : "text-[var(--color-text-primary)] hover:bg-[var(--color-bg-primary)]"
             }`}
           >
-            <span className={`shrink-0 ${active ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)]"} transition-colors`}>
-              {s.icon}
-            </span>
-            <span className="truncate">{t(s.labelKey)}</span>
-          </Link>
+            <Link
+              key={s.href}
+              href={s.href}
+              onClick={closeSidebar}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2"
+            >
+              <span className={`shrink-0 ${active ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)]"} transition-colors`}>
+                {s.icon}
+              </span>
+              <span className="truncate">{t(s.labelKey)}</span>
+            </Link>
+            {hasChildren && (
+              <button
+                type="button"
+                onClick={() => setExpandedParents((prev) => ({ ...prev, [s.href]: !isExpanded }))}
+                aria-label={isExpanded ? t("admin.close") : t("admin.open")}
+                aria-expanded={isExpanded}
+                className="mr-1 rounded-md p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-primary)] transition-colors"
+              >
+                <svg
+                  className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+          </div>
+        );
+
+        return (
+          <div key={s.href} className="flex flex-col gap-0.5">
+            {itemLink}
+            {hasChildren && isExpanded && (
+              <div className="ml-7 border-l border-[var(--color-bg-secondary)] pl-2 flex flex-col gap-0.5">
+                {children.map((child) => {
+                  const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      onClick={closeSidebar}
+                      className={`rounded-lg px-2 py-2 text-sm transition-all duration-150 ${
+                        childActive
+                          ? "text-[var(--color-accent)] bg-[var(--color-accent)]/10 font-medium"
+                          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-primary)]"
+                      }`}
+                    >
+                      <span className="truncate">{t(child.labelKey)}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
       })}
     </nav>

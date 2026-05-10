@@ -48,13 +48,14 @@ export default function AdminPathsPage() {
   const { t } = useI18n();
   const { user } = useUser();
   const userTenantId = user?.tenantId;
-  const [view, setView] = useState<"list" | "builder">("list");
+  const [view, setView] = useState<"list" | "builder" | "analytics">("list");
   const [search, setSearch] = useState("");
   const [domains, setDomains] = useState<Array<{ id: string; name: string; slug: string; icon?: string }>>([]);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [paths, setPaths] = useState<PathItem[]>([]);
   const [loadingPaths, setLoadingPaths] = useState(true);
   const [editingPath, setEditingPath] = useState<PathItem | null>(null);
+  const [analyticsPath, setAnalyticsPath] = useState<PathItem | null>(null);
   const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
 
   const fetchPaths = useCallback(async (tid: string | null) => {
@@ -100,6 +101,7 @@ export default function AdminPathsPage() {
 
   const handleNewPath = () => {
     setEditingPath(null);
+    setAnalyticsPath(null);
     setView("builder");
   };
 
@@ -135,7 +137,14 @@ export default function AdminPathsPage() {
     } catch {
       setEditingPath(path);
     }
+    setAnalyticsPath(null);
     setView("builder");
+  };
+
+  const handleOpenAnalytics = (path: PathItem) => {
+    setEditingPath(null);
+    setAnalyticsPath(path);
+    setView("analytics");
   };
 
   const handleDeletePath = async (path: PathItem) => {
@@ -167,7 +176,15 @@ export default function AdminPathsPage() {
             {t("admin.learningPathBuilder")}
           </h1>
           <Button
-            onClick={() => view === "list" ? handleNewPath() : handleSaved()}
+            onClick={() => {
+              if (view === "list") {
+                handleNewPath();
+                return;
+              }
+              setEditingPath(null);
+              setAnalyticsPath(null);
+              setView("list");
+            }}
             variant="primary"
           >
             {view === "list" ? t("admin.newPath") : t("admin.allPaths")}
@@ -230,6 +247,13 @@ export default function AdminPathsPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => handleOpenAnalytics(path)}
+                      >
+                        Analytics
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleEditPath(path)}
                       >
                         {t("common.edit")}
@@ -268,7 +292,223 @@ export default function AdminPathsPage() {
             } : null}
           />
         )}
+
+        {view === "analytics" && analyticsPath && (
+          <PathAnalyticsPanel path={analyticsPath} />
+        )}
       </main>
+    </div>
+  );
+}
+
+type PathAnalyticsParticipantRow = {
+  userId: string;
+  user?: { name?: string; email?: string };
+  status?: string;
+  progressPct?: number;
+  consumedSteps?: number;
+  totalSteps?: number;
+  advancementPct?: number;
+  country?: string | null;
+  ipAddress?: string | null;
+};
+
+type PathAnalyticsCountryRow = {
+  country: string;
+  countryCode?: string | null;
+  participants: number;
+  views: number;
+};
+
+type PathAnalyticsIpRow = {
+  ipAddress: string;
+  country?: string;
+  participants: number;
+  views: number;
+};
+
+type PathAnalyticsPayload = {
+  totalSteps: number;
+  totalParticipants: number;
+  overview?: {
+    avgAdvancementPct?: number;
+    completedCount?: number;
+    activeCount?: number;
+  };
+  participants: PathAnalyticsParticipantRow[];
+  countries: PathAnalyticsCountryRow[];
+  ips: PathAnalyticsIpRow[];
+};
+
+function PathAnalyticsPanel({ path }: { path: PathItem }) {
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<PathAnalyticsPayload>({
+    totalSteps: 0,
+    totalParticipants: 0,
+    overview: {
+      avgAdvancementPct: 0,
+      completedCount: 0,
+      activeCount: 0,
+    },
+    participants: [],
+    countries: [],
+    ips: [],
+  });
+
+  useEffect(() => {
+    setLoading(true);
+    apiFetch(`/learning-paths/${path.id}/analytics`)
+      .then((r) => r.json())
+      .then((data) => {
+        setAnalytics({
+          totalSteps: typeof data?.totalSteps === "number" ? data.totalSteps : 0,
+          totalParticipants: typeof data?.totalParticipants === "number" ? data.totalParticipants : 0,
+          overview: data?.overview ?? { avgAdvancementPct: 0, completedCount: 0, activeCount: 0 },
+          participants: Array.isArray(data?.participants) ? data.participants : [],
+          countries: Array.isArray(data?.countries) ? data.countries : [],
+          ips: Array.isArray(data?.ips) ? data.ips : [],
+        });
+      })
+      .catch(() =>
+        setAnalytics({
+          totalSteps: 0,
+          totalParticipants: 0,
+          overview: { avgAdvancementPct: 0, completedCount: 0, activeCount: 0 },
+          participants: [],
+          countries: [],
+          ips: [],
+        }),
+      )
+      .finally(() => setLoading(false));
+  }, [path.id]);
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold text-brand-grey-dark">{path.name} — Analytics</h2>
+        <p className="text-sm text-brand-grey mt-1">
+          Participants, countries, IPs, and advancement from path content consumption.
+        </p>
+      </Card>
+
+      {loading ? (
+        <Card className="p-8 text-center text-brand-grey">
+          <p>Loading analytics...</p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-4">
+              <p className="text-xs text-brand-grey uppercase tracking-wide">Participants</p>
+              <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.totalParticipants}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-brand-grey uppercase tracking-wide">Steps</p>
+              <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.totalSteps}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-brand-grey uppercase tracking-wide">Avg Advancement</p>
+              <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.overview?.avgAdvancementPct ?? 0}%</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-brand-grey uppercase tracking-wide">Completed</p>
+              <p className="text-2xl font-semibold text-brand-grey-dark">{analytics.overview?.completedCount ?? 0}</p>
+            </Card>
+          </div>
+
+          <Card className="p-4">
+            <h3 className="font-semibold text-brand-grey-dark mb-3">Participants</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-brand-grey-light/30">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Name</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Email</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Status</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Advancement</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Consumed</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                    <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">IP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-grey-light">
+                  {analytics.participants.map((p) => (
+                    <tr key={p.userId}>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.user?.name ?? p.userId}</td>
+                      <td className="px-4 py-2 text-brand-grey">{p.user?.email ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${
+                          p.status === "COMPLETED"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        }`}>
+                          {p.status ?? "ACTIVE"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.advancementPct ?? 0}%</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.consumedSteps ?? 0}/{p.totalSteps ?? 0}</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.country ?? "Unknown"}</td>
+                      <td className="px-4 py-2 text-brand-grey-dark">{p.ipAddress ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-4">
+              <h3 className="font-semibold text-brand-grey-dark mb-3">Countries</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-grey-light/30">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Participants</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Views</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-grey-light">
+                    {analytics.countries.map((c) => (
+                      <tr key={`${c.countryCode ?? "XX"}-${c.country}`}>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.countryCode ? `${c.country} (${c.countryCode})` : c.country}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.participants}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{c.views}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold text-brand-grey-dark mb-3">IPs</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-grey-light/30">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">IP</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Country</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Participants</th>
+                      <th className="text-left px-4 py-2 font-medium text-brand-grey-dark">Views</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-grey-light">
+                    {analytics.ips.map((ip) => (
+                      <tr key={ip.ipAddress}>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.ipAddress}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.country ?? "Unknown"}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.participants}</td>
+                        <td className="px-4 py-2 text-brand-grey-dark">{ip.views}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
