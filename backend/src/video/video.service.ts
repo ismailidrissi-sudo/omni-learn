@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CourseEnrollmentService } from '../course-enrollment/course-enrollment.service';
+import { GamificationService } from '../gamification/gamification.service';
+import { POINT_REASONS } from '../gamification/gamification.rules';
 import { firstValueFrom } from 'rxjs';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 
@@ -15,6 +17,7 @@ export class VideoService {
     private readonly prisma: PrismaService,
     private readonly http: HttpService,
     private readonly courseEnrollmentService: CourseEnrollmentService,
+    private readonly gamification: GamificationService,
   ) {
     this.proxyUrl = process.env.VIDEO_PROXY_SERVICE_URL || 'http://localhost:5001';
     this.internalKey = process.env.INTERNAL_SERVICE_KEY || '';
@@ -214,9 +217,12 @@ export class VideoService {
   }
 
   /**
-   * When a video is completed, also mark the corresponding
-   * CourseSectionItemProgress as COMPLETED if an enrollment exists.
-   * Delegates to CourseEnrollmentService so certificate auto-issuance is triggered.
+   * When a video is completed:
+   *  1. Mark the matching CourseSectionItemProgress as COMPLETED (if the
+   *     video belongs to a course the user is enrolled in). Delegates to
+   *     CourseEnrollmentService so certificate auto-issuance is triggered.
+   *  2. Grant VIDEO_COMPLETE gamification points (idempotent per user+video),
+   *     which in turn feeds the user's progression level.
    */
   async syncCompletionToCourseProgress(userId: string, contentId: string) {
     try {
@@ -242,6 +248,42 @@ export class VideoService {
       }
     } catch (err) {
       this.logger.warn(`Failed to sync completion for ${contentId}: ${err}`);
+    }
+
+    await this.grantVideoCompletionPoints(userId, contentId);
+  }
+
+  /**
+   * Grants VIDEO_COMPLETE points the first time a user completes a given
+   * video. Subsequent calls are no-ops thanks to the idempotency key.
+   * A tenant is required to attribute the grant; users without a tenant
+   * are skipped (matching the pattern used by course completion grants).
+   */
+  private async grantVideoCompletionPoints(userId: string, contentId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { tenantId: true },
+      });
+      const tenantId = user?.tenantId;
+      if (!tenantId) {
+        this.logger.debug(
+          `Skipping video gamification grant: no tenant for user ${userId}`,
+        );
+        return;
+      }
+      await this.gamification.grantPoints({
+        userId,
+        tenantId,
+        reason: POINT_REASONS.VIDEO_COMPLETE,
+        sourceType: 'video',
+        sourceId: contentId,
+        idempotencyKey: `video_complete:${userId}:${contentId}`,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to grant VIDEO_COMPLETE points user=${userId} content=${contentId}: ${err}`,
+      );
     }
   }
 }

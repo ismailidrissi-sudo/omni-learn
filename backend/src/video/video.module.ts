@@ -4,9 +4,10 @@ import { VideoService } from './video.service';
 import { VideoController } from './video.controller';
 import { AuthModule } from '../auth/auth.module';
 import { CourseEnrollmentModule } from '../course-enrollment/course-enrollment.module';
+import { GamificationModule } from '../gamification/gamification.module';
 
 @Module({
-  imports: [AuthModule, HttpModule, CourseEnrollmentModule],
+  imports: [AuthModule, HttpModule, CourseEnrollmentModule, GamificationModule],
   controllers: [VideoController],
   providers: [VideoService],
   exports: [VideoService],

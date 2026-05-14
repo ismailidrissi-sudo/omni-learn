@@ -46,7 +46,7 @@ export class GamificationController {
     @CurrentUser() user: RequestUserPayload,
   ) {
     this.assertSelfOrElevated(user, userId);
-    return { points: await this.gamification.getPoints(userId) };
+    return this.gamification.getPointsSummary(userId);
   }
 
   @Get('streak/:userId')

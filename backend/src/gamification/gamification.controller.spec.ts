@@ -22,11 +22,20 @@ function learnerUser(): RequestUserPayload {
 
 describe('GamificationController', () => {
   let controller: GamificationController;
-  let gamification: Pick<GamificationService, 'getPoints'>;
+  let gamification: Pick<GamificationService, 'getPoints' | 'getPointsSummary'>;
 
   beforeEach(() => {
     gamification = {
       getPoints: jest.fn().mockResolvedValue(42),
+      getPointsSummary: jest.fn().mockResolvedValue({
+        points: 42,
+        level: 1,
+        labelKey: 'rookie',
+        currentLevelMin: 0,
+        nextLevelMin: 50,
+        pointsToNext: 8,
+        progressToNextPct: 84,
+      }),
     };
     controller = new GamificationController(gamification as GamificationService);
   });
@@ -35,7 +44,7 @@ describe('GamificationController', () => {
     await expect(
       controller.getPoints('user-b', learnerUser()),
     ).rejects.toThrow(ForbiddenException);
-    expect(gamification.getPoints).not.toHaveBeenCalled();
+    expect(gamification.getPointsSummary).not.toHaveBeenCalled();
   });
 });
 

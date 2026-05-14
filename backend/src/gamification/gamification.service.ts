@@ -11,6 +11,8 @@ import {
   POINT_REASONS,
   POINT_VALUES,
   PointReason,
+  LevelSummary,
+  computeLevel,
 } from './gamification.rules';
 
 export interface GrantPointsInput {
@@ -101,6 +103,20 @@ export class GamificationService {
   async getPoints(userId: string): Promise<number> {
     const row = await this.prisma.userPoints.findUnique({ where: { userId } });
     return row?.points ?? 0;
+  }
+
+  /**
+   * Returns the user's points along with their computed progression level
+   * (derived deterministically from cumulative UserPoints.points).
+   */
+  async getPointsSummary(
+    userId: string,
+  ): Promise<{ points: number } & LevelSummary> {
+    const points = await this.getPoints(userId);
+    return {
+      points,
+      ...computeLevel(points),
+    };
   }
 
   private resolveDelta(input: GrantPointsInput): number {
