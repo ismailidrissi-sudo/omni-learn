@@ -194,7 +194,10 @@
     "points": "النقاط",
     "streak": "السلسلة",
     "streakBest": "{current} أيام (أفضل: {longest})",
-    "badges": "الشارات"
+    "badges": "الشارات",
+    "level": "المستوى",
+    "pointsToNext": "{count} نقطة للمستوى التالي",
+    "maxLevel": "تم الوصول إلى أعلى مستوى"
   },
   "profile": {
     "editProfile": "تعديل الملف الشخصي",

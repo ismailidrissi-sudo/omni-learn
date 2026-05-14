@@ -48,6 +48,13 @@ type CourseEnrollment = {
   progressPct: number;
 };
 
+type PointsSummary = {
+  points: number;
+  level: number;
+  pointsToNext: number;
+  progressToNextPct: number;
+};
+
 const CONTENT_CATEGORIES = [
   { type: "COURSE", icon: "📚", labelKey: "learn.courses" },
   { type: "MICRO_LEARNING", icon: "⚡", labelKey: "learn.microlearnings" },
@@ -71,7 +78,12 @@ export default function TenantLearnPage() {
   const [contentByType, setContentByType] = useState<Record<string, ContentItem[]>>({});
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [courseEnrollments, setCourseEnrollments] = useState<CourseEnrollment[]>([]);
-  const [points, setPoints] = useState(0);
+  const [pointsSummary, setPointsSummary] = useState<PointsSummary>({
+    points: 0,
+    level: 1,
+    pointsToNext: 0,
+    progressToNextPct: 0,
+  });
   const [badges, setBadges] = useState<{ id: string; name: string; icon: string; earnedAt: string }[]>([]);
   const [streak, setStreak] = useState({ currentStreak: 0, longestStreak: 0 });
   const [loading, setLoading] = useState(true);
@@ -141,7 +153,17 @@ export default function TenantLearnPage() {
 
   useEffect(() => {
     if (!userId) return;
-    apiFetch(`/gamification/points/${userId}`).then((r) => r.json()).then((d) => setPoints(d?.points ?? 0)).catch(() => {});
+    apiFetch(`/gamification/points/${userId}`)
+      .then((r) => r.json())
+      .then((d) =>
+        setPointsSummary({
+          points: d?.points ?? 0,
+          level: d?.level ?? 1,
+          pointsToNext: d?.pointsToNext ?? 0,
+          progressToNextPct: d?.progressToNextPct ?? 0,
+        }),
+      )
+      .catch(() => {});
     apiFetch(`/gamification/badges/${userId}`).then((r) => r.json()).then((d) => setBadges(Array.isArray(d) ? d : [])).catch(() => {});
     apiFetch(`/gamification/streak/${userId}`).then((r) => r.json()).then(setStreak).catch(() => {});
   }, [userId]);
@@ -223,10 +245,13 @@ export default function TenantLearnPage() {
             {t("learn.catalogSummary", { paths: paths.length, content: totalContent })}
           </p>
           <PointsBadgesStreaks
-            points={points}
+            points={pointsSummary.points}
             badges={badges}
             currentStreak={streak.currentStreak}
             longestStreak={streak.longestStreak}
+            level={pointsSummary.level}
+            pointsToNext={pointsSummary.pointsToNext}
+            progressToNextPct={pointsSummary.progressToNextPct}
           />
         </div>
 

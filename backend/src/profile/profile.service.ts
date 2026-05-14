@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TransactionalEmailService } from '../email/transactional-email.service';
 import { SeatLimitService } from '../company/seat-limit.service';
 import { RbacRole } from '../constants/rbac.constant';
+import { computeLevel } from '../gamification/gamification.rules';
 import type { RequestUserPayload } from '../auth/types/request-user.types';
 
 function generateJoinCode(): string {
@@ -375,6 +376,7 @@ export class ProfileService {
       certificates: allCertificates,
       gamification: {
         points,
+        ...computeLevel(points),
         badges: badges.map((b) => ({
           id: b.badge.id,
           name: b.badge.name,

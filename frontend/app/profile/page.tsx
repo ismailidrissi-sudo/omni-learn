@@ -81,6 +81,9 @@ type ProfileData = {
   }[];
   gamification: {
     points: number;
+    level?: number;
+    pointsToNext?: number;
+    progressToNextPct?: number;
     badges: {
       id: string;
       name: string;
@@ -398,8 +401,13 @@ export default function ProfilePage() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
               <StatBadge icon="⭐" label={t("profile.points")} value={p?.gamification?.points ?? 0} />
+              <StatBadge
+                icon="🚀"
+                label={t("gamification.level")}
+                value={`Lv.${p?.gamification?.level ?? 1}`}
+              />
               <StatBadge
                 icon="🔥"
                 label={t("profile.streak")}
@@ -981,11 +989,38 @@ export default function ProfilePage() {
             {activeTab === "achievements" && (
               <div className="space-y-6">
                 {/* Gamification Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="card-brand p-6 text-center">
                     <span className="text-4xl mb-2 block">⭐</span>
                     <p className="text-3xl font-bold text-brand-green">{p?.gamification?.points ?? 0}</p>
                     <p className="text-sm text-[var(--color-text-secondary)]">{t("profile.totalPoints")}</p>
+                  </div>
+                  <div className="card-brand p-6 text-center">
+                    <span className="text-4xl mb-2 block">🚀</span>
+                    <p className="text-3xl font-bold text-brand-green">
+                      Lv.{p?.gamification?.level ?? 1}
+                    </p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      {t("gamification.level")}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                      {(p?.gamification?.pointsToNext ?? 0) > 0
+                        ? t("gamification.pointsToNext", {
+                            count: p?.gamification?.pointsToNext ?? 0,
+                          })
+                        : t("gamification.maxLevel")}
+                    </p>
+                    <div className="mt-2 h-1.5 bg-brand-green/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-brand-green rounded-full transition-all"
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(100, p?.gamification?.progressToNextPct ?? 0),
+                          )}%`,
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="card-brand p-6 text-center">
                     <span className="text-4xl mb-2 block">🔥</span>

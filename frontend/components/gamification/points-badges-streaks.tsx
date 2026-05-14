@@ -19,6 +19,9 @@ interface PointsBadgesStreaksProps {
   badges: Badge[];
   currentStreak: number;
   longestStreak: number;
+  level: number;
+  pointsToNext: number;
+  progressToNextPct: number;
 }
 
 export function PointsBadgesStreaks({
@@ -26,6 +29,9 @@ export function PointsBadgesStreaks({
   badges,
   currentStreak,
   longestStreak,
+  level,
+  pointsToNext,
+  progressToNextPct,
 }: PointsBadgesStreaksProps) {
   const { t } = useI18n();
   return (
@@ -51,6 +57,28 @@ export function PointsBadgesStreaks({
         <div>
           <p className="text-xs text-brand-grey">{t("gamification.badges")}</p>
           <p className="font-bold text-brand-purple">{badges.length}</p>
+        </div>
+      </div>
+      <div className="min-w-[220px] px-4 py-2 rounded-lg bg-brand-purple/10 border border-brand-purple/20">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🚀</span>
+          <div className="min-w-0">
+            <p className="text-xs text-brand-grey">{t("gamification.level")}</p>
+            <p className="font-bold text-brand-purple">Lv.{level}</p>
+          </div>
+        </div>
+        <div className="mt-2">
+          <div className="h-1.5 bg-brand-purple/20 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand-purple rounded-full transition-all"
+              style={{ width: `${Math.max(0, Math.min(100, progressToNextPct))}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-brand-grey">
+            {pointsToNext > 0
+              ? t("gamification.pointsToNext", { count: pointsToNext })
+              : t("gamification.maxLevel")}
+          </p>
         </div>
       </div>
       {badges.length > 0 && (

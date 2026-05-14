@@ -199,7 +199,10 @@
     "points": "Points",
     "streak": "Streak",
     "streakBest": "{current} days (best: {longest})",
-    "badges": "Badges"
+    "badges": "Badges",
+    "level": "Level",
+    "pointsToNext": "{count} points to next level",
+    "maxLevel": "Max level reached"
   },
   "profile": {
     "editProfile": "Edit Profile",
